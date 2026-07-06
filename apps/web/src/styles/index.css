@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens du design system Equime — voir docs/design-system.md.
+ * Aucune couleur, police ou espacement hors de ces tokens.
+ */
+@theme {
+  /* Neutres — fond navy et surfaces */
+  --color-background: #0b1220;
+  --color-surface: #162033;
+  --color-surface-raised: #1e2a42;
+  --color-border: #243350;
+  --color-text: #f5f3ee;
+  --color-muted: #8fa0c0;
+
+  /* Or — « l'or est rare » : un seul usage par écran */
+  --color-primary: #c9a84c;
+  --color-primary-light: #e6c76a;
+  --color-primary-fg: #0b1220;
+
+  /* Accent et sémantiques */
+  --color-accent: #2351a4;
+  --color-success: #3d9a6b;
+  --color-warning: #d4a017;
+  --color-danger: #c94c4c;
+  --color-info: #4a8fd4;
+
+  /* Typographie — polices chargées via @fontsource dans main.jsx (RGPD : pas de CDN) */
+  --font-display: 'Cormorant Garamond', serif;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+}
+
+/* Display = Cormorant Garamond 700, jamais sous text-xl (design system §3) */
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+/* Display semi = Cormorant Garamond 600 (H2, titres de cartes) */
+@utility font-display-semi {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+@layer base {
+  body {
+    @apply bg-background font-sans text-text antialiased;
+  }
+
+  /* Focus clavier visible sur tout élément interactif — non négociable (design system §8) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/60;
+  }
+}
