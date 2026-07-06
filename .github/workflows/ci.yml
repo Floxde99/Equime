@@ -26,6 +26,29 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: equime
+          POSTGRES_PASSWORD: equime_dev_password
+          POSTGRES_DB: equime_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U equime -d equime_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,4 +56,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      - name: Generate Prisma client (JS)
+        run: npm run prisma:generate -w apps/api
+      - name: Run tests with coverage
+        run: npx -w apps/api vitest run --coverage
+        env:
+          DATABASE_URL_TEST: postgresql://equime:equime_dev_password@localhost:5432/equime_test
+          REDIS_URL_TEST: redis://localhost:6379/1
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-api
+          path: apps/api/coverage/lcov.info

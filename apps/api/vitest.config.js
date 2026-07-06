@@ -25,6 +25,8 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/tests/**', 'src/index.js'],
       reporter: ['text', 'lcov'],
+      // Règle n° 8 : couverture minimale 70 % sur les modules critiques
+      thresholds: { lines: 70, functions: 70, branches: 70, statements: 70 },
     },
   },
 });
