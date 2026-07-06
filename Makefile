@@ -12,11 +12,11 @@ down: ## Arrête et supprime les conteneurs
 logs: ## Suit les logs de tous les services
 	docker compose logs -f
 
-migrate: ## Applique les migrations Prisma (Phase 1)
-	@echo "prisma migrate arrive en Phase 1"
+migrate: ## Crée/applique les migrations Prisma (dev)
+	npm run migrate -w apps/api
 
-seed: ## Alimente la base de données (Phase 1)
-	@echo "prisma db seed arrive en Phase 1"
+seed: ## Alimente la base avec le jeu de données de développement
+	npm run seed -w apps/api
 
 lint: ## Lint l'ensemble du monorepo
 	npm run lint

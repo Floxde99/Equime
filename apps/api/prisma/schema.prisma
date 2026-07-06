@@ -1,0 +1,643 @@
+// Schéma Prisma Equime — dérivé du MPD (docs/merise/mpd.md).
+// Conventions : IDs cuid, montants en centimes (Int), timestamps createdAt/updatedAt,
+// enums partagés avec le front via packages/shared (source unique des valeurs).
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Le générateur émet du TypeScript ; le script scripts/build-prisma-client.js
+// transpile immédiatement en JavaScript pur (esbuild) — voir ADR 003.
+// `output` est hors de src/ pour ne pas être masqué par le volume Docker de dev.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+// ============================================================
+// Énumérations
+// ============================================================
+
+enum Role {
+  client
+  instructor
+  admin
+}
+
+enum RiderLevel {
+  initiation
+  galop_1
+  galop_2
+  galop_3
+  galop_4
+  galop_5
+  galop_6
+  galop_7
+}
+
+enum DocumentStatus {
+  missing
+  pending
+  approved
+  rejected
+}
+
+enum HorseStatus {
+  fit
+  rest
+  unavailable
+  injured
+}
+
+enum AffinityType {
+  favorite
+  neutral
+  avoid
+}
+
+enum SpaceType {
+  indoor
+  outdoor
+  paddock
+}
+
+enum CourseStatus {
+  draft
+  scheduled
+  ongoing
+  completed
+  cancelled
+}
+
+enum RecurrenceFrequency {
+  weekly
+}
+
+enum AttendanceStatus {
+  pending
+  present
+  absent
+  excused
+}
+
+enum EventType {
+  stage
+  competition_internal
+  competition_external
+}
+
+enum RegistrationStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  paid
+  overdue
+  cancelled
+}
+
+enum HealthLogType {
+  veterinarian
+  farrier
+  dentist
+  care
+  observation
+}
+
+enum IncidentSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum IncidentStatus {
+  open
+  resolved
+}
+
+enum NotificationType {
+  subscription_confirmed
+  invoice_created
+  payment_confirmed
+  invoice_reminder
+  registration_confirmed
+  course_enrolled
+  course_cancelled
+  rider_absence
+}
+
+// ============================================================
+// Utilisateurs, familles, cavaliers
+// ============================================================
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role      @default(client)
+  banned       Boolean   @default(false)
+  bannedAt     DateTime?
+  /// RGPD : renseigné lors de la suppression de compte (anonymisation, pas de hard delete)
+  anonymizedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  family                  Family?
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  instructedCourses       Course[]                  @relation("CourseInstructor")
+  reportedIncidents       Incident[]                @relation("IncidentReporter")
+  horseHealthLogs         HorseHealthLog[]          @relation("HealthLogAuthor")
+  volunteerSignups        VolunteerSignup[]
+  conversationParticipants ConversationParticipant[]
+  sentMessages            Message[]                 @relation("MessageSender")
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Family {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  subscriptionPlanId String?
+  /// Séances restantes sur l'abonnement en cours
+  sessionQuota       Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id])
+  subscriptionPlan SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id])
+  riders           Rider[]
+  invoices         Invoice[]
+
+  @@index([subscriptionPlanId])
+  @@map("families")
+}
+
+model Rider {
+  id                       String         @id @default(cuid())
+  familyId                 String
+  firstName                String
+  lastName                 String
+  birthdate                DateTime
+  level                    RiderLevel     @default(initiation)
+  medicalCertificateUrl    String?
+  medicalCertificateStatus DocumentStatus @default(missing)
+  licenseUrl               String?
+  licenseStatus            DocumentStatus @default(missing)
+  /// RGPD : consentement explicite au stockage du certificat médical
+  medicalConsentAt         DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  family             Family              @relation(fields: [familyId], references: [id])
+  affinities         HorseAffinity[]
+  enrollments        CourseEnrollment[]
+  eventRegistrations EventRegistration[]
+  incidents          Incident[]
+
+  @@index([familyId])
+  @@map("riders")
+}
+
+// ============================================================
+// Cavalerie et espaces
+// ============================================================
+
+model Horse {
+  id                 String      @id @default(cuid())
+  name               String
+  breed              String?
+  birthYear          Int?
+  photoUrl           String?
+  status             HorseStatus @default(fit)
+  /// Plage de niveaux cavalier compatibles (score d'attribution +5)
+  minLevel           RiderLevel  @default(initiation)
+  maxLevel           RiderLevel  @default(galop_7)
+  /// Charge de travail courante sur la semaine (heures)
+  weeklyLoadHours    Float       @default(0)
+  maxWeeklyLoadHours Float       @default(12)
+  /// Seuil d'alerte de charge affiché sur le dashboard admin
+  alertThresholdHours Float      @default(10)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  affinities  HorseAffinity[]
+  enrollments CourseEnrollment[]
+  healthLogs  HorseHealthLog[]
+  incidents   Incident[]
+
+  @@index([status])
+  @@map("horses")
+}
+
+model HorseAffinity {
+  id        String       @id @default(cuid())
+  riderId   String
+  horseId   String
+  affinity  AffinityType @default(neutral)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  rider Rider @relation(fields: [riderId], references: [id])
+  horse Horse @relation(fields: [horseId], references: [id])
+
+  @@unique([riderId, horseId])
+  @@index([horseId])
+  @@map("horse_affinities")
+}
+
+model Space {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  type      SpaceType
+  capacity  Int?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  courses Course[]
+
+  @@map("spaces")
+}
+
+model HorseHealthLog {
+  id         String        @id @default(cuid())
+  horseId    String
+  authorId   String?
+  type       HealthLogType
+  notes      String
+  occurredAt DateTime
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  horse  Horse @relation(fields: [horseId], references: [id])
+  author User? @relation("HealthLogAuthor", fields: [authorId], references: [id])
+
+  @@index([horseId, occurredAt])
+  @@map("horse_health_logs")
+}
+
+// ============================================================
+// Cours, séances, présences
+// ============================================================
+
+model Course {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  instructorId String
+  spaceId      String
+  startAt      DateTime
+  endAt        DateTime
+  capacity     Int
+  minLevel     RiderLevel   @default(initiation)
+  maxLevel     RiderLevel   @default(galop_7)
+  status       CourseStatus @default(draft)
+
+  /// Récurrence : la série est portée par le cours « parent » ;
+  /// chaque séance générée pointe parentCourseId (expansion par recurrence.js)
+  recurrenceRule    RecurrenceFrequency?
+  recurrenceEndDate DateTime?
+  parentCourseId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instructor   User               @relation("CourseInstructor", fields: [instructorId], references: [id])
+  space        Space              @relation(fields: [spaceId], references: [id])
+  parentCourse Course?            @relation("CourseRecurrence", fields: [parentCourseId], references: [id])
+  occurrences  Course[]           @relation("CourseRecurrence")
+  enrollments  CourseEnrollment[]
+  incidents    Incident[]
+
+  @@index([startAt])
+  @@index([instructorId, startAt])
+  @@index([spaceId, startAt])
+  @@index([parentCourseId])
+  @@map("courses")
+}
+
+model CourseEnrollment {
+  id              String           @id @default(cuid())
+  courseId        String
+  riderId         String
+  horseId         String?
+  attendance      AttendanceStatus @default(pending)
+  /// Renseigné par l'attribution automatique ou l'override manuel du moniteur
+  horseAssignedAt DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id])
+  rider  Rider  @relation(fields: [riderId], references: [id])
+  horse  Horse? @relation(fields: [horseId], references: [id])
+
+  @@unique([courseId, riderId])
+  @@index([riderId])
+  @@index([horseId])
+  @@map("course_enrollments")
+}
+
+// ============================================================
+// Événements
+// ============================================================
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  type        EventType
+  startAt     DateTime
+  endAt       DateTime
+  capacity    Int
+  priceCents  Int       @default(0)
+  location    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  registrations EventRegistration[]
+
+  @@index([startAt])
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String             @id @default(cuid())
+  eventId   String
+  riderId   String
+  status    RegistrationStatus @default(pending)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id])
+  rider Rider @relation(fields: [riderId], references: [id])
+
+  @@unique([eventId, riderId])
+  @@index([riderId])
+  @@map("event_registrations")
+}
+
+// ============================================================
+// Facturation, abonnements, réductions
+// ============================================================
+
+model SubscriptionPlan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?
+  priceCents      Int
+  sessionsPerWeek Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  families Family[]
+
+  @@map("subscription_plans")
+}
+
+model DiscountRule {
+  id          String   @id @default(cuid())
+  label       String
+  description String?
+  /// Pourcentage de réduction appliqué (ex. 10 = -10 %)
+  percentage  Int
+  /// Nombre minimal de cavaliers dans la famille pour déclencher la règle
+  minRiders   Int?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("discount_rules")
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  familyId   String
+  number     String        @unique
+  status     InvoiceStatus @default(draft)
+  issuedAt   DateTime?
+  dueAt      DateTime?
+  totalCents Int           @default(0)
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  family Family        @relation(fields: [familyId], references: [id])
+  items  InvoiceItem[]
+
+  @@index([familyId, status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  label      String
+  quantity   Int      @default(1)
+  unitCents  Int
+  totalCents Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+// ============================================================
+// Incidents et bénévolat
+// ============================================================
+
+model Incident {
+  id           String           @id @default(cuid())
+  reportedById String
+  courseId     String?
+  horseId      String?
+  riderId      String?
+  severity     IncidentSeverity
+  description  String
+  status       IncidentStatus   @default(open)
+  occurredAt   DateTime
+  resolvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  reportedBy User    @relation("IncidentReporter", fields: [reportedById], references: [id])
+  course     Course? @relation(fields: [courseId], references: [id])
+  horse      Horse?  @relation(fields: [horseId], references: [id])
+  rider      Rider?  @relation(fields: [riderId], references: [id])
+
+  @@index([status, severity])
+  @@index([horseId])
+  @@map("incidents")
+}
+
+model VolunteerMission {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime?
+  slots       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  signups VolunteerSignup[]
+
+  @@index([startAt])
+  @@map("volunteer_missions")
+}
+
+model VolunteerSignup {
+  id        String   @id @default(cuid())
+  missionId String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mission VolunteerMission @relation(fields: [missionId], references: [id])
+  user    User             @relation(fields: [userId], references: [id])
+
+  @@unique([missionId, userId])
+  @@map("volunteer_signups")
+}
+
+// ============================================================
+// Messagerie
+// ============================================================
+
+model Conversation {
+  id        String   @id @default(cuid())
+  subject   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  /// Marquage lu : tout message antérieur à lastReadAt est considéré lu
+  lastReadAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ============================================================
+// Notifications
+// ============================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id           String           @id @default(cuid())
+  userId       String
+  type         NotificationType
+  emailEnabled Boolean          @default(true)
+  inAppEnabled Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}
+
+// ============================================================
+// Authentification
+// ============================================================
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  /// Le token en clair ne transite que dans le cookie httpOnly — seul le hash est persisté
+  tokenHash String    @unique
+  /// Famille de tokens : identifiant conservé à travers les rotations,
+  /// permet la révocation en cascade si une réutilisation est détectée
+  familyId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([familyId])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}

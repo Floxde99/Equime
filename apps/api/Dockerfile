@@ -15,6 +15,8 @@ RUN npm ci
 FROM base AS dev
 ENV NODE_ENV=development
 COPY . .
+# Génère le client Prisma (TS → JS, voir apps/api/scripts/build-prisma-client.js)
+RUN npm run prisma:generate --workspace apps/api
 EXPOSE 3000
 CMD ["node", "--watch", "apps/api/src/index.js"]
 
