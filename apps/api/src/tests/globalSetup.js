@@ -26,9 +26,7 @@ export default async function globalSetup() {
 
   const client = new pg.Client({ connectionString: adminUrl.toString() });
   await client.connect();
-  const { rowCount } = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [
-    dbName,
-  ]);
+  const { rowCount } = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName]);
   if (rowCount === 0) {
     await client.query(`CREATE DATABASE "${dbName}"`);
   }

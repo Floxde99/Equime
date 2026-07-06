@@ -3,11 +3,10 @@
  * montés sur une mini-app Express, comme le seront les routes métier
  * des phases suivantes (ex. routes admin).
  */
+import { ROLES } from '@equime/shared';
 import express from 'express';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
-
-import { ROLES } from '@equime/shared';
 
 import { redis } from '../lib/redis.js';
 import { signAccessToken } from '../services/tokenService.js';
@@ -20,11 +19,8 @@ function buildApp() {
   app.get('/admin-only', requireAuth, requireRole(ROLES.ADMIN), (_req, res) => {
     res.json({ ok: true });
   });
-  app.get(
-    '/staff',
-    requireAuth,
-    requireRole(ROLES.ADMIN, ROLES.INSTRUCTOR),
-    (_req, res) => res.json({ ok: true })
+  app.get('/staff', requireAuth, requireRole(ROLES.ADMIN, ROLES.INSTRUCTOR), (_req, res) =>
+    res.json({ ok: true })
   );
   app.use(errorHandler);
   return app;

@@ -19,7 +19,10 @@ describe('hashPassword / verifyPassword', () => {
   });
 
   it('deux hashs du même mot de passe diffèrent (sel aléatoire)', async () => {
-    const [a, b] = await Promise.all([hashPassword('MotDePasse123'), hashPassword('MotDePasse123')]);
+    const [a, b] = await Promise.all([
+      hashPassword('MotDePasse123'),
+      hashPassword('MotDePasse123'),
+    ]);
     expect(a).not.toBe(b);
   });
 

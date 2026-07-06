@@ -12,12 +12,8 @@ import { AppError } from '../lib/appError.js';
 import { sendPasswordResetEmail } from '../lib/mailer.js';
 import { hashPassword, verifyPassword } from '../lib/passwords.js';
 import { prisma } from '../lib/prisma.js';
-import {
-  blacklistUser,
-  hashToken,
-  issueTokenPair,
-  revokeAllUserTokens,
-} from './tokenService.js';
+
+import { blacklistUser, hashToken, issueTokenPair, revokeAllUserTokens } from './tokenService.js';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 h
 

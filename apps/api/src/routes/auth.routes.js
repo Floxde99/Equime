@@ -3,14 +3,13 @@
  * Routes /api/v1/auth — chaque route sensible cumule rate limiting Redis
  * et validation Zod avant d'atteindre le contrôleur.
  */
-import { Router } from 'express';
-
 import {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
 } from '@equime/shared';
+import { Router } from 'express';
 
 import * as authController from '../controllers/authController.js';
 import { requireAuth } from '../middlewares/auth.js';

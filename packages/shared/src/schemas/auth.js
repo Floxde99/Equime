@@ -15,11 +15,7 @@ export const passwordSchema = z
   .regex(/[A-Z]/, PASSWORD_POLICY)
   .regex(/[0-9]/, PASSWORD_POLICY);
 
-export const emailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .pipe(z.email('Adresse email invalide'));
+export const emailSchema = z.string().trim().toLowerCase().pipe(z.email('Adresse email invalide'));
 
 export const registerSchema = z.object({
   email: emailSchema,
