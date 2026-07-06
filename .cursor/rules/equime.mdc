@@ -1,0 +1,36 @@
+---
+description: Règles permanentes du projet Equime (refonte CDA RNCP37873)
+alwaysApply: true
+---
+
+# Equime — Règles permanentes
+
+Projet : refonte web d'une application de gestion de centre équestre, dans le cadre du titre professionnel CDA (RNCP37873). L'utilisateur est développeur principal et chef de projet : il valide chaque phase avant la suivante.
+
+## Stack imposée (non négociable)
+
+- **100 % JavaScript moderne (ESM, Node 22). AUCUN TypeScript.** Compensations : Zod sur tous les inputs (API, formulaires, env), JSDoc complet sur services et helpers, ESLint strict + Prettier, `// @ts-check` autorisé sur les services critiques.
+- Front `apps/web` : React 18 + Vite (.jsx), React Router v7, TanStack Query v5, Zustand, Tailwind CSS 4 + shadcn/ui (thème `docs/design-system.md`), react-hook-form + Zod, client HTTP maison `lib/apiClient.js`.
+- Back `apps/api` : Node 22 + Express 5 (ESM), Prisma 7 + PostgreSQL 17, Redis 7, JWT maison (access 15 min en mémoire, refresh 7 j cookie httpOnly hashé en BDD avec rotation + détection de réutilisation), argon2id, helmet/CORS whitelist/rate limiting Redis, pino, `AppError` + errorHandler centralisé.
+- Partagé `packages/shared` : schémas Zod + enums + `labels.js` (source unique front/back).
+- Monorepo npm workspaces. 3 environnements Docker (dev / préprod iso-prod / prod Nginx SSL). GitFlow (`main` prod, `develop` préprod, `feature/*`, `hotfix/*`) — jamais de commit direct sur `main`. CI/CD GitHub Actions. Migrations Prisma versionnées, jamais de `db push` hors dev.
+
+## Règles de travail
+
+1. **Ne jamais coder plusieurs phases d'un coup.** Fin de phase = récapitulatif (fichiers, décisions, comment tester) puis attendre le GO explicite de l'utilisateur.
+2. **`RESEARCH-LOG.md` est strictement réservé à l'utilisateur.** Ne jamais le créer, l'écrire ni le modifier. Signaler seulement les sujets de veille pertinents.
+3. **`README.md` racine en anglais** ; toute la doc `/docs` en français.
+4. **Chaque décision d'architecture** → ADR dans `docs/adr/NNN-titre.md` (contexte, options, décision, conséquences). Proposer, l'utilisateur valide.
+5. **Commits conventionnels** avec scope (ex. `feat(auth): refresh token rotation`), proposés à la fin de chaque bloc cohérent. Branches GitFlow.
+6. **Gestion de projet agile** : maintenir `docs/backlog.md` (user stories « En tant que… je veux… afin de… » + critères d'acceptation testables). Chaque phase = un sprint avec objectif.
+7. **Aucune donnée sensible en dur** : tout en `.env`, `.env.example` à jour, config validée par Zod au boot (crash explicite si variable manquante).
+8. **Tests au fil de l'eau** : unitaires Vitest (services back, hooks/utils front critiques), intégration Vitest + Supertest (vraie base Postgres de test), E2E Playwright (Phase 6, 4 parcours max). Couverture ≥ 70 % sur `apps/api/src`, rapport en CI.
+9. **Accessibilité RGAA/WCAG 2.1 AA** : labels, navigation clavier, focus visible, contrastes du design system, ARIA sur composants interactifs.
+10. **RGPD by design** : suppression de compte = anonymisation (pas de hard delete de la facturation), consentement explicite pour documents médicaux, durées de conservation dans `docs/rgpd.md`.
+11. **OWASP Top 10** : chaque protection identifiable ; maintenir `docs/securite.md` (mesure ↔ vulnérabilité ↔ fichier).
+12. **Design system** : toute UI respecte `docs/design-system.md`. Aucune couleur/police hors tokens. « L'or est rare » : une seule utilisation d'or par écran.
+13. **Doute sur une règle métier → poser la question à l'utilisateur, ne jamais inventer.**
+
+## Architecture
+
+Back en couches strictes : route → validation Zod → controller → service → Prisma. Les services ne connaissent ni `req` ni `res` (JSDoc obligatoire). Front organisé par features (`features/<module>/components|hooks|pages|api.js`).
