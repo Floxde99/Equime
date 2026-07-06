@@ -1,0 +1,40 @@
+# Environnement de PRÉPRODUCTION — SQUELETTE, finalisé en Phase 6.
+#
+# Principe : iso-prod. Mêmes images multi-stage que la production
+# (récupérées depuis ghcr.io), même Nginx frontal, `.env.preprod`,
+# base dédiée alimentée par le seed de recette (données réalistes anonymisées).
+# C'est ici que le cahier de recette est exécuté avant chaque mise en prod.
+#
+# Usage prévu : docker compose -f docker-compose.preprod.yml --env-file .env.preprod up -d
+name: equime-preprod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - postgres-preprod-data:/var/lib/postgresql/data
+    # Réseau interne uniquement — aucun port exposé sur l'hôte
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  # api:
+  #   image: ghcr.io/<owner>/equime-api:develop   # image construite par la CI (Phase 6)
+  #   env_file: .env.preprod
+  #   depends_on: [postgres, redis]
+
+  # web:
+  #   image: ghcr.io/<owner>/equime-web:develop   # build statique servi par Nginx (Phase 6)
+
+  # nginx:
+  #   image: nginx:1.27-alpine                     # frontal : reverse proxy, SSL, headers (Phase 6)
+  #   ports: ['80:80', '443:443']
+
+volumes:
+  postgres-preprod-data:
