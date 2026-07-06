@@ -10,6 +10,7 @@
  *
  * Usage : npm run prisma:generate (enchaîne `prisma generate` puis ce script).
  */
+import { execFileSync } from 'node:child_process';
 import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -18,6 +19,13 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const generatedDir = fileURLToPath(new URL('../generated/prisma', import.meta.url));
+const apiDir = fileURLToPath(new URL('..', import.meta.url));
+
+// Nettoyage préalable : Prisma refuse de générer dans un dossier non vide
+// qui contient les .js d'une génération précédente.
+await rm(generatedDir, { recursive: true, force: true });
+
+execFileSync('npx', ['prisma', 'generate'], { cwd: apiDir, stdio: 'inherit', shell: true });
 
 /**
  * Liste récursivement les fichiers .ts d'un dossier.

@@ -10,8 +10,8 @@
 | Sprint | Phase | Objectif de sprint | Statut |
 |---|---|---|---|
 | S0 | Phase 0 | Environnement de dev opérationnel et outillé (compose, CI, thème) | ✅ Terminé |
-| S1 | Phase 1 | Conception validée : modèles de données, UML, backlog, jeux d'essai | 🔄 En cours |
-| S2 | Phase 2 | Un utilisateur peut créer un compte et se connecter de façon sécurisée | À venir |
+| S1 | Phase 1 | Conception validée : modèles de données, UML, backlog, jeux d'essai | ✅ Terminé |
+| S2 | Phase 2 | Un utilisateur peut créer un compte et se connecter de façon sécurisée | ✅ Terminé |
 | S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | À venir |
 | S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | À venir |
 | S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | À venir |

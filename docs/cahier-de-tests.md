@@ -33,19 +33,19 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-1.1 | Inscription nominale | POST /auth/register (email neuf, mdp fort) | 201, famille créée, connexion automatique | ⬜ intégration | ⬜ |
-| T-1.2 | Email déjà pris | Register avec email existant | Erreur générique, pas de fuite d'existence | ⬜ intégration | ⬜ |
-| T-1.3 | Mot de passe faible | Register mdp < 12 caractères | 400 Zod avec message d'aide | ⬜ intégration | ⬜ |
-| T-1.4 | Connexion OK | Login lina@equime.local | 200, access en mémoire, cookie refresh httpOnly | ⬜ intégration | ⬜ |
-| T-1.5 | Connexion KO | Login mauvais mot de passe | 401 générique | ⬜ intégration | ⬜ |
-| T-1.6 | Compte banni | Login utilisateur banni | 403, connexion refusée | ⬜ intégration | ⬜ |
-| T-1.7 | Rotation du refresh | Attendre expiration access → appel API | Refresh silencieux, requête rejouée, ancien refresh révoqué | ⬜ intégration + E2E | ⬜ |
-| T-1.8 | Réutilisation détectée | Rejouer un refresh déjà rotaté | 401, **toute la famille révoquée**, session légitime déconnectée | ⬜ intégration | ⬜ |
-| T-1.9 | Route protégée sans token | GET /api/v1/families/me sans Bearer | 401 | ⬜ intégration | ⬜ |
-| T-1.10 | Rôle insuffisant | Client sur route admin | 403 | ⬜ intégration | ⬜ |
-| T-1.11 | Rate limiting | 11 logins ratés en 15 min même IP | 429 | ⬜ intégration | ⬜ |
-| T-1.12 | Mot de passe oublié | Demande + reset via lien email | 200 systématique ; nouveau mdp actif ; sessions révoquées | ⬜ intégration | ⬜ |
-| T-1.13 | Déconnexion | Logout puis rejeu de l'ancien access | 401 (blacklist Redis) | ⬜ intégration | ⬜ |
+| T-1.1 | Inscription nominale | POST /auth/register (email neuf, mdp fort) | 201, famille créée, connexion automatique | ✅ intégration | ✅ |
+| T-1.2 | Email déjà pris | Register avec email existant | Erreur générique, pas de fuite d'existence | ✅ intégration | ✅ |
+| T-1.3 | Mot de passe faible | Register mdp < 12 caractères | 400 Zod avec message d'aide | ✅ intégration | ✅ |
+| T-1.4 | Connexion OK | Login lina@equime.local | 200, access en mémoire, cookie refresh httpOnly | ✅ intégration | ✅ |
+| T-1.5 | Connexion KO | Login mauvais mot de passe | 401 générique | ✅ intégration | ✅ |
+| T-1.6 | Compte banni | Login utilisateur banni | 403, connexion refusée | ✅ intégration | ✅ |
+| T-1.7 | Rotation du refresh | Attendre expiration access → appel API | Refresh silencieux, requête rejouée, ancien refresh révoqué | ✅ intégration | ⬜ |
+| T-1.8 | Réutilisation détectée | Rejouer un refresh déjà rotaté | 401, **toute la famille révoquée**, session légitime déconnectée | ✅ intégration | ✅ |
+| T-1.9 | Route protégée sans token | GET /api/v1/auth/me sans Bearer | 401 | ✅ intégration | ✅ |
+| T-1.10 | Rôle insuffisant | Client sur route admin | 403 | ✅ intégration | ✅ |
+| T-1.11 | Rate limiting | 11 logins ratés en 15 min même IP | 429 | ✅ intégration | ✅ |
+| T-1.12 | Mot de passe oublié | Demande + reset via lien email | 200 systématique ; nouveau mdp actif ; sessions révoquées | ✅ intégration | ✅ |
+| T-1.13 | Déconnexion | Logout puis rejeu de l'ancien access | 401 (blacklist Redis) | ✅ intégration | ✅ |
 
 ## Module 2 — Famille & cavaliers (Phase 3)
 

@@ -1,4 +1,5 @@
 // @ts-check
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -8,6 +9,7 @@ import { env, isTest } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
+import authRouter from './routes/auth.routes.js';
 import healthRouter from './routes/health.routes.js';
 
 /**
@@ -33,11 +35,12 @@ export function createApp() {
 
   // --- Parsing & logs ---
   app.use(express.json({ limit: '1mb' }));
+  app.use(cookieParser()); // cookie httpOnly du refresh token
   app.use(pinoHttp({ logger, autoLogging: !isTest }));
 
   // --- Routes ---
   app.use('/health', healthRouter);
-  // Les modules métier seront montés sous /api/v1 à partir de la Phase 2
+  app.use('/api/v1/auth', authRouter);
 
   // --- 404 & erreurs (toujours en dernier) ---
   app.use(notFound);

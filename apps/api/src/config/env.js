@@ -19,6 +19,21 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:5173')
     .transform((value) => value.split(',').map((origin) => origin.trim())),
+
+  // --- Authentification (Phase 2) ---
+  /** Secret de signature des access tokens JWT — requis, ≥ 32 caractères */
+  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET doit faire au moins 32 caractères'),
+  /** Durée de vie de l'access token, en minutes */
+  ACCESS_TOKEN_TTL_MIN: z.coerce.number().int().positive().default(15),
+  /** Durée de vie du refresh token, en jours */
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
+  /** URL publique du front (liens des emails : réinitialisation de mot de passe) */
+  APP_URL: z.url().default('http://localhost:5173'),
+
+  // --- Emails (SendGrid) ---
+  /** Optionnelle en dev : sans clé, les emails sont loggés au lieu d'être envoyés */
+  SENDGRID_API_KEY: z.string().optional(),
+  MAIL_FROM: z.email().default('no-reply@equime.local'),
 });
 
 const parsed = envSchema.safeParse(process.env);
