@@ -7,7 +7,11 @@
   "exports": {
     ".": "./src/index.js",
     "./constants": "./src/constants.js",
-    "./labels": "./src/labels.js"
+    "./labels": "./src/labels.js",
+    "./schemas/auth": "./src/schemas/auth.js"
+  },
+  "peerDependencies": {
+    "zod": "^4"
   },
   "dependencies": {
     "zod": "^4.4.3"

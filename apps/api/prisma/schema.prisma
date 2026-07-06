@@ -613,6 +613,9 @@ model RefreshToken {
   /// Famille de tokens : identifiant conservé à travers les rotations,
   /// permet la révocation en cascade si une réutilisation est détectée
   familyId  String
+  /// jti de l'access token émis avec ce refresh : permet de blacklister
+  /// les access encore valides quand la famille est révoquée
+  accessJti String?
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?

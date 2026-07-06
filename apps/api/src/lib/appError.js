@@ -42,4 +42,14 @@ export class AppError extends Error {
   static notFound(message = 'Ressource introuvable') {
     return new AppError(message, { statusCode: 404, code: 'NOT_FOUND' });
   }
+
+  /** @param {string} message */
+  static conflict(message) {
+    return new AppError(message, { statusCode: 409, code: 'CONFLICT' });
+  }
+
+  /** @param {string} [message] */
+  static tooManyRequests(message = 'Trop de tentatives, réessayez plus tard') {
+    return new AppError(message, { statusCode: 429, code: 'TOO_MANY_REQUESTS' });
+  }
 }
