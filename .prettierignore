@@ -1,5 +1,7 @@
 node_modules/
 dist/
+apps/api/generated/
+apps/api/prisma/migrations/
 build/
 coverage/
 package-lock.json

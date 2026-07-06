@@ -11,6 +11,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
+  /** Requise — aucune valeur par défaut : les identifiants ne vivent qu'en .env (règle n° 7) */
+  DATABASE_URL: z.url(),
   REDIS_URL: z.url().default('redis://localhost:6379'),
   /** Origines CORS autorisées, séparées par des virgules. */
   CORS_ORIGIN: z

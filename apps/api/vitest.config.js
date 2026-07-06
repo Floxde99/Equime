@@ -7,6 +7,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/equime_test',
     },
     coverage: {
       provider: 'v8',

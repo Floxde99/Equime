@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Client Prisma généré (recréé par `npm run prisma:generate`)
+apps/api/generated/
+
 # Builds
 dist/
 build/

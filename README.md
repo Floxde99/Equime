@@ -35,7 +35,10 @@ docs              Project documentation (French): architecture, ADRs, backlog, s
 ```bash
 cp .env.example .env
 npm install
-npm run dev        # or: make dev — starts postgres, redis, api (hot reload), web (vite)
+npm run prisma:generate   # generate the Prisma client (transpiled to plain JS)
+npm run dev               # or: make dev — starts postgres, redis, api (hot reload), web (vite)
+npm run migrate           # apply database migrations
+npm run seed              # load the development dataset (4 accounts, password: Equime!2026)
 ```
 
 - Web app: http://localhost:5173
