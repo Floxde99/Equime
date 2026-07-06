@@ -1,0 +1,10 @@
+# Normalise les fins de ligne en LF pour tous les fichiers texte
+# (cohérent avec .editorconfig et Prettier, indispensable sous Windows)
+* text=auto eol=lf
+
+# Binaires courants
+*.png binary
+*.jpg binary
+*.woff binary
+*.woff2 binary
+*.ico binary

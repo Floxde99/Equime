@@ -1,0 +1,36 @@
+# CI Equime — Phase 0 : lint + tests.
+# Enrichie au fil des phases : tests d'intégration avec services Postgres/Redis (Phase 2+),
+# couverture ≥ 70 % sur apps/api/src, E2E Playwright, build & push ghcr.io,
+# déploiement préprod (develop) et prod avec approbation (main) en Phase 6.
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
