@@ -8,9 +8,9 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 | US | Intitulé (résumé) | Module | Fichiers principaux | Tests | Statut |
 |---|---|---|---|---|---|
 | US-1.1–1.5 | Auth inscription / session | auth | `apps/api/src/routes/auth.routes.js`, `apps/web/src/features/auth/` | `apps/api/src/tests/auth*.js`, `playwright/e2e/auth.spec.js` | Livré |
-| US-1.6 | Suppression compte RGPD | auth | auth service + `docs/rgpd.md` | tests auth / manuel | Partiel |
+| US-1.6 | Suppression compte RGPD | auth | `authService.js`, `auth.routes.js`, `ClientAccountPage.jsx` | `auth.test.js` (DELETE /me) | Livré |
 | US-2.1 | CRUD cavaliers | riders | `riderService.js`, `RidersPage.jsx`, `riders.routes.js` | `core.test.js`, `client-flow.spec.js` | Livré |
-| US-2.2 | Documents + consentement | riders / uploads | `uploads.js`, `EnrollSection.jsx`, schéma `riders.js` | `core.test.js`, recette T-RGPD | Partiel |
+| US-2.2 | Documents + consentement | riders / uploads | `uploads.js`, `EnrollSection.jsx`, schéma `riders.js` | `core.test.js`, recette T-RGPD | Livré |
 | US-2.3 | Affinités chevaux | horses / riders | `horseAssignment.js`, cavaliers API | `horseAssignment.test.js` | Livré |
 | US-3.1–3.2 | Fiches chevaux & santé | horses | `horseService.js`, `AdminCavalryPage.jsx` | `phase4.test.js` | Livré |
 | US-3.3 | Espaces | spaces | `spaceService.js`, admin planning | `core.test.js` | Livré |
@@ -22,8 +22,9 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 | US-8.2 | Incidents | incidents | `incidentService.js`, `InstructorIncidentsPage.jsx` | `phase5.test.js` | Livré |
 | US-8.3 | Bénévolat | volunteer | `volunteerService.js`, `VolunteerPage.jsx` | `phase5.test.js` | Livré |
 | US-8.4 | Notifications | notifications | `notificationService.js`, `NotificationsPage.jsx` | `phase5.test.js` | Livré |
-| US-9.1 | Dashboard KPIs | admin | `AdminDashboardPage.jsx`, routes admin | manuel / recette | Partiel |
-| US-9.2 | Gestion membres | admin | `admin.routes.js` | manuel | Partiel |
+| US-9.1 | Dashboard KPIs | admin | `AdminDashboardPage.jsx`, `adminService.js` | `admin.test.js` T-9.1 | Livré |
+| US-9.2 | Gestion membres | admin | `admin.routes.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.2 | Livré |
+| US-9.3 | Validation documents | admin / riders | `riderService.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.3 | Livré |
 
 ## Couverture tests automatisés
 
