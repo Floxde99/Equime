@@ -14,9 +14,9 @@
 | S2 | Phase 2 | Un utilisateur peut créer un compte et se connecter de façon sécurisée | ✅ Terminé |
 | S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | ✅ Terminé |
 | S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | ✅ Terminé |
-| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | En revue |
-| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | En cours |
-| S7 | Phase 7 | Dossier professionnel consolidé | À venir |
+| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | ✅ Terminé |
+| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | 🔄 En revue (E2E + recette manuelle) |
+| S7 | Phase 7 | Dossier professionnel consolidé | 🔄 En cours |
 
 ---
 
