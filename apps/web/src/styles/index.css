@@ -51,4 +51,14 @@
   :focus-visible {
     @apply outline-none ring-2 ring-primary/60;
   }
+
+  /* FullCalendar v6 — thème sombre aligné design system */
+  .fc {
+    --fc-border-color: var(--color-border);
+    --fc-page-bg-color: var(--color-surface);
+    --fc-neutral-bg-color: var(--color-surface-raised);
+    --fc-list-event-hover-bg-color: var(--color-surface-raised);
+    --fc-today-bg-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    --fc-event-text-color: var(--color-text);
+  }
 }
