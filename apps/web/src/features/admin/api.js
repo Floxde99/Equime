@@ -134,3 +134,21 @@ export function fetchPendingDocuments() {
 export function reviewDocument(riderId, body) {
   return api.post(`/admin/riders/${riderId}/review-document`, body).then((r) => r.rider);
 }
+
+/** @param {string} riderId @param {'medical_certificate' | 'license'} docType */
+export function getAdminRiderDocumentUrl(riderId, docType) {
+  return `/api/v1/admin/riders/${riderId}/documents/${docType}`;
+}
+
+export function fetchInstructors() {
+  return api.get('/admin/instructors').then((r) => r.instructors);
+}
+
+export function fetchAuditLogs() {
+  return api.get('/admin/audit-logs').then((r) => r.logs);
+}
+
+/** @param {string} courseId @param {boolean} [cancelSeries] */
+export function cancelCourse(courseId, cancelSeries = false) {
+  return api.post(`/courses/${courseId}/cancel`, { cancelSeries });
+}

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
-import { deleteAccount } from '@/features/auth/api.js';
+import { deleteAccount, exportAccountData } from '@/features/auth/api.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
 /** Suppression de compte RGPD avec confirmation explicite (US-1.6). */
@@ -32,12 +32,34 @@ export function ClientAccountPage() {
     onError: (err) => setError(err.message ?? 'Suppression impossible'),
   });
 
+  const exportMutation = useMutation({
+    mutationFn: exportAccountData,
+    onError: (err) => setError(err.message ?? 'Export impossible'),
+  });
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="font-display text-3xl text-text">Mon compte</h1>
         <p className="mt-1 font-sans text-sm text-muted">Gérez vos données personnelles.</p>
       </div>
+
+      <Card title="Exporter mes données">
+        <p className="font-sans text-sm text-muted">
+          Téléchargez une copie structurée de votre profil, vos cavaliers et vos factures (droit à la
+          portabilité RGPD).
+        </p>
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            loading={exportMutation.isPending}
+            onClick={() => exportMutation.mutate()}
+          >
+            Télécharger l&apos;export JSON
+          </Button>
+        </div>
+      </Card>
 
       <Card title="Supprimer mon compte">
         <p className="font-sans text-sm text-muted">
