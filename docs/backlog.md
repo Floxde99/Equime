@@ -12,10 +12,10 @@
 | S0 | Phase 0 | Environnement de dev opérationnel et outillé (compose, CI, thème) | ✅ Terminé |
 | S1 | Phase 1 | Conception validée : modèles de données, UML, backlog, jeux d'essai | ✅ Terminé |
 | S2 | Phase 2 | Un utilisateur peut créer un compte et se connecter de façon sécurisée | ✅ Terminé |
-| S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | À venir |
-| S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | À venir |
-| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | À venir |
-| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | À venir |
+| S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | ✅ Terminé |
+| S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | ✅ Terminé |
+| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | En revue |
+| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | En cours |
 | S7 | Phase 7 | Dossier professionnel consolidé | À venir |
 
 ---
@@ -226,14 +226,14 @@ Critères d'acceptation :
 **En tant que** visiteur, **je veux** voir les stages à venir sur la vitrine **afin de** découvrir l'activité du centre.
 
 Critères d'acceptation :
-- [ ] `GET /api/v1/events` public (sans auth) ; vitrine responsive conforme au design system.
+- [x] `GET /api/v1/events` public (sans auth) ; vitrine responsive conforme au design system.
 
 ### US-7.2 — Réserver un événement `M`
 **En tant que** client, **je veux** inscrire un cavalier à un stage ou une compétition **afin de** participer aux activités.
 
 Critères d'acceptation :
-- [ ] Capacité respectée ; statuts en attente / confirmée / annulée.
-- [ ] Notification `registration_confirmed` à la confirmation.
+- [x] Capacité respectée ; statuts en attente / confirmée / annulée.
+- [x] Notification `registration_confirmed` à la confirmation.
 
 ### US-7.3 — Gérer les événements `M`
 **En tant qu'** admin, **je veux** créer et gérer les événements **afin d'** animer le centre. (CRUD, types stage/compétition interne/externe.)
@@ -246,22 +246,31 @@ Critères d'acceptation :
 **En tant qu'** utilisateur connecté, **je veux** échanger des messages avec mes contacts autorisés **afin de** communiquer sans quitter l'application.
 
 Critères d'acceptation :
-- [ ] Contacts filtrés par rôle (un client écrit aux moniteurs/admin, pas aux autres clients).
-- [ ] Conversations multi-participants ; marquage lu par participant (`lastReadAt`).
-- [ ] Rafraîchissement par polling TanStack Query (`refetchInterval`) — WebSocket noté en perspective.
+- [x] Contacts filtrés par rôle (un client écrit aux moniteurs/admin, pas aux autres clients).
+- [x] Conversations multi-participants ; marquage lu par participant (`lastReadAt`).
+- [x] Rafraîchissement par polling TanStack Query (`refetchInterval`) — WebSocket noté en perspective.
 
 ### US-8.2 — Incidents `S`
 **En tant que** moniteur, **je veux** déclarer un incident (gravité faible → critique) **afin de** tracer les événements de sécurité. Admin : consultation, résolution.
 
+Critères d'acceptation :
+- [x] Déclaration moniteur sécurisée avec gravité, horodatage et rattachements optionnels (cours, cheval, cavalier).
+- [x] File admin filtrable des incidents ouverts avec résolution horodatée.
+- [x] Les incidents critiques ouverts sont mis en évidence sur le dashboard admin.
+
 ### US-8.3 — Bénévolat `C`
 **En tant que** client, **je veux** m'inscrire aux missions de bénévolat **afin de** participer à la vie du club. (Places limitées, CRUD admin.)
+
+Critères d'acceptation :
+- [x] CRUD admin des missions avec titre, créneau et nombre de places.
+- [x] Inscription client bornée aux places disponibles, unique par utilisateur et transactionnelle.
 
 ### US-8.4 — Notifications & préférences `M`
 **En tant qu'** utilisateur, **je veux** recevoir des notifications in-app et email selon mes préférences **afin de** rester informé sans être noyé.
 
 Critères d'acceptation :
-- [ ] 8 types de notification (templates SendGrid + in-app) ; préférence par type et par canal.
-- [ ] Une préférence désactivée bloque effectivement l'envoi sur ce canal.
+- [x] 8 types de notification (templates SendGrid + in-app) ; préférence par type et par canal.
+- [x] Une préférence désactivée bloque effectivement l'envoi sur ce canal.
 
 ---
 
@@ -293,3 +302,15 @@ Critères d'acceptation :
 
 Chaque US référence ses tests dans `docs/cahier-de-tests.md` (ID `T-x.y`) ; les résultats
 sont consignés en préprod dans `docs/cahier-de-recette.md` (Phase 6).
+
+## Avancement Phase 6
+
+- [x] Socle Playwright Chromium ajouté (`playwright.config.js`, `playwright/e2e/`, 4 parcours E2E-1 à E2E-4).
+- [x] Workflow CI enrichi avec build web + job E2E dédié (artefact `playwright-report`).
+- [x] Reset rate limits E2E (`playwright/clear-rate-limits.mjs`) pour éviter les faux négatifs post-intégration.
+- [x] Graine de recette maintenue (`apps/api/prisma/seed-recette.js`) et cahier de recette structuré.
+- [x] Squelettes préprod/prod finalisés (`docker-compose.preprod.yml`, `docker-compose.prod.yml`, Nginx).
+- [ ] Déploiement préproduction automatisé (`develop`).
+- [ ] Déploiement production avec approbation manuelle (`main`).
+- [ ] Audit accessibilité RGAA/WCAG AA exécuté et consigné.
+- [ ] Reverse proxy SSL / HSTS validés en situation réelle.
