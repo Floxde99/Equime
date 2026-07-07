@@ -194,10 +194,12 @@ model Rider {
   lastName                 String
   birthdate                DateTime
   level                    RiderLevel     @default(initiation)
-  medicalCertificateUrl    String?
-  medicalCertificateStatus DocumentStatus @default(missing)
-  licenseUrl               String?
-  licenseStatus            DocumentStatus @default(missing)
+  medicalCertificateUrl              String?
+  medicalCertificateStatus           DocumentStatus @default(missing)
+  medicalCertificateRejectionReason  String?
+  licenseUrl                         String?
+  licenseStatus                      DocumentStatus @default(missing)
+  licenseRejectionReason             String?
   /// RGPD : consentement explicite au stockage du certificat médical
   medicalConsentAt         DateTime?
   createdAt                DateTime       @default(now())

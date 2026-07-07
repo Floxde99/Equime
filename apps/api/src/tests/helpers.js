@@ -11,6 +11,8 @@ import { redis } from '../lib/redis.js';
 export async function resetAuthTables() {
   await prisma.passwordResetToken.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.invoiceItem.deleteMany();
+  await prisma.invoice.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversationParticipant.deleteMany();
   await prisma.horseHealthLog.deleteMany();
@@ -18,6 +20,7 @@ export async function resetAuthTables() {
   await prisma.volunteerSignup.deleteMany();
   await prisma.notificationPreference.deleteMany();
   await prisma.notification.deleteMany();
+  await prisma.rider.deleteMany();
   await prisma.family.deleteMany();
   await prisma.user.deleteMany();
 }
