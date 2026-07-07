@@ -4,6 +4,7 @@
  * et validation Zod avant d'atteindre le contrôleur.
  */
 import {
+  deleteAccountSchema,
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
@@ -41,6 +42,13 @@ router.post(
 router.post('/logout', requireAuth, authController.logout);
 
 router.get('/me', requireAuth, authController.me);
+
+router.delete(
+  '/me',
+  requireAuth,
+  validate(deleteAccountSchema),
+  authController.deleteAccount
+);
 
 router.post(
   '/forgot-password',

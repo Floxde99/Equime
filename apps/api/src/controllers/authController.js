@@ -101,3 +101,11 @@ export async function resetPassword(req, res) {
   await authService.resetPassword(req.body);
   res.json({ message: 'Mot de passe mis à jour, vous pouvez vous connecter.' });
 }
+
+/** DELETE /api/v1/auth/me — suppression de compte RGPD (US-1.6) */
+export async function deleteAccount(req, res) {
+  const user = /** @type {{ id: string, jti: string }} */ (req.user);
+  await authService.anonymizeAccount(user.id, user.jti);
+  res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_OPTIONS.path });
+  res.status(204).end();
+}

@@ -393,6 +393,73 @@ describe('POST /api/v1/auth/forgot-password + reset-password', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Suppression de compte RGPD (US-1.6)
+// ---------------------------------------------------------------------------
+describe('DELETE /api/v1/auth/me', () => {
+  it('anonymise le compte, révoque les sessions et empêche la reconnexion', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const userId = reg.body.user.id;
+    const family = await prisma.family.findUnique({ where: { userId } });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId: family.id,
+        firstName: 'Test',
+        lastName: 'Rider',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+        medicalCertificateStatus: 'approved',
+      },
+    });
+    await prisma.invoice.create({
+      data: {
+        familyId: family.id,
+        number: 'FAC-DEL-001',
+        status: 'paid',
+        totalCents: 3000,
+        paidAt: new Date(),
+        items: { create: [{ label: 'Abo', quantity: 1, unitCents: 3000, totalCents: 3000 }] },
+      },
+    });
+
+    const del = await request(app)
+      .delete('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ confirmation: 'SUPPRIMER MON COMPTE' });
+    expect(del.status).toBe(204);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    expect(user.anonymizedAt).not.toBeNull();
+    expect(user.email).toBe(`deleted-${userId}@anonymized.local`);
+    expect(user.firstName).toBe('Utilisateur');
+
+    const riderAfter = await prisma.rider.findUnique({ where: { id: rider.id } });
+    expect(riderAfter.firstName).toBe('Anonyme');
+
+    const invoices = await prisma.invoice.count({ where: { familyId: family.id } });
+    expect(invoices).toBe(1);
+
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+    expect(me.status).toBe(401);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'client@test.fr', password: 'MotDePasse123' });
+    expect(login.status).toBe(401);
+  });
+
+  it('exige la confirmation exacte', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const res = await request(app)
+      .delete('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ confirmation: 'supprimer' });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Rate limiting Redis
 // ---------------------------------------------------------------------------
 describe('Rate limiting', () => {
