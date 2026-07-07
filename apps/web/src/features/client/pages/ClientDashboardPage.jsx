@@ -42,6 +42,12 @@ export function ClientDashboardPage() {
             Événements
           </Link>
           <Link
+            to="/app/compte"
+            className="inline-flex h-11 items-center rounded-lg border border-border px-6 font-sans text-sm font-semibold text-text hover:bg-surface-raised"
+          >
+            Mon compte
+          </Link>
+          <Link
             to="/app/messages"
             className="inline-flex h-11 items-center rounded-lg border border-border px-6 font-sans text-sm font-semibold text-text hover:bg-surface-raised"
           >

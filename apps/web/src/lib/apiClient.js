@@ -122,8 +122,8 @@ export const api = {
   put: (path, body) => apiFetch(path, { method: 'PUT', body }),
   /** @param {string} path @param {unknown} [body] */
   patch: (path, body) => apiFetch(path, { method: 'PATCH', body }),
-  /** @param {string} path */
-  delete: (path) => apiFetch(path, { method: 'DELETE' }),
+  /** @param {string} path @param {unknown} [body] */
+  delete: (path, body) => apiFetch(path, { method: 'DELETE', body }),
   /**
    * @param {string} path
    * @param {FormData} formData

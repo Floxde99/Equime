@@ -36,3 +36,9 @@ export function forgotPassword(email) {
 export function resetPassword(input) {
   return api.post('/auth/reset-password', input);
 }
+
+/** @param {{ confirmation: string }} input */
+export async function deleteAccount(input) {
+  await api.delete('/auth/me', input);
+  setAccessToken(null);
+}

@@ -7,6 +7,7 @@ import { InstructorLayout } from '@/components/layouts/InstructorLayout.jsx';
 import { AdminBillingPage } from '@/features/admin/pages/AdminBillingPage.jsx';
 import { AdminCavalryPage } from '@/features/admin/pages/AdminCavalryPage.jsx';
 import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage.jsx';
+import { AdminMembersPage } from '@/features/admin/pages/AdminMembersPage.jsx';
 import { AdminPlanningPage } from '@/features/admin/pages/AdminPlanningPage.jsx';
 import { AuthProvider } from '@/features/auth/AuthProvider.jsx';
 import { RedirectIfAuthenticated, RequireAuth } from '@/features/auth/guards.jsx';
@@ -15,6 +16,7 @@ import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage.jsx
 import { LoginPage } from '@/features/auth/pages/LoginPage.jsx';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage.jsx';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage.jsx';
+import { ClientAccountPage } from '@/features/client/pages/ClientAccountPage.jsx';
 import { ClientDashboardPage } from '@/features/client/pages/ClientDashboardPage.jsx';
 import { ClientInvoicesPage } from '@/features/client/pages/ClientInvoicesPage.jsx';
 import { ClientPlanningPage } from '@/features/client/pages/ClientPlanningPage.jsx';
@@ -80,6 +82,7 @@ export const router = createBrowserRouter([
               { path: '/app/messages', element: <MessagesPage /> },
               { path: '/app/notifications', element: <NotificationsPage /> },
               { path: '/app/factures', element: <ClientInvoicesPage /> },
+              { path: '/app/compte', element: <ClientAccountPage /> },
             ],
           },
         ],
@@ -118,6 +121,7 @@ export const router = createBrowserRouter([
               { path: '/admin/messages', element: <MessagesPage /> },
               { path: '/admin/notifications', element: <NotificationsPage /> },
               { path: '/admin/facturation', element: <AdminBillingPage /> },
+              { path: '/admin/clients', element: <AdminMembersPage /> },
             ],
           },
         ],

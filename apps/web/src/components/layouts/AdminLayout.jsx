@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { to: '/admin/benevolat', label: 'Bénévolat', icon: HandHelping, ready: true },
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, ready: true },
   { to: '/admin/notifications', label: 'Notifications', icon: Bell, ready: true },
-  { to: '/admin/clients', label: 'Clients', icon: Users, ready: false },
+  { to: '/admin/clients', label: 'Clients', icon: Users, ready: true },
   { to: '/admin/facturation', label: 'Facturation', icon: Receipt, ready: true },
 ];
 
