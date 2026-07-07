@@ -1,5 +1,6 @@
 // @ts-check
 import {
+  adminRiderDocumentParamSchema,
   compatibilityAuditSchema,
   createDiscountRuleSchema,
   createInvoiceSchema,
@@ -25,6 +26,8 @@ router.use(requireAuth, requireRole(ROLES.ADMIN));
 
 router.get('/dashboard-kpis', adminController.dashboardKpis);
 router.get('/members', adminController.listMembers);
+router.get('/instructors', adminController.listInstructors);
+router.get('/audit-logs', adminController.listAuditLogs);
 router.post('/members/:id/ban', validate(userIdParamSchema, 'params'), adminController.banMember);
 router.post('/members/:id/unban', validate(userIdParamSchema, 'params'), adminController.unbanMember);
 router.get('/pending-documents', adminController.listPendingDocuments);
@@ -33,6 +36,11 @@ router.post(
   validate(riderDocumentReviewParamSchema, 'params'),
   validate(reviewDocumentSchema),
   adminController.reviewDocument
+);
+router.get(
+  '/riders/:riderId/documents/:docType',
+  validate(adminRiderDocumentParamSchema, 'params'),
+  adminController.downloadRiderDocument
 );
 
 router.post(

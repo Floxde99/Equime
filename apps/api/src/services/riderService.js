@@ -203,8 +203,9 @@ export async function listPendingDocuments() {
  * @param {'medical_certificate' | 'license'} docType
  * @param {'approved' | 'rejected'} decision
  * @param {string | undefined} rejectionReason
+ * @param {string} [adminId] Pour journal d'audit RGPD
  */
-export async function reviewRiderDocument(riderId, docType, decision, rejectionReason) {
+export async function reviewRiderDocument(riderId, docType, decision, rejectionReason, adminId) {
   const rider = await prisma.rider.findUnique({ where: { id: riderId } });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
 
@@ -223,7 +224,7 @@ export async function reviewRiderDocument(riderId, docType, decision, rejectionR
     throw AppError.badRequest('Le motif est obligatoire en cas de refus');
   }
 
-  return prisma.rider.update({
+  const updated = await prisma.rider.update({
     where: { id: riderId },
     data: {
       [statusField]: decision,
@@ -231,4 +232,39 @@ export async function reviewRiderDocument(riderId, docType, decision, rejectionR
     },
     select: RIDER_SELECT,
   });
+
+  if (docType === 'medical_certificate' && adminId) {
+    const { logAdminAudit } = await import('./adminService.js');
+    await logAdminAudit({
+      adminId,
+      action: 'medical_document_reviewed',
+      riderId,
+      details: decision,
+    });
+  }
+
+  return updated;
+}
+
+/**
+ * Téléchargement admin d'un document cavalier avec journal d'audit (certificat médical).
+ *
+ * @param {string} adminId
+ * @param {string} riderId
+ * @param {'medical_certificate' | 'license'} docType
+ * @returns {Promise<string>} Chemin relatif du fichier
+ */
+export async function getAdminRiderDocumentPath(adminId, riderId, docType) {
+  const relativePath = await getRiderDocumentPath(adminId, riderId, docType, 'admin');
+
+  if (docType === 'medical_certificate') {
+    const { logAdminAudit } = await import('./adminService.js');
+    await logAdminAudit({
+      adminId,
+      action: 'medical_document_viewed',
+      riderId,
+    });
+  }
+
+  return relativePath;
 }

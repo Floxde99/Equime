@@ -268,3 +268,78 @@ export async function anonymizeAccount(userId, accessJti) {
   await blacklistUser(userId);
   if (accessJti) await blacklistAccessToken(accessJti);
 }
+
+/**
+ * Export portabilité RGPD : données structurées du compte client (profil, cavaliers, factures).
+ * @param {string} userId
+ * @returns {Promise<object>}
+ */
+export async function exportPortableData(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+      family: {
+        select: {
+          sessionQuota: true,
+          riders: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              birthdate: true,
+              level: true,
+              medicalCertificateStatus: true,
+              licenseStatus: true,
+              medicalConsentAt: true,
+              createdAt: true,
+            },
+          },
+          invoices: {
+            select: {
+              id: true,
+              number: true,
+              status: true,
+              totalCents: true,
+              issuedAt: true,
+              paidAt: true,
+              items: {
+                select: { label: true, quantity: true, unitCents: true },
+              },
+            },
+            orderBy: { issuedAt: 'desc' },
+          },
+        },
+      },
+    },
+  });
+  if (!user) throw AppError.unauthorized();
+  if (user.role !== ROLES.CLIENT) {
+    throw AppError.forbidden('L\'export portabilité est réservé aux comptes clients');
+  }
+
+  return {
+    exportedAt: new Date().toISOString(),
+    format: 'equime-portability-v1',
+    profile: {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      createdAt: user.createdAt,
+    },
+    family: user.family
+      ? {
+          sessionQuota: user.family.sessionQuota,
+          riders: user.family.riders,
+          invoices: user.family.invoices,
+        }
+      : null,
+  };
+}

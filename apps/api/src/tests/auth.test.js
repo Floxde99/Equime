@@ -260,6 +260,20 @@ describe('POST /api/v1/auth/refresh', () => {
     const res = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
     expect(res.status).toBe(401);
   });
+
+  it('T-1.7 : après refresh, le nouvel access token authentifie une route protégée', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const cookie = refreshCookieOf(reg);
+
+    const refreshed = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
+    expect(refreshed.status).toBe(200);
+
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshed.body.accessToken}`);
+    expect(me.status).toBe(200);
+    expect(me.body.user.email).toBe('client@test.fr');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -456,6 +470,45 @@ describe('DELETE /api/v1/auth/me', () => {
       .set('Authorization', `Bearer ${reg.body.accessToken}`)
       .send({ confirmation: 'supprimer' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/auth/me/export — portabilité RGPD
+// ---------------------------------------------------------------------------
+describe('GET /api/v1/auth/me/export', () => {
+  it('exporte les données structurées du compte client', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+
+    const res = await request(app)
+      .get('/api/v1/auth/me/export')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.format).toBe('equime-portability-v1');
+    expect(res.body.profile.email).toBe('client@test.fr');
+    expect(res.body.family).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Purge refresh tokens expirés
+// ---------------------------------------------------------------------------
+describe('purgeExpiredRefreshTokens', () => {
+  it('supprime les tokens expirés de la base', async () => {
+    const { purgeExpiredRefreshTokens } = await import('../services/tokenService.js');
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+
+    await prisma.refreshToken.updateMany({
+      where: { userId: reg.body.user.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const count = await purgeExpiredRefreshTokens();
+    expect(count).toBeGreaterThan(0);
+
+    const remaining = await prisma.refreshToken.count({ where: { userId: reg.body.user.id } });
+    expect(remaining).toBe(0);
   });
 });
 

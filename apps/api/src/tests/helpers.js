@@ -9,6 +9,7 @@ import { redis } from '../lib/redis.js';
  * Vide les tables touchées par les tests auth (ordre FK).
  */
 export async function resetAuthTables() {
+  await prisma.adminAuditLog.deleteMany();
   await prisma.passwordResetToken.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.invoiceItem.deleteMany();

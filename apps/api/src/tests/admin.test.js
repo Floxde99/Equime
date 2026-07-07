@@ -154,6 +154,11 @@ describe('Validation documents (T-9.3)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.rider.medicalCertificateStatus).toBe('approved');
+
+    const audit = await prisma.adminAuditLog.findFirst({
+      where: { riderId: rider.id, action: 'medical_document_reviewed' },
+    });
+    expect(audit).not.toBeNull();
   });
 
   it('refuse une licence avec motif obligatoire', async () => {

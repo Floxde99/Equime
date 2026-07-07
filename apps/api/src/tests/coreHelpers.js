@@ -12,6 +12,7 @@ export { refreshCookieOf, registerPayload, resetAuthTables, resetRateLimits } fr
  * Vide les tables métier Phase 3 (ordre FK).
  */
 export async function resetCoreTables() {
+  await prisma.adminAuditLog.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.eventRegistration.deleteMany();
   await prisma.event.deleteMany();

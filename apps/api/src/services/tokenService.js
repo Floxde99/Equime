@@ -241,3 +241,17 @@ export async function revokeSession(presentedToken, accessJti) {
   }
   if (accessJti) await blacklistAccessToken(accessJti);
 }
+
+/**
+ * Purge les refresh tokens expirés ou révoqués depuis plus de 30 jours (minimisation RGPD).
+ * @returns {Promise<number>} Nombre de lignes supprimées
+ */
+export async function purgeExpiredRefreshTokens() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const result = await prisma.refreshToken.deleteMany({
+    where: {
+      OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: cutoff } }],
+    },
+  });
+  return result.count;
+}

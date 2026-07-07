@@ -93,3 +93,47 @@ export async function listMembers() {
     orderBy: [{ role: 'asc' }, { lastName: 'asc' }],
   });
 }
+
+/**
+ * Moniteurs actifs pour les formulaires admin (création de cours).
+ * @returns {Promise<object[]>}
+ */
+export async function listInstructors() {
+  return prisma.user.findMany({
+    where: { role: 'instructor', banned: false, anonymizedAt: null },
+    select: { id: true, firstName: true, lastName: true, email: true },
+    orderBy: { lastName: 'asc' },
+  });
+}
+
+/**
+ * Enregistre une action sensible admin (RGPD — traçabilité certificats médicaux).
+ *
+ * @param {{ adminId: string, action: 'medical_document_viewed' | 'medical_document_reviewed', riderId: string, details?: string }} input
+ */
+export async function logAdminAudit(input) {
+  await prisma.adminAuditLog.create({
+    data: {
+      adminId: input.adminId,
+      action: input.action,
+      riderId: input.riderId,
+      details: input.details ?? null,
+    },
+  });
+}
+
+/**
+ * Derniers événements d'audit admin (consultation certificats médicaux).
+ * @param {number} [limit]
+ * @returns {Promise<object[]>}
+ */
+export async function listAuditLogs(limit = 50) {
+  return prisma.adminAuditLog.findMany({
+    take: limit,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      admin: { select: { firstName: true, lastName: true, email: true } },
+      rider: { select: { firstName: true, lastName: true } },
+    },
+  });
+}

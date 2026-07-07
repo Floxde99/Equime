@@ -26,3 +26,8 @@ export const reviewDocumentSchema = z
 export const riderDocumentReviewParamSchema = z.object({
   riderId: z.string().min(1),
 });
+
+export const adminRiderDocumentParamSchema = z.object({
+  riderId: z.string().min(1),
+  docType: z.enum(['medical_certificate', 'license']),
+});

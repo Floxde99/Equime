@@ -43,6 +43,8 @@ router.post('/logout', requireAuth, authController.logout);
 
 router.get('/me', requireAuth, authController.me);
 
+router.get('/me/export', requireAuth, authController.exportData);
+
 router.delete(
   '/me',
   requireAuth,

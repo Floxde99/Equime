@@ -82,6 +82,15 @@ export async function logout(req, res) {
   res.status(204).end();
 }
 
+/** GET /api/v1/auth/me/export — export portabilité RGPD (JSON structuré) */
+export async function exportData(req, res) {
+  const user = /** @type {{ id: string }} */ (req.user);
+  const data = await authService.exportPortableData(user.id);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="equime-export.json"');
+  res.json(data);
+}
+
 /** GET /api/v1/auth/me */
 export async function me(req, res) {
   const user = /** @type {{ id: string }} */ (req.user);
