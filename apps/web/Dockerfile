@@ -25,6 +25,6 @@ RUN npm run build --workspace apps/web
 
 # ---------- Prod : Nginx sert le build statique ----------
 FROM nginx:1.27-alpine AS prod
-COPY docker/nginx/prod.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
