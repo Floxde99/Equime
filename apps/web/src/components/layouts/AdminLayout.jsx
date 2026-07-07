@@ -1,4 +1,14 @@
-import { CalendarDays, LayoutDashboard, PawPrint, Receipt, Users } from 'lucide-react';
+import {
+  Bell,
+  CalendarDays,
+  HandHelping,
+  LayoutDashboard,
+  MessageSquare,
+  PawPrint,
+  Receipt,
+  Siren,
+  Users,
+} from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 
 import { LogoutButton } from '@/features/auth/LogoutButton.jsx';
@@ -8,10 +18,15 @@ import { useAuthStore } from '@/stores/authStore.js';
 /** Sections admin — activées au fil des Phases 3-6. */
 const NAV_ITEMS = [
   { to: '/admin', label: 'Tableau de bord', icon: LayoutDashboard, end: true, ready: true },
-  { to: '/admin/planning', label: 'Planning', icon: CalendarDays, ready: false },
-  { to: '/admin/cavalerie', label: 'Cavalerie', icon: PawPrint, ready: false },
+  { to: '/admin/planning', label: 'Planning', icon: CalendarDays, ready: true },
+  { to: '/admin/cavalerie', label: 'Cavalerie', icon: PawPrint, ready: true },
+  { to: '/admin/evenements', label: 'Événements', icon: CalendarDays, ready: true },
+  { to: '/admin/incidents', label: 'Incidents', icon: Siren, ready: true },
+  { to: '/admin/benevolat', label: 'Bénévolat', icon: HandHelping, ready: true },
+  { to: '/admin/messages', label: 'Messages', icon: MessageSquare, ready: true },
+  { to: '/admin/notifications', label: 'Notifications', icon: Bell, ready: true },
   { to: '/admin/clients', label: 'Clients', icon: Users, ready: false },
-  { to: '/admin/facturation', label: 'Facturation', icon: Receipt, ready: false },
+  { to: '/admin/facturation', label: 'Facturation', icon: Receipt, ready: true },
 ];
 
 /**
