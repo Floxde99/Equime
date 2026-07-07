@@ -17,7 +17,7 @@ if (env.SENDGRID_API_KEY) {
 /**
  * @param {{ to: string, subject: string, text: string, html: string }} message
  */
-async function send(message) {
+export async function sendTransactionalEmail(message) {
   if (!env.SENDGRID_API_KEY) {
     logger.info({ to: message.to, subject: message.subject }, '[mailer] email simulé (dev)');
     return;
@@ -35,7 +35,7 @@ async function send(message) {
  * @param {{ to: string, firstName: string, resetUrl: string }} params
  */
 export async function sendPasswordResetEmail({ to, firstName, resetUrl }) {
-  await send({
+  await sendTransactionalEmail({
     to,
     subject: 'Equime — Réinitialisation de votre mot de passe',
     text: [
