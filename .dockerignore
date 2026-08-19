@@ -4,8 +4,16 @@ node_modules
 dist
 **/dist
 coverage
+**/coverage
+# Les motifs non préfixés ne matchent que la racine du contexte :
+# sans `**/`, apps/api/.env partirait dans l'image (fuite de secrets).
 .env
 .env.*
+**/.env
+**/.env.*
 apps/api/generated
+apps/api/uploads
 docs
 terminals
+playwright-report
+test-results
