@@ -1,13 +1,19 @@
 # Environnement de PRÉPRODUCTION — iso-prod (Phase 6).
 #
-# Mêmes images multi-stage que la production, Nginx frontal, `.env.preprod`,
-# base dédiée alimentée par le seed de recette (données réalistes anonymisées).
+# Mêmes images multi-stage que la production, `.env.preprod`, base dédiée
+# alimentée par le seed de recette (données réalistes anonymisées).
 # C'est ici que le cahier de recette est exécuté avant chaque mise en prod.
+#
+# Le TLS et le routage sont assurés par Caddy sur l'hôte : les services sont
+# publiés sur la loopback uniquement (Docker court-circuite ufw sans le
+# préfixe 127.0.0.1). Caddy attaque `api` en direct pour /api/* afin que la
+# chaîne ne comporte qu'un seul proxy — `trust proxy 1` (apps/api/src/app.js)
+# reste ainsi correct et le rate limiting garde la vraie IP client.
 #
 # Usage :
 #   cp .env.preprod.example .env.preprod   # puis adapter les secrets
 #   docker compose -f docker-compose.preprod.yml --env-file .env.preprod up -d --build
-#   npm run seed:recette -w apps/api      # une fois la stack démarrée
+#   docker compose -f docker-compose.preprod.yml --env-file .env.preprod run --rm migrate node prisma/seed-recette.js
 name: equime-preprod
 
 services:
@@ -35,6 +41,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # Migrations Prisma jouées avant le démarrage de l'API.
+  # Cible `api-build` : elle embarque les devDependencies, donc le CLI Prisma
+  # que `--omit=dev` retire de l'image de runtime.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: api-build
+    env_file: .env.preprod
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    working_dir: /app/apps/api
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -46,6 +70,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
       UPLOAD_DIR: /app/uploads
+    ports:
+      - '127.0.0.1:3000:3000'
     volumes:
       - uploads-preprod-data:/app/uploads
     depends_on:
@@ -53,6 +79,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:
@@ -60,18 +88,9 @@ services:
       dockerfile: apps/web/Dockerfile
       target: prod
     restart: unless-stopped
-    depends_on:
-      - api
-
-  nginx:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
     ports:
-      - '${NGINX_HTTP_PORT:-8080}:80'
-    volumes:
-      - ./docker/nginx/preprod.conf:/etc/nginx/conf.d/default.conf:ro
+      - '127.0.0.1:8080:80'
     depends_on:
-      - web
       - api
 
 volumes:

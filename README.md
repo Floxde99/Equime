@@ -61,8 +61,8 @@ npm run seed              # load the development dataset (4 accounts, password: 
 | Environment | Compose file | Purpose |
 |---|---|---|
 | Development | `docker-compose.yml` | Hot reload, local volumes |
-| Preproduction | `docker-compose.preprod.yml` | Production-identical images, acceptance testing (skeleton — finalized in Phase 6) |
-| Production | `docker-compose.prod.yml` | Multi-stage images, non-root user, Nginx + SSL (skeleton — finalized in Phase 6) |
+| Preproduction | `docker-compose.preprod.yml` | Production-identical images, acceptance testing |
+| Production | `docker-compose.prod.yml` | Multi-stage images, non-root user, Caddy (host) for TLS |
 
 ## Documentation
 
@@ -74,6 +74,7 @@ All project documentation lives in [`docs/`](docs/) (in French). Key references:
 | [`backlog.md`](docs/backlog.md) | Agile backlog (MoSCoW user stories) |
 | [`cahier-de-tests.md`](docs/cahier-de-tests.md) | Test catalog |
 | [`cahier-de-recette.md`](docs/cahier-de-recette.md) | Acceptance test book (Phase 6) |
+| [`deploiement.md`](docs/deploiement.md) | VPS deployment and operations runbook (preprod + prod) |
 | [`traceabilite.md`](docs/traceabilite.md) | Requirements → modules → tests matrix |
 | [`rgpd.md`](docs/rgpd.md) | GDPR processing, consent, retention |
 | [`securite.md`](docs/securite.md) | OWASP controls mapping |
