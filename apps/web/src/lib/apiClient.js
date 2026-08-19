@@ -119,7 +119,42 @@ export const api = {
   /** @param {string} path @param {unknown} [body] */
   post: (path, body) => apiFetch(path, { method: 'POST', body }),
   /** @param {string} path @param {unknown} [body] */
+  put: (path, body) => apiFetch(path, { method: 'PUT', body }),
+  /** @param {string} path @param {unknown} [body] */
   patch: (path, body) => apiFetch(path, { method: 'PATCH', body }),
   /** @param {string} path */
   delete: (path) => apiFetch(path, { method: 'DELETE' }),
+  /**
+   * @param {string} path
+   * @param {FormData} formData
+   */
+  upload: (path, formData) => apiUpload(path, formData),
 };
+
+/**
+ * @param {string} path
+ * @param {FormData} formData
+ * @param {boolean} [retry]
+ */
+async function apiUpload(path, formData, retry = true) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (res.ok) return data;
+
+  if (res.status === 401 && data.error?.code === 'TOKEN_EXPIRED' && retry) {
+    const refreshed = await refreshOnce();
+    if (refreshed) return apiUpload(path, formData, false);
+    onSessionExpired?.();
+  }
+
+  throw new ApiError(res.status, data.error ?? {});
+}
