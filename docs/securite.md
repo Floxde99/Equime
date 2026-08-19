@@ -11,7 +11,7 @@ Equime applique une défense en profondeur : validation systématique des entré
 
 | OWASP 2021 | Risque | Mesure implémentée | Fichier(s) |
 |---|---|---|---|
-| **A01** — Broken Access Control | Accès à des ressources sans droit | Middleware `requireAuth` + `requireRole` sur chaque route protégée ; guards React par rôle ; isolation des données par `familyId` (Phases 3+) | `apps/api/src/middlewares/auth.js`, `apps/web/src/features/auth/guards.jsx` |
+| **A01** — Broken Access Control | Accès à des ressources sans droit | Middleware `requireAuth` + `requireRole` sur chaque route protégée ; guards React par rôle ; isolation cavaliers par `familyId` ; téléchargement documents authentifié | `apps/api/src/middlewares/auth.js`, `apps/api/src/lib/family.js`, `apps/web/src/features/auth/guards.jsx` |
 | **A02** — Cryptographic Failures | Fuite de secrets, mots de passe faibles | Mots de passe **argon2id** ; refresh/reset tokens **hashés SHA-256** en BDD ; secrets JWT en `.env` (≥ 32 car.) ; cookie refresh **httpOnly + Secure + SameSite=Strict** ; access token **jamais en localStorage** | `apps/api/src/lib/passwords.js`, `apps/api/src/services/tokenService.js`, `apps/web/src/lib/apiClient.js`, `apps/api/src/controllers/authController.js` |
 | **A03** — Injection | SQL / NoSQL / command injection | Prisma ORM (requêtes paramétrées) ; validation Zod sur body/params/query avant tout traitement | `apps/api/src/middlewares/validate.js`, `packages/shared/src/schemas/` |
 | **A04** — Insecure Design | Flux auth faibles | Rotation refresh + détection réutilisation (révocation famille) ; logout révoque refresh + blacklist access ; reset password révoque toutes les sessions | `apps/api/src/services/tokenService.js`, `docs/uml/sequence-authentification.md`, ADR 002 |
@@ -72,8 +72,57 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 | Rate limiting (429) | T-1.11 | `apps/api/src/tests/auth.test.js` |
 | Hash token / argon2 | — | `apps/api/src/services/tokenService.test.js`, `passwords.test.js` |
 
-## Perspectives (phases suivantes)
+## Détail — module cœur métier (Phase 3)
 
-- **Phase 3** : contrôle MIME + taille uploads ; IDOR sur ressources famille.
-- **Phase 6** : audit accessibilité RGAA ; headers Nginx prod ; parcours E2E auth (E2E-1).
+### Documents cavaliers
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Contrôle MIME réel | Magic bytes via `file-type`, pas l'extension seule | `apps/api/src/lib/uploads.js` |
+| Taille max | 5 Mo via `multer.limits` | idem |
+| Consentement RGPD | Obligatoire avant certificat médical | `apps/api/src/services/riderService.js` |
+| Stockage hors webroot | Volume `UPLOAD_DIR`, servi via route authentifiée | `docker-compose.yml`, `apps/api/src/routes/riders.routes.js` |
+
+### Planning
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Cache Redis | TTL 5 min, invalidation globale à chaque mutation cours | `apps/api/src/services/planningCache.js` |
+| Conflit d'espace | Refus 409 si chevauchement dans le même espace | `apps/api/src/services/spaceService.js` |
+
+## Détail — attribution & facturation (Phase 4)
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Attribution transactionnelle | Affectation chevaux + charge hebdo dans une unique transaction Prisma, rollback complet sur erreur | `apps/api/src/services/horseAssignment.js` |
+| Audit sans écriture | Simulation batch admin sans modification BDD | `apps/api/src/services/horseAssignment.js`, `apps/api/src/routes/admin.routes.js` |
+| Isolation famille factures | Consultation/paiement client bornés à `family.userId` | `apps/api/src/services/billingService.js`, `apps/api/src/routes/client.routes.js` |
+| Paiement simulé maîtrisé | Aucun PSP réel ; simple changement d'état + notification | `apps/api/src/services/billingService.js` |
+
+## Détail — événements, incidents, bénévolat, messagerie, notifications (Phase 5)
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Préférences par canal | Chaque type de notification vérifie les préférences `in_app` / `email` avant dispatch ; création automatique des préférences manquantes | `apps/api/src/services/notificationService.js`, `apps/api/src/routes/notifications.routes.js` |
+| Lecture publique limitée | Les événements publics exposent uniquement les rendez-vous à venir, sans données d'inscription ni d'utilisateurs | `apps/api/src/services/eventService.js`, `apps/api/src/routes/events.routes.js` |
+| Contrôle d'accès messagerie | Contacts filtrés par rôle ; accès à une conversation borné aux participants ; un tiers reçoit 404 (anti-IDOR) | `apps/api/src/services/messageService.js`, `apps/api/src/routes/messages.routes.js` |
+| XSS messagerie | Les messages sont rendus en texte brut via React (pas de `dangerouslySetInnerHTML`) ; l'access token reste en mémoire uniquement | `apps/web/src/features/engagement/pages/MessagesPage.jsx`, `apps/web/src/lib/apiClient.js` |
+| Incidents critiques visibles | Les incidents `critical` ouverts sont exposés au dashboard admin pour traitement prioritaire | `apps/api/src/services/incidentService.js`, `apps/web/src/features/admin/pages/AdminDashboardPage.jsx` |
+| Bénévolat transactionnel | L'inscription bénévole vérifie unicité + capacité dans une transaction Prisma unique | `apps/api/src/services/volunteerService.js` |
+
+## Détail — Phase 6 (recette, E2E, déploiement)
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Tests E2E Playwright | 4 parcours (auth, client, moniteur, facturation) exécutés en CI Chromium | `playwright/e2e/`, `playwright.config.js`, `.github/workflows/ci.yml` |
+| Isolation rate limit E2E | Purge Redis `rl:*` avant la suite pour éviter les 429 après tests d'intégration | `playwright/clear-rate-limits.mjs`, `playwright/start-stack.mjs` |
+| Seed recette déterministe | Jeu de données volumétrique pour préprod, rejouable | `apps/api/prisma/seed-recette.js` |
+| Headers Nginx | X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy ; gzip prod | `docker/nginx/web.conf`, `docker/nginx/preprod.conf`, `docker/nginx/prod.conf` |
+| Stack préprod/prod | Compose multi-services (postgres, redis, api, web, nginx) | `docker-compose.preprod.yml`, `docker-compose.prod.yml` |
+
+## Perspectives (hors scope immédiat)
+
+- **Déploiement CI/CD** : workflows `develop` → préprod et `main` → prod avec approbation manuelle.
+- **Point restant** : le refresh silencieux reste vérifié en intégration ; E2E dédié à TTL réduit en perspective.
+- **Audit RGAA** : exécution manuelle consignée dans `docs/cahier-de-recette.md` (T-A.1, T-A.2).
 - **Hors scope v1** : MFA, CAPTCHA, détection d'anomalies géolocalisées.

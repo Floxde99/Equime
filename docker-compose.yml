@@ -50,12 +50,14 @@ services:
       APP_URL: ${APP_URL:-http://localhost:5173}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@equime.local}
+      UPLOAD_DIR: /app/uploads
     ports:
       - '3000:3000'
     volumes:
       # Hot reload : seul le code source est monté (node_modules reste dans l'image)
       - ./apps/api/src:/app/apps/api/src
       - ./packages/shared/src:/app/packages/shared/src
+      - uploads-data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,3 +85,4 @@ services:
 
 volumes:
   postgres-data:
+  uploads-data:

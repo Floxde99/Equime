@@ -51,7 +51,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-2.1 | Ajout cavalier | Client ajoute un cavalier complet | 201, visible dans la liste famille | ⬜ intégration | ⬜ |
+| T-2.1 | Ajout cavalier | Client ajoute un cavalier complet | 201, visible dans la liste famille | ✅ intégration | ⬜ |
 | T-2.2 | Isolation famille | Lina tente GET des cavaliers d'Alex | 403/404 — aucune fuite | ⬜ intégration | ⬜ |
 | T-2.3 | Upload certificat | PDF 2 Mo avec consentement coché | Statut « en attente », fichier servi authentifié seulement | ⬜ intégration | ⬜ |
 | T-2.4 | Upload invalide | .exe renommé en .pdf, ou 8 Mo | 400 — MIME réel et taille contrôlés | ⬜ intégration | ⬜ |
@@ -62,18 +62,18 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-3.1 | CRUD cheval | Admin crée/modifie/supprime | Badges de statut conformes au design system | ⬜ intégration | ⬜ |
+| T-3.1 | CRUD cheval | Admin crée/modifie/supprime | Badges de statut conformes au design system | ✅ intégration | ⬜ |
 | T-3.2 | Changement de statut | Passer Sultan `injured` → `fit` | Historique cohérent, cheval redevenu éligible | ⬜ intégration | ⬜ |
 | T-3.3 | Carnet de santé | Ajouter une entrée vétérinaire | Listée anti-chronologiquement ; moniteur lit, seul admin écrit | ⬜ intégration | ⬜ |
-| T-3.4 | Conflit d'espace | 2 cours simultanés même espace | Refus avec message explicite | ⬜ intégration | ⬜ |
+| T-3.4 | Conflit d'espace | 2 cours simultanés même espace | Refus avec message explicite | ✅ intégration | ⬜ |
 
 ## Module 4 — Cours & planning (Phase 3)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-4.1 | Récurrence 8 semaines | Créer cours hebdo avec date de fin | 8 séances générées rattachées à la série | ⬜ unit (recurrence.js) + intégration | ⬜ |
+| T-4.1 | Récurrence 8 semaines | Créer cours hebdo avec date de fin | 8 séances générées rattachées à la série | ✅ unit (recurrence.js) + intégration | ⬜ |
 | T-4.2 | Annulation d'une séance | Annuler séance 3 seulement | Les 7 autres inchangées ; notification `course_cancelled` aux inscrits | ⬜ intégration | ⬜ |
-| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, quota décrémenté | ⬜ intégration | ⬜ |
+| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, quota décrémenté | ✅ intégration | ⬜ |
 | T-4.4 | Inscription niveau KO | Lucas (initiation) sur cours G5+ | 400 avec raison | ⬜ intégration | ⬜ |
 | T-4.5 | Cours complet | Inscrire au-delà de la capacité | Refus explicite | ⬜ intégration | ⬜ |
 | T-4.6 | Présences | Moniteur pointe présent/absent/excusé | Persisté ; absence → notification famille | ⬜ intégration | ⬜ |
@@ -100,7 +100,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-6.1 | Pricing | Famille 2 cavaliers, plan Classique | Prix = plan − 10 % (règle famille nombreuse) — `pricing.js` pur | ⬜ unit | ⬜ |
 | T-6.2 | Réductions cumulées | Cas 3 cavaliers | Meilleure règle appliquée (15 %), jamais de prix négatif | ⬜ unit | ⬜ |
 | T-6.3 | Cycle de facture | brouillon → envoyée → payée | Numérotation unique ; notifications `invoice_created`, `payment_confirmed` | ⬜ intégration | ⬜ |
-| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ⬜ intégration + E2E | ⬜ |
+| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ⬜ |
 | T-6.5 | Relance impayé | Relancer FAC-2026-0004 (overdue) | Notification `invoice_reminder` selon préférences | ⬜ intégration | ⬜ |
 | T-6.6 | Isolation | Alex tente GET facture de Lina | 403/404 | ⬜ intégration | ⬜ |
 
@@ -108,19 +108,19 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-7.1 | API publique | GET /api/v1/events sans auth | 200, stages à venir (vitrine) | ⬜ intégration | ⬜ |
-| T-7.2 | Réservation | Inscrire Emma au stage | Confirmée si places, notification envoyée | ⬜ intégration | ⬜ |
-| T-7.3 | Capacité épuisée | Inscrire au-delà de la capacité | Refus explicite | ⬜ intégration | ⬜ |
+| T-7.1 | API publique | GET /api/v1/events sans auth | 200, stages à venir (vitrine) | ✅ `phase5.test.js` | ✅ |
+| T-7.2 | Réservation | Inscrire Emma au stage | Confirmée si places, notification envoyée | ✅ `phase5.test.js` | ✅ |
+| T-7.3 | Capacité épuisée | Inscrire au-delà de la capacité | Refus explicite | ✅ `phase5.test.js` | ✅ |
 
 ## Module 8 — Messagerie, incidents, bénévolat, notifications (Phase 5)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-8.1 | Contacts filtrés | Client liste ses contacts | Moniteurs + admin seulement (jamais d'autres clients) | ⬜ intégration | ⬜ |
-| T-8.2 | Fil de conversation | Envoyer/recevoir, marquer lu | `lastReadAt` par participant ; polling rafraîchit | ⬜ intégration | ⬜ |
-| T-8.3 | Incident critique | Moniteur déclare `critical` | Visible en alerte dashboard admin | ⬜ intégration | ⬜ |
-| T-8.4 | Bénévolat complet | S'inscrire sur mission pleine | Refus, places restantes exactes | ⬜ intégration | ⬜ |
-| T-8.5 | Préférences respectées | Désactiver email `invoice_created` puis créer facture | In-app envoyée, email non envoyé | ⬜ intégration | ⬜ |
+| T-8.1 | Contacts filtrés | Client liste ses contacts | Moniteurs + admin seulement (jamais d'autres clients) | ✅ `phase5.test.js` | ✅ |
+| T-8.2 | Fil de conversation | Envoyer/recevoir, marquer lu | `lastReadAt` par participant ; polling rafraîchit | ✅ `phase5.test.js` | ✅ |
+| T-8.3 | Incident critique | Moniteur déclare `critical` | Visible en alerte dashboard admin | ✅ `phase5.test.js` | ✅ |
+| T-8.4 | Bénévolat complet | S'inscrire sur mission pleine | Refus, places restantes exactes | ✅ `phase5.test.js` | ✅ |
+| T-8.5 | Préférences respectées | Désactiver email `invoice_created` puis créer facture | In-app envoyée, email non envoyé | ✅ `phase5.test.js` | ✅ |
 
 ## Module 9 — Administration (Phases 4-5)
 
@@ -132,12 +132,27 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 ## Parcours E2E (Phase 6 — Playwright, 4 et pas plus)
 
-| ID | Parcours | Couvre |
-|---|---|---|
-| E2E-1 | Inscription → login → refresh silencieux → logout | T-1.1, T-1.4, T-1.7, T-1.13 |
-| E2E-2 | Client : inscription d'un cavalier à un cours + vérification planning | T-2.1, T-4.3 |
-| E2E-3 | Moniteur : attribution auto + override + présences | T-5.1, T-5.8, T-4.6 |
-| E2E-4 | Client : paiement facture + vérification côté admin | T-6.4 |
+| ID | Parcours | Couvre | Auto | Statut |
+|---|---|---|---|---|
+| E2E-1 | Visiteur : inscription client puis déconnexion | T-1.1, T-1.13 | `auth.spec.js` | ✅ |
+| E2E-2 | Client : ajout cavalier + réservation + consultation planning | T-2.1, T-4.3 | `client-flow.spec.js` | ✅ |
+| E2E-3 | Moniteur : accès planning + appel (socle attribution/présences) | T-5.1, T-5.8, T-4.6 | `instructor-flow.spec.js` | ✅ |
+| E2E-4 | Client : paiement facture + contrôle admin | T-6.4 | `billing-flow.spec.js` | ✅ |
+
+Socle automatisé ajouté en Phase 6 :
+
+- Configuration : `playwright.config.js`
+- Dossier de specs : `playwright/e2e/`
+- Préparation locale : `docker compose up -d postgres redis` puis `npm run e2e:prepare`
+- Exécution locale (stack auto) : `npm run e2e`
+- Exécution avec stack Docker : `npm run e2e:stack` puis `PLAYWRIGHT_EXTERNAL_STACK=1 npm run e2e`
+
+Limite connue : les tests d'intégration auth saturent parfois le rate limiting Redis partagé ;
+`playwright/clear-rate-limits.mjs` est exécuté avant la suite E2E (`e2e:prepare` / `start-stack.mjs`).
+
+Le **refresh silencieux** n'est pas encore isolé en E2E robuste, car la durée
+de vie nominale du token (15 min) n'est pas abaissée dans un environnement de test dédié. Il
+reste couvert par les tests d'intégration API.
 
 ## Transverse — sécurité & accessibilité (audités en Phase 6)
 

@@ -44,7 +44,7 @@ export default [
 
   // Backend + package partagé + fichiers de config racine : environnement Node
   {
-    files: ['apps/api/**/*.js', 'packages/**/*.js', '*.js'],
+    files: ['apps/api/**/*.js', 'packages/**/*.js', '*.js', 'playwright/**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node },
     },

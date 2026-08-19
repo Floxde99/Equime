@@ -8,6 +8,8 @@ apps/api/generated/
 dist/
 build/
 coverage/
+playwright-report/
+test-results/
 
 # Environment — never commit secrets
 .env
@@ -25,3 +27,6 @@ Thumbs.db
 
 # Uploads (dev volume)
 uploads/
+
+# Playwright auth/session cache
+playwright/.auth/
