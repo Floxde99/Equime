@@ -29,7 +29,12 @@ export const compatibilityAuditSchema = z.object({});
 
 const courseBodySchema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis').max(120),
-  description: z.string().trim().max(2000).optional().or(z.literal('').transform(() => undefined)),
+  description: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   instructorId: z.string().min(1),
   spaceId: z.string().min(1),
   startAt: z.coerce.date(),
@@ -83,6 +88,15 @@ export const cancelCourseSchema = z.object({
 
 export const enrollRiderSchema = z.object({
   riderId: z.string().min(1),
+  force: z.boolean().optional(),
+});
+
+/** Query `force=true` — réservé admin (Excel 10.4), ignoré pour les autres rôles. */
+export const forceQuerySchema = z.object({
+  force: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .optional()
+    .transform((value) => value === true || value === 'true'),
 });
 
 export const updateAttendanceSchema = z.object({

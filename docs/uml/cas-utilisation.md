@@ -32,6 +32,7 @@ flowchart LR
         A2(["Réserver un événement (stage, compétition)"])
         A3(["Consulter le planning de la famille"])
         A4(["Se porter volontaire sur une mission"])
+        A5(["Excuser une séance à venir"])
     end
     subgraph "Compte & facturation"
         B1(["Consulter et payer ses factures (simulé)"])
@@ -42,7 +43,7 @@ flowchart LR
     M1(["Échanger par messagerie"])
 
     C --> F1 & F2 & F3
-    C --> A1 & A2 & A3 & A4
+    C --> A1 & A2 & A3 & A4 & A5
     C --> B1 & B2 & B3 & B4
     C --> M1
     F2 -.->|include| F2b(["Donner le consentement médical explicite"])
@@ -92,6 +93,7 @@ flowchart LR
         M1(["Gérer les membres (CRUD, rôles)"])
         M2(["Bannir / débannir un membre"])
         M3(["Valider les documents des cavaliers"])
+        M4(["Créer un compte moniteur"])
     end
     subgraph Facturation
         K1(["Créer et envoyer des factures"])
@@ -104,7 +106,7 @@ flowchart LR
     AD --> D1 & D2 & D3
     AD --> G1 & G2 & G3 & G4
     AD --> H1 & H2 & H3 & H4
-    AD --> M1 & M2 & M3
+    AD --> M1 & M2 & M3 & M4
     AD --> K1 & K2 & K3 & K4
     AD --> MSG
 ```

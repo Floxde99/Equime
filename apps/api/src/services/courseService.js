@@ -2,12 +2,13 @@
 /**
  * Service cours — création récurrente, inscriptions, présences, planning (EPIC 4).
  */
-import { COURSE_STATUS, NOTIFICATION_TYPES } from '@equime/shared';
+import { ATTENDANCE_STATUS, COURSE_STATUS, NOTIFICATION_TYPES, ROLES } from '@equime/shared';
 
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
 import { isLevelInRange } from '../lib/levels.js';
 import { prisma } from '../lib/prisma.js';
+import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 
 import {
   assignHorsesForSession,
@@ -17,7 +18,7 @@ import {
 import { createNotification } from './notificationService.js';
 import { getPlanningCached, invalidatePlanningCache } from './planningCache.js';
 import { expandWeeklyRecurrence } from './recurrence.js';
-import { assertNoSpaceConflict } from './spaceService.js';
+import { assertNoSpaceConflict, assertRidingSpace } from './spaceService.js';
 
 const COURSE_SELECT = {
   id: true,
@@ -37,6 +38,42 @@ const COURSE_SELECT = {
   createdAt: true,
   updatedAt: true,
 };
+
+const PUBLIC_COURSE_LIMIT = 12;
+
+/**
+ * Séances à venir pour la vitrine (Excel 1.2) : champs publics seulement,
+ * pas d'identité d'élève ni de moniteur.
+ */
+export async function listPublicCourses() {
+  const now = new Date();
+  const courses = await prisma.course.findMany({
+    where: {
+      status: { in: [COURSE_STATUS.SCHEDULED, COURSE_STATUS.ONGOING] },
+      startAt: { gt: now },
+    },
+    select: {
+      id: true,
+      title: true,
+      startAt: true,
+      endAt: true,
+      capacity: true,
+      space: { select: { type: true } },
+      _count: { select: { enrollments: true } },
+    },
+    orderBy: { startAt: 'asc' },
+    take: PUBLIC_COURSE_LIMIT,
+  });
+
+  return courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    startAt: course.startAt,
+    endAt: course.endAt,
+    type: course.space.type,
+    remainingSpots: Math.max(0, course.capacity - course._count.enrollments),
+  }));
+}
 
 /**
  * @param {object} input
@@ -75,6 +112,7 @@ export async function createCourse(input) {
     throw AppError.badRequest('Moniteur invalide');
   }
 
+  await assertRidingSpace(input.spaceId);
   await validateSlots(input);
 
   const course = await prisma.$transaction(async (tx) => {
@@ -158,6 +196,7 @@ export async function updateCourse(courseId, input) {
     endAt: input.endAt ?? existing.endAt,
   };
 
+  if (input.spaceId) await assertRidingSpace(input.spaceId);
   await assertNoSpaceConflict({ ...merged, excludeCourseId: courseId });
 
   const updated = await prisma.course.update({
@@ -281,15 +320,27 @@ export async function getPlanningEvents(params) {
  * @param {string} userId
  * @param {string} courseId
  * @param {string} riderId
+ * @param {{ role: string, force?: boolean }} [options] `force` n'est honoré que pour un admin (Excel 10.4).
  */
-export async function enrollRider(userId, courseId, riderId) {
-  const familyId = await getFamilyIdForUser(userId);
-  const rider = await prisma.rider.findFirst({ where: { id: riderId, familyId } });
+export async function enrollRider(userId, courseId, riderId, options = {}) {
+  const force = options.role === ROLES.ADMIN && options.force === true;
+  const riderInclude = { family: { select: { userId: true } } };
+
+  const rider =
+    options.role === ROLES.ADMIN
+      ? await prisma.rider.findUnique({ where: { id: riderId }, include: riderInclude })
+      : await prisma.rider.findFirst({
+          where: { id: riderId, familyId: await getFamilyIdForUser(userId) },
+          include: riderInclude,
+        });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
+
+  if (!force) {
+    assertRiderDocumentsApproved(rider);
+  }
 
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    include: { _count: { select: { enrollments: true } } },
   });
   if (!course || course.status === COURSE_STATUS.CANCELLED) {
     throw AppError.notFound('Cours introuvable');
@@ -300,14 +351,6 @@ export async function enrollRider(userId, courseId, riderId) {
   if (!isLevelInRange(rider.level, course.minLevel, course.maxLevel)) {
     throw AppError.badRequest("Le niveau du cavalier n'est pas compatible avec ce cours");
   }
-  if (course._count.enrollments >= course.capacity) {
-    throw AppError.conflict('Ce cours est complet');
-  }
-
-  const family = await prisma.family.findUnique({ where: { id: familyId } });
-  if (!family || family.sessionQuota <= 0) {
-    throw AppError.badRequest('Quota de séances épuisé sur votre abonnement');
-  }
 
   const existing = await prisma.courseEnrollment.findUnique({
     where: { courseId_riderId: { courseId, riderId } },
@@ -315,10 +358,24 @@ export async function enrollRider(userId, courseId, riderId) {
   if (existing) throw AppError.conflict('Ce cavalier est déjà inscrit à ce cours');
 
   const enrollment = await prisma.$transaction(async (tx) => {
-    await tx.family.update({
-      where: { id: familyId },
-      data: { sessionQuota: { decrement: 1 } },
+    const lockedCourse = await tx.course.findUnique({
+      where: { id: courseId },
+      include: { _count: { select: { enrollments: true } } },
     });
+    if (!lockedCourse || lockedCourse._count.enrollments >= lockedCourse.capacity) {
+      throw AppError.conflict('Ce cours est complet');
+    }
+
+    if (!force) {
+      const quota = await tx.family.updateMany({
+        where: { id: rider.familyId, sessionQuota: { gt: 0 } },
+        data: { sessionQuota: { decrement: 1 } },
+      });
+      if (quota.count !== 1) {
+        throw AppError.badRequest('Quota de séances épuisé sur votre abonnement');
+      }
+    }
+
     return tx.courseEnrollment.create({
       data: { courseId, riderId },
       include: { rider: { select: { firstName: true, lastName: true } } },
@@ -326,7 +383,7 @@ export async function enrollRider(userId, courseId, riderId) {
   });
 
   await createNotification({
-    userId,
+    userId: rider.family.userId,
     type: NOTIFICATION_TYPES.COURSE_ENROLLED,
     title: 'Inscription confirmée',
     body: `${rider.firstName} est inscrit(e) au cours « ${course.title} »`,
@@ -346,7 +403,7 @@ export async function listEnrollments(courseId) {
     where: { courseId },
     include: {
       rider: { select: { id: true, firstName: true, lastName: true, level: true } },
-      horse: { select: { id: true, name: true } },
+      horse: { select: { id: true, name: true, photoUrl: true } },
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -356,16 +413,29 @@ export async function listEnrollments(courseId) {
  * @param {string} courseId
  * @param {string} enrollmentId
  * @param {string} attendance
+ * @param {{ id: string, role: string }} actor
  */
-export async function updateAttendance(courseId, enrollmentId, attendance) {
+export async function updateAttendance(courseId, enrollmentId, attendance, actor) {
   const enrollment = await prisma.courseEnrollment.findFirst({
     where: { id: enrollmentId, courseId },
     include: {
       rider: { include: { family: { select: { userId: true } } } },
-      course: { select: { title: true } },
+      course: { select: { title: true, startAt: true } },
     },
   });
   if (!enrollment) throw AppError.notFound('Inscription introuvable');
+
+  if (actor.role === ROLES.CLIENT) {
+    if (enrollment.rider.family.userId !== actor.id) {
+      throw AppError.notFound('Inscription introuvable');
+    }
+    if (attendance !== ATTENDANCE_STATUS.EXCUSED) {
+      throw AppError.forbidden('Vous pouvez uniquement signaler une absence (excusé)');
+    }
+    if (enrollment.course.startAt <= new Date()) {
+      throw AppError.badRequest('Seules les séances à venir peuvent être excusées');
+    }
+  }
 
   const previous = enrollment.attendance;
   const updated = await prisma.courseEnrollment.update({
@@ -373,21 +443,74 @@ export async function updateAttendance(courseId, enrollmentId, attendance) {
     data: { attendance },
     include: {
       rider: { select: { id: true, firstName: true, lastName: true, level: true } },
-      horse: { select: { id: true, name: true } },
+      horse: { select: { id: true, name: true, photoUrl: true } },
     },
   });
 
-  if (attendance === 'absent' && previous !== 'absent') {
+  const clientExcuse = actor.role === ROLES.CLIENT && attendance === ATTENDANCE_STATUS.EXCUSED;
+  const instructorAbsence = attendance === ATTENDANCE_STATUS.ABSENT;
+  if (
+    (clientExcuse && previous !== ATTENDANCE_STATUS.EXCUSED) ||
+    (instructorAbsence && previous !== ATTENDANCE_STATUS.ABSENT)
+  ) {
     await createNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.RIDER_ABSENCE,
       title: 'Absence signalée',
-      body: `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`,
+      body: clientExcuse
+        ? `${enrollment.rider.firstName} sera absent(e) au cours « ${enrollment.course.title} »`
+        : `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`,
       linkUrl: '/app/planning',
     });
   }
 
   return updated;
+}
+
+/**
+ * Inscriptions à venir de la famille (pour signaler une absence, Excel 3.7).
+ * @param {string} userId
+ */
+export async function listFamilyUpcomingEnrollments(userId) {
+  const familyId = await getFamilyIdForUser(userId);
+  const rows = await prisma.courseEnrollment.findMany({
+    where: {
+      rider: { familyId },
+      course: {
+        startAt: { gt: new Date() },
+        status: { notIn: [COURSE_STATUS.DRAFT, COURSE_STATUS.CANCELLED] },
+      },
+    },
+    include: {
+      rider: { select: { id: true, firstName: true, lastName: true } },
+      course: {
+        select: {
+          id: true,
+          title: true,
+          startAt: true,
+          endAt: true,
+          space: { select: { name: true } },
+          instructor: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+    orderBy: { course: { startAt: 'asc' } },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    courseId: row.courseId,
+    attendance: row.attendance,
+    rider: row.rider,
+    course: {
+      id: row.course.id,
+      title: row.course.title,
+      startAt: row.course.startAt,
+      endAt: row.course.endAt,
+      spaceName: row.course.space.name,
+      instructorName: `${row.course.instructor.firstName} ${row.course.instructor.lastName}`,
+    },
+  }));
 }
 
 /**
@@ -423,7 +546,10 @@ export async function overrideHorse(courseId, enrollmentId, horseId) {
  */
 export async function listEnrollableCourses(userId) {
   const familyId = await getFamilyIdForUser(userId);
-  const riders = await prisma.rider.findMany({ where: { familyId }, select: { id: true, level: true } });
+  const riders = await prisma.rider.findMany({
+    where: { familyId },
+    select: { id: true, level: true },
+  });
   if (riders.length === 0) return [];
 
   const now = new Date();
@@ -441,7 +567,9 @@ export async function listEnrollableCourses(userId) {
 
   return courses
     .filter((c) => {
-      const hasCompatibleRider = riders.some((r) => isLevelInRange(r.level, c.minLevel, c.maxLevel));
+      const hasCompatibleRider = riders.some((r) =>
+        isLevelInRange(r.level, c.minLevel, c.maxLevel)
+      );
       const hasCapacity = c._count.enrollments < c.capacity;
       return hasCompatibleRider && hasCapacity;
     })

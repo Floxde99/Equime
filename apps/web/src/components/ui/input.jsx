@@ -3,7 +3,7 @@ import { forwardRef } from 'react';
 import { cn } from '@/lib/utils.js';
 
 /**
- * Champ texte du design system — fond surface, focus doré.
+ * Champ texte du design system — fond carte, focus vert.
  * `forwardRef` requis par react-hook-form (register).
  */
 export const Input = forwardRef(
@@ -17,7 +17,7 @@ export const Input = forwardRef(
         ref={ref}
         aria-invalid={invalid || undefined}
         className={cn(
-          'h-11 w-full rounded-lg border border-border bg-surface px-4 font-sans text-sm text-text placeholder:text-muted/70',
+          'h-11 w-full rounded-lg border border-border-on-card bg-card px-4 font-sans text-sm text-on-card placeholder:text-muted-on-card',
           'focus-visible:border-primary',
           invalid && 'border-danger',
           className

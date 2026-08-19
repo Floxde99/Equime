@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils.js';
 
 const VARIANTS = {
-  default: 'border-border bg-surface-raised text-muted',
+  default: 'border-border-on-card bg-paper text-muted',
   success: 'border-success/30 bg-success/15 text-success',
   warning: 'border-warning/30 bg-warning/15 text-warning',
   danger: 'border-danger/30 bg-danger/15 text-danger',

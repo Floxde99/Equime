@@ -15,11 +15,7 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get(
-  '/critical-count',
-  requireRole(ROLES.ADMIN),
-  incidentController.countCriticalOpen
-);
+router.get('/critical-count', requireRole(ROLES.ADMIN), incidentController.countCriticalOpen);
 router.post(
   '/',
   requireRole(ROLES.INSTRUCTOR, ROLES.ADMIN),

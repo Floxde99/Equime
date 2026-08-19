@@ -2,6 +2,8 @@
 /**
  * Service espaces — CRUD admin et détection de conflits planning (EPIC 3).
  */
+import { SPACE_TYPES } from '@equime/shared';
+
 import { AppError } from '../lib/appError.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -37,6 +39,20 @@ export async function getSpace(spaceId) {
 }
 
 /**
+ * Un box n’est pas un lieu de cours (manège / carrière / paddock uniquement).
+ * @param {string} spaceId
+ */
+export async function assertRidingSpace(spaceId) {
+  const space = await getSpace(spaceId);
+  if (space.type === SPACE_TYPES.STALL) {
+    throw AppError.badRequest(
+      'Un box ne peut pas accueillir un cours — choisissez un manège, une carrière ou un paddock'
+    );
+  }
+  return space;
+}
+
+/**
  * @param {string} spaceId
  * @param {{ name?: string, type?: string, capacity?: number }} input
  */
@@ -51,7 +67,8 @@ export async function updateSpace(spaceId, input) {
 export async function deleteSpace(spaceId) {
   await getSpace(spaceId);
   const courses = await prisma.course.count({ where: { spaceId, status: { not: 'cancelled' } } });
-  if (courses > 0) throw AppError.conflict('Impossible de supprimer un espace utilisé par des cours');
+  if (courses > 0)
+    throw AppError.conflict('Impossible de supprimer un espace utilisé par des cours');
   await prisma.space.delete({ where: { id: spaceId } });
 }
 

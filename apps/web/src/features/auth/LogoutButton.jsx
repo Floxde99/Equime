@@ -23,7 +23,7 @@ export function LogoutButton({ className = '' }) {
     <button
       type="button"
       onClick={handleLogout}
-      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 font-sans text-sm text-muted transition-colors hover:bg-surface hover:text-text ${className}`}
+      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 font-sans text-sm text-muted transition-colors hover:bg-paper hover:text-on-card ${className}`}
     >
       <LogOut aria-hidden="true" className="size-4" />
       Se déconnecter

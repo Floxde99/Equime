@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tarification pure — aucune I/O, testable isolément (EPIC 6).
  */

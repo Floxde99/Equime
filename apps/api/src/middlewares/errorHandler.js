@@ -25,6 +25,13 @@ export function errorHandler(err, req, res, next) {
     });
   }
 
+  if (err?.code === 'P2025') {
+    logger.warn({ code: 'NOT_FOUND', path: req.path }, err.message);
+    return res.status(404).json({
+      error: { code: 'NOT_FOUND', message: 'Ressource introuvable' },
+    });
+  }
+
   logger.error({ err, path: req.path }, 'Erreur non gérée');
   return res.status(500).json({
     error: {

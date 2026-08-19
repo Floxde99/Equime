@@ -12,7 +12,12 @@ router.use(requireAuth);
 
 router.get('/', spaceController.listSpaces);
 
-router.post('/', requireRole(ROLES.ADMIN), validate(createSpaceSchema), spaceController.createSpace);
+router.post(
+  '/',
+  requireRole(ROLES.ADMIN),
+  validate(createSpaceSchema),
+  spaceController.createSpace
+);
 router.get('/:id', validate(spaceIdParamSchema, 'params'), spaceController.getSpace);
 router.patch(
   '/:id',

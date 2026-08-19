@@ -17,7 +17,7 @@ const API_BASE = '/api/v1';
 /** @type {string | null} Access token courant (mémoire uniquement) */
 let accessToken = null;
 
-/** @type {Promise<boolean> | null} Refresh en cours (single-flight) */
+/** @type {Promise<{ user: object, accessToken: string } | null> | null} */
 let refreshInFlight = null;
 
 /** @type {(() => void) | null} Callback branché par AuthProvider (session expirée) */
@@ -26,6 +26,11 @@ let onSessionExpired = null;
 /** @param {string | null} token */
 export function setAccessToken(token) {
   accessToken = token;
+}
+
+/** @returns {string | null} */
+export function getAccessToken() {
+  return accessToken;
 }
 
 /** @param {() => void} handler */
@@ -50,9 +55,20 @@ export class ApiError extends Error {
 
 /**
  * Appelle POST /auth/refresh et met à jour le token en mémoire.
+ * Single-flight : React StrictMode (dev) monte AuthProvider deux fois ; deux
+ * POST concurrents présenteraient le même refresh, et la rotation côté API
+ * révoquerait toute la famille (détection de réutilisation).
  * @returns {Promise<{ user: object, accessToken: string } | null>} null si la session est morte
  */
-export async function refreshSession() {
+export function refreshSession() {
+  refreshInFlight ??= performRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+/** @returns {Promise<{ user: object, accessToken: string } | null>} */
+async function performRefresh() {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -66,15 +82,11 @@ export async function refreshSession() {
   return data;
 }
 
-/** Refresh silencieux partagé entre appels concurrents. */
+/** Refresh silencieux partagé entre appels concurrents (boolean pour le rejeu). */
 function refreshOnce() {
-  refreshInFlight ??= refreshSession()
+  return refreshSession()
     .then((data) => data !== null)
-    .catch(() => false)
-    .finally(() => {
-      refreshInFlight = null;
-    });
-  return refreshInFlight;
+    .catch(() => false);
 }
 
 /**
@@ -111,6 +123,42 @@ export async function apiFetch(path, { method = 'GET', body, retry = true } = {}
   }
 
   throw new ApiError(res.status, data.error ?? {});
+}
+
+/**
+ * Télécharge une réponse binaire (export RGPD). Ne parse pas le JSON.
+ * @param {string} path
+ * @param {{ retry?: boolean }} [options]
+ * @returns {Promise<Blob>}
+ */
+export async function apiFetchBlob(path, { retry = true } = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+    },
+  });
+
+  if (res.status === 401) {
+    const data = await res
+      .clone()
+      .json()
+      .catch(() => ({}));
+    if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) return apiFetchBlob(path, { retry: false });
+      onSessionExpired?.();
+    }
+    throw new ApiError(res.status, data.error ?? {});
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, data.error ?? {});
+  }
+
+  return res.blob();
 }
 
 export const api = {

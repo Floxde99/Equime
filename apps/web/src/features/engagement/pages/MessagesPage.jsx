@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
+import { Textarea } from '@/components/ui/textarea.jsx';
 import {
   createConversation,
   fetchConversationMessages,
@@ -15,8 +17,10 @@ import {
   markConversationRead,
   sendMessage,
 } from '@/features/engagement/api.js';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 export function MessagesPage() {
+  const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
   const [participantId, setParticipantId] = useState('');
   const [subject, setSubject] = useState('');
@@ -85,12 +89,11 @@ export function MessagesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Messagerie</h1>
-        <p className="mt-1 font-sans text-sm text-muted">
-          Rafraîchissement automatique toutes les 5 secondes, lecture suivie par participant.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={eyebrow}
+        title="Messagerie"
+        description="Rafraîchissement automatique toutes les 5 secondes, lecture suivie par participant."
+      />
 
       {error ? <Alert>{error}</Alert> : null}
 
@@ -133,17 +136,21 @@ export function MessagesPage() {
                 key={conversation.id}
                 type="button"
                 onClick={() => setSelectedConversationId(conversation.id)}
-                className={`w-full rounded-lg border p-3 text-left ${
+                className={`w-full rounded-xl border p-3 text-left ${
                   selectedConversationId === conversation.id
-                    ? 'border-primary bg-surface-raised'
-                    : 'border-border bg-surface'
+                    ? 'border-primary bg-paper'
+                    : 'border-border-on-card bg-paper'
                 }`}
               >
                 <p className="font-sans text-sm font-semibold text-text">
-                  {conversation.contacts.map((contact) => `${contact.firstName} ${contact.lastName}`).join(', ')}
+                  {conversation.contacts
+                    .map((contact) => `${contact.firstName} ${contact.lastName}`)
+                    .join(', ')}
                 </p>
                 <p className="font-sans text-xs text-muted">
-                  {conversation.subject || conversation.lastMessage?.body || 'Conversation sans sujet'}
+                  {conversation.subject ||
+                    conversation.lastMessage?.body ||
+                    'Conversation sans sujet'}
                 </p>
                 {conversation.hasUnread ? (
                   <p className="mt-1 font-sans text-xs text-info">Nouveaux messages</p>
@@ -176,22 +183,26 @@ export function MessagesPage() {
 
               <div className="space-y-3">
                 {messages.map((message) => (
-                  <div key={message.id} className="rounded-lg border border-border p-3">
+                  <div
+                    key={message.id}
+                    className="rounded-xl border border-border-on-card bg-paper p-3"
+                  >
                     <p className="font-sans text-xs text-muted">
                       {message.sender.firstName} {message.sender.lastName}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap font-sans text-sm text-text">{message.body}</p>
+                    <p className="mt-1 whitespace-pre-wrap font-sans text-sm text-text">
+                      {message.body}
+                    </p>
                   </div>
                 ))}
               </div>
 
               <Field label="Votre message" htmlFor="new-message">
-                <textarea
+                <Textarea
                   id="new-message"
                   value={messageBody}
                   onChange={(e) => setMessageBody(e.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-border bg-surface px-4 py-3 font-sans text-sm text-text"
                 />
               </Field>
               <Button

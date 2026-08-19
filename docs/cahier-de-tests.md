@@ -104,12 +104,14 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ⬜ |
 | T-6.5 | Relance impayé | Relancer FAC-2026-0004 (overdue) | Notification `invoice_reminder` selon préférences | ⬜ intégration | ⬜ |
 | T-6.6 | Isolation | Alex tente GET facture de Lina | 403/404 | ⬜ intégration | ⬜ |
+| T-6.7 | PDF facture | Admin GET `/invoices/:id/pdf` (brouillon OK) ; client GET après envoi ; autre famille 404 | `Content-Type: application/pdf`, magic `%PDF` | ✅ `invoicePdf.test.js`, `phase4.test.js` | ✅ |
 
 ## Module 7 — Événements (Phase 5)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
 | T-7.1 | API publique | GET /api/v1/events sans auth | 200, stages à venir (vitrine) | ✅ `phase5.test.js` | ✅ |
+| T-7.1b | Newsletter | POST /api/v1/public/newsletter email invalide / valide | 400 Zod ; 201 + consentement stocké | ✅ `newsletter.test.js` | ✅ |
 | T-7.2 | Réservation | Inscrire Emma au stage | Confirmée si places, notification envoyée | ✅ `phase5.test.js` | ✅ |
 | T-7.3 | Capacité épuisée | Inscrire au-delà de la capacité | Refus explicite | ✅ `phase5.test.js` | ✅ |
 
@@ -131,7 +133,11 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-9.2 | Ban immédiat | Bannir un client connecté | Sessions révoquées, reconnexion refusée | ✅ `admin.test.js` | ✅ |
 | T-9.3 | Validation documents | Approuver/refuser un certificat | Statut mis à jour, motif obligatoire si refus | ✅ `admin.test.js` | ✅ |
 
-## Parcours E2E (Phase 6 — Playwright, 4 et pas plus)
+## Parcours E2E (Phase 6 — Playwright)
+
+**4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13).**
+
+Les règles métier trop lourdes (upload PDF, reset mot de passe, ban, refresh 15 min, XSS/SQL, attribution algorithmique) restent en Vitest/Supertest.
 
 | ID | Parcours | Couvre | Auto | Statut |
 |---|---|---|---|---|
@@ -139,6 +145,15 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | E2E-2 | Client : ajout cavalier + réservation + consultation planning | T-2.1, T-4.3 | `client-flow.spec.js` | ✅ |
 | E2E-3 | Moniteur : accès planning + appel (socle attribution/présences) | T-5.1, T-5.8, T-4.6 | `instructor-flow.spec.js` | ✅ |
 | E2E-4 | Client : paiement facture + contrôle admin | T-6.4 | `billing-flow.spec.js` | ✅ |
+| E2E-5 | Visiteur : vitrine (Accueil, Formules, Cours, CTA Connexion) | T-0.4, T-7.1 | `public.spec.js` | ⬜ |
+| E2E-6 | Isolation des rôles (client hors `/admin`, visiteur hors `/app`) | T-1.9, T-1.10 | `guards.spec.js` | ⬜ |
+| E2E-7 | Client : inscription aux stages | T-7.2 | `client-engagement.spec.js` | ⬜ |
+| E2E-8 | Admin : cavalerie (fiche cheval) | T-3.1 | `admin-flow.spec.js` | ⬜ |
+| E2E-9 | Fumée client : messages, bénévolat, compte, notifications | T-8.1, T-8.4 | `client-engagement.spec.js` | ⬜ |
+| E2E-10 | Fumée moniteur : carnet de santé, incidents | T-3.3, T-8.3 | `instructor-smoke.spec.js` | ⬜ |
+| E2E-11 | Fumée admin : vue d'ensemble, adhérents | T-9.1 | `admin-flow.spec.js` | ⬜ |
+| E2E-12 | Visiteur : page introuvable (404) | T-0.2 | `public.spec.js` | ⬜ |
+| E2E-13 | Visiteur : newsletter vitrine | T-7.1b | `public.spec.js` | ⬜ |
 
 Socle automatisé ajouté en Phase 6 :
 

@@ -31,7 +31,7 @@ Comptes seed recette (`docs/cahier-de-recette.md`) : admin / moniteur / client �
 
 ## 4. Qualité & conformité (5 min)
 
-- Tests : unitaires + intégration API + 4 E2E Playwright.
+- Tests : unitaires + intégration API + Playwright (4 parcours métier critiques E2E-1–4 + fumée étendue E2E-5–13).
 - Traçabilité : `docs/traceabilite.md`.
 - RGPD : `docs/rgpd.md` (consentement médical, anonymisation).
 - OWASP : tableau `docs/securite.md`.

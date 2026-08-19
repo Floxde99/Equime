@@ -19,6 +19,10 @@ export const createIncidentSchema = z.object({
   horseId: z.string().min(1).optional(),
   riderId: z.string().min(1).optional(),
   severity: z.enum(INCIDENT_SEVERITY_VALUES),
-  description: z.string().trim().min(10, 'La description doit contenir au moins 10 caractères').max(5000),
+  description: z
+    .string()
+    .trim()
+    .min(10, 'La description doit contenir au moins 10 caractères')
+    .max(5000),
   occurredAt: z.coerce.date(),
 });

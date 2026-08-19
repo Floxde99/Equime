@@ -9,6 +9,15 @@ import { prisma } from '../lib/prisma.js';
 import { invalidatePlanningCache } from './planningCache.js';
 
 /**
+ * Durée en heures d'un créneau (cours ou stage), jamais négative.
+ * @param {Date} startAt
+ * @param {Date} endAt
+ */
+export function durationHoursFromRange(startAt, endAt) {
+  return Math.max(0, (endAt.getTime() - startAt.getTime()) / (60 * 60 * 1000));
+}
+
+/**
  * @param {{ rider: { level: string }, horse: { minLevel: string, maxLevel: string, weeklyLoadHours: number },
  * affinity?: string | null }} input
  */
@@ -38,7 +47,11 @@ export function rankCandidateHorses({ rider, horses, affinitiesByHorseId, takenH
     .map((horse) => ({
       horse,
       affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
-      score: scoreRiderHorse({ rider, horse, affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral' }),
+      score: scoreRiderHorse({
+        rider,
+        horse,
+        affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
+      }),
       levelCompatible: isLevelInRange(rider.level, horse.minLevel, horse.maxLevel),
     }))
     .sort(
@@ -54,11 +67,10 @@ export function rankCandidateHorses({ rider, horses, affinitiesByHorseId, takenH
  * @param {{ course: { startAt: Date, endAt: Date }, enrollments: Array<any>, horses: Array<any>, affinities: Array<any> }} input
  */
 export function simulateHorseAssignments({ course, enrollments, horses, affinities }) {
-  const durationHours = Math.max(
-    0,
-    (course.endAt.getTime() - course.startAt.getTime()) / (60 * 60 * 1000)
+  const durationHours = durationHoursFromRange(course.startAt, course.endAt);
+  const takenHorseIds = new Set(
+    enrollments.map((enrollment) => enrollment.horseId).filter(Boolean)
   );
-  const takenHorseIds = new Set(enrollments.map((enrollment) => enrollment.horseId).filter(Boolean));
   const assignments = [];
   const conflicts = [];
 
@@ -130,6 +142,22 @@ export const assignmentWriter = {
       data: { weeklyLoadHours: { increment: durationHours } },
     });
   },
+  /**
+   * Persiste une attribution de stage (Excel 11.2).
+   * @param {typeof prisma} tx
+   * @param {{ enrollmentId: string, horse: { id: string } }} assignment
+   * @param {number} durationHours
+   */
+  async applyEvent(tx, assignment, durationHours) {
+    await tx.eventRegistration.update({
+      where: { id: assignment.enrollmentId },
+      data: { horseId: assignment.horse.id },
+    });
+    await tx.horse.update({
+      where: { id: assignment.horse.id },
+      data: { weeklyLoadHours: { increment: durationHours } },
+    });
+  },
 };
 
 async function loadAssignmentContext(courseId, db = prisma) {
@@ -139,7 +167,7 @@ async function loadAssignmentContext(courseId, db = prisma) {
       enrollments: {
         include: {
           rider: { select: { id: true, firstName: true, lastName: true, level: true } },
-          horse: { select: { id: true, name: true } },
+          horse: { select: { id: true, name: true, photoUrl: true } },
         },
         orderBy: { createdAt: 'asc' },
       },
@@ -284,10 +312,7 @@ export async function overrideAssignedHorse(courseId, enrollmentId, horseId) {
     const selected = options.find((option) => option.horseId === horseId);
     if (!selected) throw AppError.badRequest('Cheval non disponible pour cet override');
 
-    const durationHours = Math.max(
-      0,
-      (course.endAt.getTime() - course.startAt.getTime()) / (60 * 60 * 1000)
-    );
+    const durationHours = durationHoursFromRange(course.startAt, course.endAt);
 
     if (enrollment.horseId && enrollment.horseId !== horseId) {
       await tx.horse.update({
@@ -308,11 +333,166 @@ export async function overrideAssignedHorse(courseId, enrollmentId, horseId) {
       data: { horseId, horseAssignedAt: new Date() },
       include: {
         rider: { select: { id: true, firstName: true, lastName: true, level: true } },
-        horse: { select: { id: true, name: true } },
+        horse: { select: { id: true, name: true, photoUrl: true } },
       },
     });
   });
 
   await invalidatePlanningCache();
   return updated;
+}
+
+const EVENT_HORSE_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  minLevel: true,
+  maxLevel: true,
+  weeklyLoadHours: true,
+  maxWeeklyLoadHours: true,
+};
+
+async function loadEventAssignmentContext(eventId, db = prisma) {
+  const event = await db.event.findUnique({
+    where: { id: eventId },
+    include: {
+      registrations: {
+        where: { status: { not: 'cancelled' } },
+        include: {
+          rider: { select: { id: true, firstName: true, lastName: true, level: true } },
+          horse: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+  if (!event) throw AppError.notFound('Événement introuvable');
+
+  const horses = await db.horse.findMany({
+    select: EVENT_HORSE_SELECT,
+    orderBy: { name: 'asc' },
+  });
+
+  const riderIds = event.registrations.map((registration) => registration.riderId);
+  const affinities =
+    riderIds.length === 0
+      ? []
+      : await db.horseAffinity.findMany({
+          where: { riderId: { in: riderIds } },
+          select: { riderId: true, horseId: true, affinity: true },
+        });
+
+  return {
+    course: event,
+    enrollments: event.registrations,
+    horses,
+    affinities,
+  };
+}
+
+/**
+ * Attribution automatique des chevaux d'un stage (Excel 11.2).
+ * @param {string} eventId
+ */
+export async function assignHorsesForEvent(eventId) {
+  return prisma.$transaction(async (tx) => {
+    const context = await loadEventAssignmentContext(eventId, tx);
+    const simulation = simulateHorseAssignments(context);
+
+    for (const assignment of simulation.assignments) {
+      await assignmentWriter.applyEvent(tx, assignment, simulation.durationHours);
+    }
+
+    return simulation;
+  });
+}
+
+/**
+ * @param {string} eventId
+ * @param {string} registrationId
+ */
+export async function listEventHorseOverrideOptions(eventId, registrationId) {
+  const context = await loadEventAssignmentContext(eventId);
+  const enrollment = context.enrollments.find((entry) => entry.id === registrationId);
+  if (!enrollment) throw AppError.notFound('Inscription introuvable');
+
+  const takenHorseIds = new Set(
+    context.enrollments
+      .filter((entry) => entry.id !== registrationId)
+      .map((entry) => entry.horseId)
+      .filter(Boolean)
+  );
+  const affinitiesByHorseId = new Map(
+    context.affinities
+      .filter((affinity) => affinity.riderId === enrollment.rider.id)
+      .map((affinity) => [affinity.horseId, affinity.affinity])
+  );
+
+  return rankCandidateHorses({
+    rider: enrollment.rider,
+    horses: context.horses,
+    affinitiesByHorseId,
+    takenHorseIds,
+  }).map((entry) => ({
+    horseId: entry.horse.id,
+    horseName: entry.horse.name,
+    score: entry.score,
+    affinity: entry.affinity,
+    warning: entry.affinity === 'avoid' ? 'Affinite a eviter' : null,
+  }));
+}
+
+/**
+ * Override admin d'une monture de stage (Excel 11.2 / 11.6).
+ * @param {string} eventId
+ * @param {string} registrationId
+ * @param {string} horseId
+ */
+export async function overrideEventAssignedHorse(eventId, registrationId, horseId) {
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.event.findUnique({
+      where: { id: eventId },
+      include: {
+        registrations: {
+          where: { status: { not: 'cancelled' } },
+          include: {
+            rider: { select: { id: true, firstName: true, lastName: true, level: true } },
+          },
+        },
+      },
+    });
+    if (!event) throw AppError.notFound('Événement introuvable');
+
+    const registration = event.registrations.find((entry) => entry.id === registrationId);
+    if (!registration) throw AppError.notFound('Inscription introuvable');
+
+    const options = await listEventHorseOverrideOptions(eventId, registrationId);
+    const selected = options.find((option) => option.horseId === horseId);
+    if (!selected) throw AppError.badRequest('Cheval non disponible pour cet override');
+
+    const durationHours = durationHoursFromRange(event.startAt, event.endAt);
+
+    if (registration.horseId && registration.horseId !== horseId) {
+      await tx.horse.update({
+        where: { id: registration.horseId },
+        data: { weeklyLoadHours: { decrement: durationHours } },
+      });
+    }
+
+    if (registration.horseId !== horseId) {
+      await tx.horse.update({
+        where: { id: horseId },
+        data: { weeklyLoadHours: { increment: durationHours } },
+      });
+    }
+
+    return tx.eventRegistration.update({
+      where: { id: registrationId },
+      data: { horseId },
+      include: {
+        rider: { select: { id: true, firstName: true, lastName: true, level: true } },
+        horse: { select: { id: true, name: true } },
+      },
+    });
+  });
 }

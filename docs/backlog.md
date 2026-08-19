@@ -15,6 +15,7 @@
 | S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | ✅ Terminé |
 | S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | ✅ Terminé |
 | S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | ✅ Terminé |
+| CDC | Conformité Excel | Écarts Must/Should : profil, absences, staff, documents, vitrine, factures batch | ✅ Terminé |
 | S6 | Phase 6 | Application recettée, déployée en préprod puis prod | 🔄 En revue (E2E + recette manuelle) |
 | S7 | Phase 7 | Dossier professionnel consolidé | 🔄 En cours |
 
@@ -74,6 +75,13 @@ Critères d'acceptation :
 - [x] Données personnelles anonymisées (nom, email, téléphone, documents supprimés) ; factures conservées anonymisées (obligation comptable).
 - [x] Connexion impossible après suppression ; sessions révoquées.
 
+### US-1.7 — Éditer mon profil `M`
+**En tant qu'** utilisateur connecté, **je veux** modifier mon prénom, nom et téléphone **afin de** tenir mon compte à jour. (Excel 3.1)
+
+Critères d'acceptation :
+- [x] `PATCH /api/v1/auth/me` (Zod : `firstName`, `lastName`, `phone`) ; email et rôle non modifiables par cette voie.
+- [x] Formulaire sur `ClientAccountPage` prérempli avec les valeurs courantes.
+
 ---
 
 ## EPIC 2 — Famille & cavaliers (Sprint 3)
@@ -110,6 +118,7 @@ Critères d'acceptation :
 **En tant qu'** admin, **je veux** gérer les fiches des chevaux (identité, statut, plage de niveaux, charge max) **afin de** tenir la cavalerie à jour.
 
 Critères d'acceptation :
+- [x] Statut modifiable après création (`PATCH /horses/:id`, liste En forme / Repos / Indisponible / Blessé).
 - [ ] CRUD admin ; statuts : en forme / repos / indisponible / blessé (badges sémantiques partout).
 - [ ] Charge hebdomadaire visible avec seuil d'alerte ; dépassement remonté sur le dashboard.
 
@@ -118,14 +127,14 @@ Critères d'acceptation :
 
 Critères d'acceptation :
 - [ ] Entrées horodatées avec type et notes, listées par cheval de la plus récente à la plus ancienne.
-- [ ] Un moniteur peut consulter le carnet, seul l'admin écrit.
+- [x] Un moniteur consulte le carnet en lecture seule (`/moniteur/sante`) ; seul l'admin écrit.
 
 ### US-3.3 — Gérer les espaces `M`
 **En tant qu'** admin, **je veux** gérer les espaces (manège, carrière, paddock) **afin de** planifier les cours.
 
 Critères d'acceptation :
-- [ ] CRUD admin ; nom unique, type, capacité.
-- [ ] Impossible de programmer deux cours au même moment dans le même espace (conflit détecté).
+- [x] CRUD admin ; nom unique, type, capacité (création, édition nom/type/capacité, suppression).
+- [x] Impossible de programmer deux cours au même moment dans le même espace (conflit détecté).
 
 ---
 
@@ -155,6 +164,8 @@ Critères d'acceptation :
 - [ ] Capacité respectée (cours complet → inscription refusée avec message clair).
 - [ ] Quota d'abonnement décrémenté ; inscription visible immédiatement dans le planning famille.
 - [ ] Notification `course_enrolled` envoyée selon les préférences.
+- [x] Inscription refusée si le certificat médical ou la licence n'est pas `approved` **ou si la date de validité est échue** (Excel 7.2) ; message explicite.
+- [x] Dates `medicalCertificateExpiresAt` / `licenseExpiresAt` saisies au téléversement ; l'admin peut les corriger à la validation.
 
 ### US-4.4 — Faire l'appel `M`
 **En tant que** moniteur, **je veux** pointer les présences d'une séance **afin de** tracer l'assiduité.
@@ -162,6 +173,14 @@ Critères d'acceptation :
 Critères d'acceptation :
 - [ ] Statuts : en attente / présent / absent / excusé, modifiables pendant et après la séance.
 - [ ] Une absence déclenche la notification `rider_absence` à la famille.
+
+### US-4.5 — Signaler une absence `M`
+**En tant que** client, **je veux** excuser une séance à venir **afin de** prévenir le club sans attendre l'appel. (Excel 3.7)
+
+Critères d'acceptation :
+- [x] Action limitée aux inscriptions de sa famille et aux séances encore à venir ; statut `excused`.
+- [x] Notification `rider_absence` envoyée selon les préférences.
+- [x] Action disponible sur le planning famille et le dashboard (`UpcomingEnrollments`).
 
 ---
 
@@ -177,6 +196,7 @@ Critères d'acceptation :
 - [ ] Charge hebdo incrémentée de la durée du cours ; tout est transactionnel (échec = aucune écriture).
 - [ ] Les inscriptions sans solution sont listées comme conflits avec la raison.
 - [ ] Tests unitaires : nominal, avoid, surcharge, aucun éligible, égalité de scores, cheval déjà pris.
+- [x] Stages : `EventRegistration.horseId`, même scoring, incrément de `(endAt - startAt)`, bouton admin, décrément à l'annulation (Excel 11.2 / 11.6).
 
 ### US-5.2 — Override manuel `M`
 **En tant que** moniteur, **je veux** remplacer manuellement un cheval attribué **afin de** garder la décision finale.
@@ -208,15 +228,36 @@ Critères d'acceptation :
 
 Critères d'acceptation :
 - [ ] Statuts : brouillon → envoyée → payée / en retard / annulée ; numérotation unique séquentielle.
-- [ ] Lignes détaillées (libellé, quantité, montant) ; totaux en centimes.
-- [ ] Relance des impayés → notification `invoice_reminder`.
+- [x] Liste admin : brouillons visibles (badge « Brouillon ») avec action Envoyer ; Relancer réservé aux factures envoyées ou en retard.
+- [x] Lignes détaillées (libellé, quantité, montant) ; totaux en centimes.
+- [x] Relance des impayés → notification `invoice_reminder`.
+- [x] PDF téléchargeable (`GET /admin/invoices/:id/pdf`) y compris brouillon.
 
 ### US-6.3 — Consulter et payer `M`
 **En tant que** client, **je veux** consulter mes factures et les payer (paiement simulé) **afin de** régler mes échéances.
 
 Critères d'acceptation :
 - [ ] Le client ne voit que les factures de sa famille.
+- [x] Les brouillons restent invisibles côté client (seules envoyée / payée / en retard).
 - [ ] Paiement simulé : facture marquée payée, notification `payment_confirmed`, visible côté admin.
+- [x] PDF téléchargeable (`GET /client/invoices/:id/pdf`) pour les factures visibles ; 404 si brouillon ou facture d'une autre famille.
+
+### US-6.4 — Générer les factures d'abonnement du mois `S`
+**En tant qu'** admin, **je veux** générer en une opération les factures d'abonnement du mois **afin de** ne pas les créer une par une. (Excel 12.1 Should)
+
+Critères d'acceptation :
+- [x] `POST /api/v1/admin/invoices/generate-subscriptions` : mois calendaire en cours ; une famille déjà facturée sur la période est ignorée (skip).
+- [x] Bouton sur `AdminBillingPage` ; déclenchement manuel (pas de cron).
+
+### US-6.5 — Souscrire à une formule `M`
+**En tant que** client, **je veux** choisir une formule d'abonnement si je n'en ai pas **afin d'** activer les inscriptions aux cours. (Excel 8.2)
+
+Critères d'acceptation :
+- [x] `POST /api/v1/client/family/subscription` si `Family.subscriptionPlanId` est `null` ; quota initial = `sessionsPerWeek * 4`.
+- [x] 409 si une formule existe déjà (message « contactez le secrétariat ») ; pas de PATCH client.
+- [x] Admin : `PATCH /api/v1/admin/families/:id/subscription` change le plan et réinitialise le quota.
+- [x] `GET /api/v1/public/plans` : formules actives (vitrine + compte).
+- [x] `ClientAccountPage` : formule + quota ; CTA « Choisir une formule » seulement si aucune.
 
 ---
 
@@ -227,6 +268,10 @@ Critères d'acceptation :
 
 Critères d'acceptation :
 - [x] `GET /api/v1/events` public (sans auth) ; vitrine responsive conforme au design system.
+- [x] Footer vitrine : adresse, téléphone, email depuis `VITE_CLUB_ADDRESS` / `VITE_CLUB_PHONE` / `VITE_CLUB_EMAIL` (Excel 1.1).
+- [x] Newsletter : `POST /api/v1/public/newsletter` (email Zod, consentement horodaté, confirmation mailer, rate-limit) — pas d'ESP marketing en v1.
+- [x] Formules live : `GET /api/v1/public/plans` (actives) affichées sur `HomePage` avec prix (Excel 1.2).
+- [x] Cours à venir : `GET /api/v1/public/courses` (titre, horaires, type d'espace, places restantes — pas d'identité d'élève) sur `HomePage` (Excel 1.2).
 
 ### US-7.2 — Réserver un événement `M`
 **En tant que** client, **je veux** inscrire un cavalier à un stage ou une compétition **afin de** participer aux activités.
@@ -234,9 +279,15 @@ Critères d'acceptation :
 Critères d'acceptation :
 - [x] Capacité respectée ; statuts en attente / confirmée / annulée.
 - [x] Notification `registration_confirmed` à la confirmation.
+- [x] Inscription refusée si le certificat médical ou la licence n'est pas `approved` **ou si la date de validité est échue** (Excel 7.2).
+- [x] Si `priceCents > 0`, facture **envoyée** (1 ligne cavalier + titre) ; pas de facture si prix 0 ; idempotente via `InvoiceItem.eventRegistrationId` unique (Excel 12.1).
+- [x] Monture affectée (auto à la confirmation ou bouton admin) ; charge hebdo incrémentée de la durée du stage ; retirée à l'annulation ; override admin ; uniquement chevaux `fit` sous le max (Excel 11.2).
 
 ### US-7.3 — Gérer les événements `M`
 **En tant qu'** admin, **je veux** créer et gérer les événements **afin d'** animer le centre. (CRUD, types stage/compétition interne/externe.)
+
+Critères d'acceptation :
+- [x] Bouton « Attribuer les chevaux » sur `AdminEventsPage` (secondaire) ; inscriptions avec monture affichée.
 
 ---
 
@@ -277,7 +328,7 @@ Critères d'acceptation :
 ## EPIC 9 — Administration & pilotage (Sprints 4-5)
 
 ### US-9.1 — Dashboard KPIs `M`
-**En tant qu'** admin, **je veux** un dashboard (occupation des cours, CA, charge des chevaux) avec alertes **afin de** piloter le centre. (KPI or « l'or est rare » : un seul chiffre clé en or par écran.)
+**En tant qu'** admin, **je veux** un dashboard (occupation des cours, CA, charge des chevaux) avec alertes **afin de** piloter le centre. (« L'or est rare » : or **uniquement** sur le sceau vitrine, pas sur les KPI admin — `docs/design-system.md`.)
 
 ### US-9.2 — Gestion des membres `M`
 **En tant qu'** admin, **je veux** gérer les membres (rôles, ban/déban, validation des documents) **afin de** contrôler l'accès au service.
@@ -285,6 +336,16 @@ Critères d'acceptation :
 Critères d'acceptation :
 - [x] Ban : connexion refusée + sessions actives révoquées immédiatement.
 - [x] Validation des documents cavalier avec motif en cas de refus.
+- [x] Création d'un compte membre : `POST /admin/members` avec `role: instructor | client` (client → famille vide, quota 0) ; formulaire sur `AdminMembersPage` (Excel 7.1).
+- [x] Édition fiche : `PATCH /admin/members/:id` (prénom, nom, téléphone — pas le rôle).
+- [x] Changement de formule famille depuis l'annuaire (`PATCH /admin/families/:id/subscription`).
+
+### US-9.4 — Inscription forcée (admin) `S`
+**En tant qu'** admin, **je veux** inscrire un cavalier malgré des documents incomplets ou un quota épuisé **afin de** traiter les cas exceptionnels. (Excel 10.4)
+
+Critères d'acceptation :
+- [x] `force: true` réservé au rôle admin (cours et événements) ; un client qui envoie `force` reste bloqué.
+- [x] Le bypass couvre le contrôle documents (Excel 7.2, y compris expiration) et le quota de séances.
 
 ---
 
@@ -294,6 +355,8 @@ Critères d'acceptation :
 |---|---|
 | Paiement réel (Stripe) | Paiement simulé suffisant pour le référentiel ; intégration réelle en perspective |
 | WebSocket temps réel | Polling TanStack Query suffisant à cette échelle ; perspective d'évolution |
+| PWA / mode hors-ligne (Excel 4.7) | Cible CDA = web responsive ; pas de service worker en v1 |
+| Stats prédictives / ML (Excel 5.1) | Dashboard KPIs = analyse (occupation, charge, CA), pas de prédiction |
 | Application mobile native | Cible web responsive mobile-first |
 | Multi-centres (multi-tenant) | Un seul centre ; l'architecture n'y fait pas obstacle |
 | Groupes de plus de 2 dans l'UI messagerie v1 | Le modèle supporte les groupes ; l'UI v1 reste 1-à-1 |
@@ -305,12 +368,14 @@ sont consignés en préprod dans `docs/cahier-de-recette.md` (Phase 6).
 
 ## Avancement Phase 6
 
-- [x] Socle Playwright Chromium ajouté (`playwright.config.js`, `playwright/e2e/`, 4 parcours E2E-1 à E2E-4).
+- [x] Socle Playwright Chromium ajouté (`playwright.config.js`, `playwright/e2e/`, 4 parcours métier critiques E2E-1–4 + extension fumée/modules E2E-5–13).
 - [x] Workflow CI enrichi avec build web + job E2E dédié (artefact `playwright-report`).
 - [x] Reset rate limits E2E (`playwright/clear-rate-limits.mjs`) pour éviter les faux négatifs post-intégration.
 - [x] Graine de recette maintenue (`apps/api/prisma/seed-recette.js`) et cahier de recette structuré.
 - [x] Squelettes préprod/prod finalisés (`docker-compose.preprod.yml`, `docker-compose.prod.yml`, Nginx).
 - [ ] Déploiement préproduction automatisé (`develop`).
 - [ ] Déploiement production avec approbation manuelle (`main`).
-- [ ] Audit accessibilité RGAA/WCAG AA exécuté et consigné.
+- [x] T-A.1 (navigation clavier, focus visible) exécuté et consigné dans `docs/cahier-de-recette.md` (2026-08-19 : revue code + spot-check clavier login → dashboard → déconnexion).
+- [x] T-A.2 critère « jamais couleur seule » / labels / badges textuels : revue code + arbre d'accessibilité Chrome consignés (même journal).
+- [ ] Session lecteur d'écran humaine (NVDA ou VoiceOver) et revue RGAA/WCAG 2.1 AA complète (contrastes mesurés, parcours mobile, modales en situation).
 - [ ] Reverse proxy SSL / HSTS validés en situation réelle.

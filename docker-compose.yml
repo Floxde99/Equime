@@ -51,6 +51,10 @@ services:
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@equime.local}
       UPLOAD_DIR: /app/uploads
+      CLUB_NAME: ${CLUB_NAME:-Equime}
+      CLUB_ADDRESS: '${CLUB_ADDRESS:-12 chemin des Écuries, 31000 Toulouse}'
+      CLUB_PHONE: '${CLUB_PHONE:-05 61 00 00 00}'
+      CLUB_EMAIL: ${CLUB_EMAIL:-contact@equime.local}
     ports:
       - '3000:3000'
     volumes:
@@ -74,11 +78,15 @@ services:
       # Fichiers montés depuis Windows : le polling est nécessaire pour le HMR
       CHOKIDAR_USEPOLLING: 'true'
       VITE_PROXY_TARGET: http://api:3000
+      VITE_CLUB_ADDRESS: '${VITE_CLUB_ADDRESS:-12 chemin des Écuries, 31000 Toulouse}'
+      VITE_CLUB_PHONE: '${VITE_CLUB_PHONE:-05 61 00 00 00}'
+      VITE_CLUB_EMAIL: '${VITE_CLUB_EMAIL:-contact@equime.local}'
     ports:
       - '5173:5173'
     volumes:
       - ./apps/web/src:/app/apps/web/src
       - ./apps/web/index.html:/app/apps/web/index.html
+      - ./apps/web/public:/app/apps/web/public
       - ./packages/shared/src:/app/packages/shared/src
     depends_on:
       - api

@@ -50,6 +50,14 @@ export const SPACE_TYPE_LABELS = Object.freeze({
   indoor: 'Manège couvert',
   outdoor: 'Carrière extérieure',
   paddock: 'Paddock',
+  stall: 'Box / stalle',
+});
+
+/** Groupes d’affichage occupation / onglet espaces. */
+export const SPACE_GROUP_LABELS = Object.freeze({
+  stall: 'Boxes',
+  paddock: 'Paddocks',
+  arena: 'Manèges & carrières',
 });
 
 /** @type {Record<string, string>} */

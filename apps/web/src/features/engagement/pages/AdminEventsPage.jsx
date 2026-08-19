@@ -4,10 +4,20 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
+import { ConfirmDialog } from '@/components/ui/dialog.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
-import { createEvent, deleteEvent, fetchAdminEvents, updateEvent } from '@/features/engagement/api.js';
+import { Textarea } from '@/components/ui/textarea.jsx';
+import {
+  createEvent,
+  deleteEvent,
+  fetchAdminEvents,
+  updateEvent,
+  assignEventHorses,
+  cancelEventRegistration,
+} from '@/features/engagement/api.js';
 
 const EVENT_TYPES = [
   { value: 'stage', label: 'Stage' },
@@ -50,6 +60,7 @@ export function AdminEventsPage() {
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
   const { data: events = [] } = useQuery({
     queryKey: ['admin-events'],
     queryFn: fetchAdminEvents,
@@ -78,6 +89,28 @@ export function AdminEventsPage() {
     mutationFn: deleteEvent,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-events'] }),
   });
+  const assignMutation = useMutation({
+    mutationFn: assignEventHorses,
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      const assigned = result.assignments?.length ?? 0;
+      const conflicts = result.conflicts?.length ?? 0;
+      setStatus(
+        conflicts > 0
+          ? `${assigned} cheval(aux) attribué(s), ${conflicts} sans monture éligible.`
+          : `${assigned} cheval(aux) attribué(s).`
+      );
+    },
+    onError: (err) => setStatus(err.message),
+  });
+  const cancelRegistrationMutation = useMutation({
+    mutationFn: ({ eventId, registrationId }) => cancelEventRegistration(eventId, registrationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      setStatus('Inscription annulée.');
+    },
+    onError: (err) => setStatus(err.message),
+  });
 
   const handleSubmit = () => {
     if (editingId) {
@@ -89,18 +122,28 @@ export function AdminEventsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Événements</h1>
-        <p className="mt-1 font-sans text-sm text-muted">CRUD admin des stages et compétitions.</p>
-      </div>
+      <PageHeader
+        eyebrow="Administration"
+        title="Événements"
+        description="CRUD admin des stages et compétitions."
+      />
 
       {status ? (
-        <Alert variant={status.includes('créé') || status.includes('mis à jour') ? 'success' : 'error'}>
+        <Alert
+          variant={
+            status.includes('créé') ||
+            status.includes('mis à jour') ||
+            status.includes('attribué') ||
+            status.includes('annulée')
+              ? 'success'
+              : 'error'
+          }
+        >
           {status}
         </Alert>
       ) : null}
 
-      <Card title={editingId ? 'Modifier l\'événement' : 'Créer un événement'}>
+      <Card title={editingId ? "Modifier l'événement" : 'Créer un événement'}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Titre" htmlFor="event-title">
             <Input
@@ -161,12 +204,11 @@ export function AdminEventsPage() {
             />
           </Field>
           <Field label="Description" htmlFor="event-description" className="md:col-span-2">
-            <textarea
+            <Textarea
               id="event-description"
               rows={4}
               value={form.description}
               onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-surface px-4 py-3 font-sans text-sm text-text"
             />
           </Field>
         </div>
@@ -196,29 +238,74 @@ export function AdminEventsPage() {
       <Card title="Événements planifiés">
         <ul className="space-y-3">
           {events.map((event) => (
-            <li key={event.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3">
-              <div>
-                <p className="font-sans text-sm font-semibold text-text">{event.title}</p>
-                <p className="font-sans text-sm text-muted">
-                  {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/{event.capacity}
-                </p>
+            <li
+              key={event.id}
+              className="space-y-3 rounded-xl border border-border-on-card bg-paper p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-sans text-sm font-semibold text-text">{event.title}</p>
+                  <p className="font-sans text-sm text-muted">
+                    {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/
+                    {event.capacity}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={assignMutation.isPending}
+                    onClick={() => assignMutation.mutate(event.id)}
+                  >
+                    Attribuer les chevaux
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditingId(event.id);
+                      setForm(eventToForm(event));
+                      setStatus('');
+                    }}
+                  >
+                    Modifier
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setPendingDelete(event)}>
+                    Supprimer
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setEditingId(event.id);
-                    setForm(eventToForm(event));
-                    setStatus('');
-                  }}
-                >
-                  Modifier
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(event.id)}>
-                  Supprimer
-                </Button>
-              </div>
+              {event.registrations?.length ? (
+                <ul className="space-y-2 border-t border-border pt-3">
+                  {event.registrations.map((registration) => (
+                    <li
+                      key={registration.id}
+                      className="flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <p className="font-sans text-sm text-on-card">
+                        {registration.rider.firstName} {registration.rider.lastName}
+                        {' — '}
+                        {registration.horse?.name ?? 'cheval non attribué'}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        loading={cancelRegistrationMutation.isPending}
+                        onClick={() =>
+                          cancelRegistrationMutation.mutate({
+                            eventId: event.id,
+                            registrationId: registration.id,
+                          })
+                        }
+                      >
+                        Annuler l’inscription
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="font-sans text-xs text-muted">Aucune inscription confirmée.</p>
+              )}
             </li>
           ))}
           {events.length === 0 ? (
@@ -226,6 +313,16 @@ export function AdminEventsPage() {
           ) : null}
         </ul>
       </Card>
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete ? `Supprimer l'événement ${pendingDelete.title} ?` : ''}
+        confirmLabel="Supprimer"
+        loading={deleteMutation.isPending}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          deleteMutation.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
     </div>
   );
 }

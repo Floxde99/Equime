@@ -59,8 +59,14 @@ export const SPACE_TYPES = Object.freeze({
   INDOOR: 'indoor',
   OUTDOOR: 'outdoor',
   PADDOCK: 'paddock',
+  STALL: 'stall',
 });
 export const SPACE_TYPE_VALUES = values(SPACE_TYPES);
+
+/** Espaces de pratique (cours) — hors boxes / stalles. */
+export const RIDING_SPACE_TYPE_VALUES = Object.freeze(
+  SPACE_TYPE_VALUES.filter((type) => type !== SPACE_TYPES.STALL)
+);
 
 export const COURSE_STATUS = Object.freeze({
   DRAFT: 'draft',

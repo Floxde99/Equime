@@ -5,6 +5,7 @@ import {
   createCourseSchema,
   enrollRiderSchema,
   enrollmentIdParamSchema,
+  forceQuerySchema,
   overrideHorseSchema,
   planningQuerySchema,
   ROLES,
@@ -24,8 +25,14 @@ router.use(requireAuth);
 router.get('/planning', validate(planningQuerySchema, 'query'), courseController.getPlanning);
 
 router.get('/enrollable', requireRole(ROLES.CLIENT), courseController.listEnrollable);
+router.get('/my-enrollments', requireRole(ROLES.CLIENT), courseController.listMyEnrollments);
 
-router.post('/', requireRole(ROLES.ADMIN), validate(createCourseSchema), courseController.createCourse);
+router.post(
+  '/',
+  requireRole(ROLES.ADMIN),
+  validate(createCourseSchema),
+  courseController.createCourse
+);
 router.get('/:id', validate(courseIdParamSchema, 'params'), courseController.getCourse);
 router.patch(
   '/:id',
@@ -44,9 +51,10 @@ router.post(
 
 router.post(
   '/:id/enrollments',
-  requireRole(ROLES.CLIENT),
+  requireRole(ROLES.CLIENT, ROLES.ADMIN),
   validate(courseIdParamSchema, 'params'),
   validate(enrollRiderSchema),
+  validate(forceQuerySchema, 'query'),
   courseController.enroll
 );
 
@@ -59,7 +67,7 @@ router.get(
 
 router.patch(
   '/:id/enrollments/:enrollmentId/attendance',
-  requireRole(ROLES.INSTRUCTOR, ROLES.ADMIN),
+  requireRole(ROLES.INSTRUCTOR, ROLES.ADMIN, ROLES.CLIENT),
   validate(enrollmentIdParamSchema, 'params'),
   validate(updateAttendanceSchema),
   courseController.updateAttendance

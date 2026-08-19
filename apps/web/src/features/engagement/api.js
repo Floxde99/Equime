@@ -23,9 +23,33 @@ export function deleteEvent(id) {
   return api.delete(`/events/${id}`);
 }
 
-/** @param {string} eventId @param {string} riderId */
-export function registerForEvent(eventId, riderId) {
-  return api.post(`/events/${eventId}/registrations`, { riderId }).then((r) => r.registration);
+/** @param {string} eventId */
+export function assignEventHorses(eventId) {
+  return api.post(`/events/${eventId}/assign-horses`, {});
+}
+
+/** @param {string} eventId @param {string} registrationId */
+export function cancelEventRegistration(eventId, registrationId) {
+  return api
+    .post(`/events/${eventId}/registrations/${registrationId}/cancel`, {})
+    .then((r) => r.registration);
+}
+
+/** @param {string} eventId @param {string} registrationId @param {string} horseId */
+export function overrideEventHorse(eventId, registrationId, horseId) {
+  return api
+    .patch(`/events/${eventId}/registrations/${registrationId}/horse`, { horseId })
+    .then((r) => r.registration);
+}
+
+/** @param {string} eventId @param {string} riderId @param {{ force?: boolean }} [options] */
+export function registerForEvent(eventId, riderId, options = {}) {
+  return api
+    .post(`/events/${eventId}/registrations`, {
+      riderId,
+      ...(options.force ? { force: true } : {}),
+    })
+    .then((r) => r.registration);
 }
 
 export function fetchNotificationPreferences() {
@@ -112,7 +136,9 @@ export function fetchConversationMessages(conversationId) {
 
 /** @param {string} conversationId @param {string} body */
 export function sendMessage(conversationId, body) {
-  return api.post(`/messages/conversations/${conversationId}/messages`, { body }).then((r) => r.message);
+  return api
+    .post(`/messages/conversations/${conversationId}/messages`, { body })
+    .then((r) => r.message);
 }
 
 /** @param {string} conversationId */

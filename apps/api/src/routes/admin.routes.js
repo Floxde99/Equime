@@ -1,15 +1,19 @@
 // @ts-check
 import {
+  adminChangeFamilySubscriptionSchema,
   adminRiderDocumentParamSchema,
   compatibilityAuditSchema,
   createDiscountRuleSchema,
   createInvoiceSchema,
+  createMemberSchema,
   createSubscriptionPlanSchema,
+  familyIdParamSchema,
   invoiceIdParamSchema,
   reviewDocumentSchema,
   riderDocumentReviewParamSchema,
   ROLES,
   updateDiscountRuleSchema,
+  updateMemberProfileSchema,
   updateSubscriptionPlanSchema,
   userIdParamSchema,
 } from '@equime/shared';
@@ -26,10 +30,21 @@ router.use(requireAuth, requireRole(ROLES.ADMIN));
 
 router.get('/dashboard-kpis', adminController.dashboardKpis);
 router.get('/members', adminController.listMembers);
+router.post('/members', validate(createMemberSchema), adminController.createMember);
+router.patch(
+  '/members/:id',
+  validate(userIdParamSchema, 'params'),
+  validate(updateMemberProfileSchema),
+  adminController.updateMember
+);
 router.get('/instructors', adminController.listInstructors);
 router.get('/audit-logs', adminController.listAuditLogs);
 router.post('/members/:id/ban', validate(userIdParamSchema, 'params'), adminController.banMember);
-router.post('/members/:id/unban', validate(userIdParamSchema, 'params'), adminController.unbanMember);
+router.post(
+  '/members/:id/unban',
+  validate(userIdParamSchema, 'params'),
+  adminController.unbanMember
+);
 router.get('/pending-documents', adminController.listPendingDocuments);
 router.post(
   '/riders/:riderId/review-document',
@@ -43,11 +58,14 @@ router.get(
   adminController.downloadRiderDocument
 );
 
-router.post(
-  '/compatibility-audit',
-  validate(compatibilityAuditSchema),
-  billingController.runAudit
+router.patch(
+  '/families/:id/subscription',
+  validate(familyIdParamSchema, 'params'),
+  validate(adminChangeFamilySubscriptionSchema),
+  billingController.adminChangeFamilySubscription
 );
+
+router.post('/compatibility-audit', validate(compatibilityAuditSchema), billingController.runAudit);
 
 router
   .route('/subscription-plans')
@@ -56,7 +74,11 @@ router
 
 router
   .route('/subscription-plans/:id')
-  .patch(validate(invoiceIdParamSchema, 'params'), validate(updateSubscriptionPlanSchema), billingController.updateSubscriptionPlan)
+  .patch(
+    validate(invoiceIdParamSchema, 'params'),
+    validate(updateSubscriptionPlanSchema),
+    billingController.updateSubscriptionPlan
+  )
   .delete(validate(invoiceIdParamSchema, 'params'), billingController.deleteSubscriptionPlan);
 
 router
@@ -66,7 +88,11 @@ router
 
 router
   .route('/discount-rules/:id')
-  .patch(validate(invoiceIdParamSchema, 'params'), validate(updateDiscountRuleSchema), billingController.updateDiscountRule)
+  .patch(
+    validate(invoiceIdParamSchema, 'params'),
+    validate(updateDiscountRuleSchema),
+    billingController.updateDiscountRule
+  )
   .delete(validate(invoiceIdParamSchema, 'params'), billingController.deleteDiscountRule);
 
 router
@@ -74,7 +100,22 @@ router
   .get(billingController.listAdminInvoices)
   .post(validate(createInvoiceSchema), billingController.createInvoice);
 
-router.post('/invoices/:id/send', validate(invoiceIdParamSchema, 'params'), billingController.sendInvoice);
+router.post('/invoices/generate-subscriptions', billingController.generateSubscriptionInvoices);
+router.get(
+  '/invoices/:id/pdf',
+  validate(invoiceIdParamSchema, 'params'),
+  billingController.downloadAdminInvoicePdf
+);
+router.get(
+  '/invoices/:id',
+  validate(invoiceIdParamSchema, 'params'),
+  billingController.getAdminInvoice
+);
+router.post(
+  '/invoices/:id/send',
+  validate(invoiceIdParamSchema, 'params'),
+  billingController.sendInvoice
+);
 router.post(
   '/invoices/:id/remind',
   validate(invoiceIdParamSchema, 'params'),

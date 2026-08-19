@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { BrandLockup } from '@/components/ui/brand-lockup.jsx';
 import { refreshSession, setOnSessionExpired } from '@/lib/apiClient.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
@@ -28,8 +29,12 @@ export function AuthProvider({ children }) {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center" aria-busy="true">
-        <span className="font-display text-3xl text-muted">Equime</span>
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background"
+        aria-busy="true"
+      >
+        <BrandLockup size="lg" tone="dark" />
+        <div className="h-4 w-48 animate-pulse rounded-lg bg-border-on-card motion-reduce:animate-none" />
       </div>
     );
   }

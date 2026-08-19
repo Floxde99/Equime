@@ -6,6 +6,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  envDir: fileURLToPath(new URL('../..', import.meta.url)),
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -14,7 +15,6 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    // Les fichiers montés depuis Windows dans Docker nécessitent du polling
     watch: {
       usePolling: process.env.CHOKIDAR_USEPOLLING === 'true',
     },
@@ -24,5 +24,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.js'],
   },
 });

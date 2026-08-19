@@ -13,7 +13,12 @@ export const horseIdParamSchema = z.object({
 
 const horseBodySchema = z.object({
   name: z.string().trim().min(1, 'Le nom est requis').max(80),
-  breed: z.string().trim().max(80).optional().or(z.literal('').transform(() => undefined)),
+  breed: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   birthYear: z.coerce.number().int().min(1980).max(2100).optional(),
   status: z.enum(HORSE_STATUS_VALUES).default('fit'),
   minLevel: riderLevelSchema.default('initiation'),

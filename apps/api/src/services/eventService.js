@@ -2,12 +2,20 @@
 /**
  * Service événements — vitrine publique, CRUD admin et inscriptions client.
  */
-import { NOTIFICATION_TYPES } from '@equime/shared';
+import { NOTIFICATION_TYPES, ROLES } from '@equime/shared';
 
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
 import { prisma } from '../lib/prisma.js';
+import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 
+import { createSentInvoiceForEventRegistration } from './billingService.js';
+import {
+  assignHorsesForEvent,
+  durationHoursFromRange,
+  listEventHorseOverrideOptions,
+  overrideEventAssignedHorse,
+} from './horseAssignment.js';
 import { dispatchNotification } from './notificationService.js';
 
 const EVENT_SELECT = {
@@ -32,6 +40,33 @@ function formatEvent(event) {
   };
 }
 
+const REGISTRATION_LIST_INCLUDE = {
+  rider: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      family: { select: { userId: true } },
+    },
+  },
+  horse: { select: { id: true, name: true } },
+};
+
+const ADMIN_EVENT_SELECT = {
+  ...EVENT_SELECT,
+  registrations: {
+    where: { status: { not: 'cancelled' } },
+    select: {
+      id: true,
+      status: true,
+      horseId: true,
+      rider: { select: { id: true, firstName: true, lastName: true } },
+      horse: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  },
+};
+
 export async function listPublicEvents() {
   const events = await prisma.event.findMany({
     where: { startAt: { gt: new Date() } },
@@ -43,7 +78,7 @@ export async function listPublicEvents() {
 
 export async function listAdminEvents() {
   const events = await prisma.event.findMany({
-    select: EVENT_SELECT,
+    select: ADMIN_EVENT_SELECT,
     orderBy: { startAt: 'asc' },
   });
   return events.map(formatEvent);
@@ -88,16 +123,7 @@ export async function listEventRegistrations(eventId) {
   await prisma.event.findUniqueOrThrow({ where: { id: eventId } });
   return prisma.eventRegistration.findMany({
     where: { eventId },
-    include: {
-      rider: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          family: { select: { userId: true } },
-        },
-      },
-    },
+    include: REGISTRATION_LIST_INCLUDE,
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -106,14 +132,36 @@ export async function listEventRegistrations(eventId) {
  * @param {string} userId
  * @param {string} eventId
  * @param {string} riderId
+ * @param {{ role: string, force?: boolean }} [options] `force` n'est honoré que pour un admin (Excel 10.4).
  */
-export async function registerRider(userId, eventId, riderId) {
-  const familyId = await getFamilyIdForUser(userId);
-  const rider = await prisma.rider.findFirst({
-    where: { id: riderId, familyId },
-    select: { id: true, firstName: true, lastName: true },
-  });
+export async function registerRider(userId, eventId, riderId, options = {}) {
+  const force = options.role === ROLES.ADMIN && options.force === true;
+  const riderSelect = {
+    id: true,
+    firstName: true,
+    lastName: true,
+    medicalCertificateStatus: true,
+    licenseStatus: true,
+    medicalCertificateExpiresAt: true,
+    licenseExpiresAt: true,
+    family: { select: { id: true, userId: true } },
+  };
+
+  const rider =
+    options.role === ROLES.ADMIN
+      ? await prisma.rider.findUnique({
+          where: { id: riderId },
+          select: riderSelect,
+        })
+      : await prisma.rider.findFirst({
+          where: { id: riderId, familyId: await getFamilyIdForUser(userId) },
+          select: riderSelect,
+        });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
+
+  if (!force) {
+    assertRiderDocumentsApproved(rider);
+  }
 
   const existing = await prisma.eventRegistration.findUnique({
     where: { eventId_riderId: { eventId, riderId } },
@@ -147,11 +195,21 @@ export async function registerRider(userId, eventId, riderId) {
     include: {
       rider: { select: { id: true, firstName: true, lastName: true } },
       event: { select: { id: true, title: true, startAt: true } },
+      horse: { select: { id: true, name: true } },
     },
   });
 
+  await createSentInvoiceForEventRegistration({
+    familyId: rider.family.id,
+    registrationId: registration.id,
+    riderName: `${rider.firstName} ${rider.lastName}`,
+    eventTitle: event.title,
+    priceCents: event.priceCents,
+    dueAt: event.startAt,
+  });
+
   await dispatchNotification({
-    userId,
+    userId: rider.family.userId,
     type: NOTIFICATION_TYPES.REGISTRATION_CONFIRMED,
     title: 'Inscription à l’événement confirmée',
     body: `${rider.firstName} est inscrit(e) à « ${event.title} »`,
@@ -172,5 +230,90 @@ export async function registerRider(userId, eventId, riderId) {
     },
   });
 
-  return registration;
+  await assignHorsesForEvent(eventId);
+
+  return prisma.eventRegistration.findUniqueOrThrow({
+    where: { id: registration.id },
+    include: {
+      rider: { select: { id: true, firstName: true, lastName: true } },
+      event: { select: { id: true, title: true, startAt: true } },
+      horse: { select: { id: true, name: true } },
+    },
+  });
+}
+
+/**
+ * @param {string} eventId
+ */
+export async function assignHorses(eventId) {
+  return assignHorsesForEvent(eventId);
+}
+
+/**
+ * @param {string} eventId
+ * @param {string} registrationId
+ */
+export async function listHorseOptions(eventId, registrationId) {
+  return listEventHorseOverrideOptions(eventId, registrationId);
+}
+
+/**
+ * @param {string} eventId
+ * @param {string} registrationId
+ * @param {string} horseId
+ */
+export async function overrideHorse(eventId, registrationId, horseId) {
+  return overrideEventAssignedHorse(eventId, registrationId, horseId);
+}
+
+/**
+ * Annule une inscription et retire la charge cheval (Excel 11.2).
+ *
+ * @param {string} userId
+ * @param {string} eventId
+ * @param {string} registrationId
+ * @param {{ role: string }} options
+ */
+export async function cancelRegistration(userId, eventId, registrationId, options = {}) {
+  const registration = await prisma.eventRegistration.findFirst({
+    where: { id: registrationId, eventId },
+    include: {
+      rider: { select: { familyId: true } },
+      event: { select: { startAt: true, endAt: true } },
+    },
+  });
+  if (!registration) throw AppError.notFound('Inscription introuvable');
+
+  if (options.role !== ROLES.ADMIN) {
+    const familyId = await getFamilyIdForUser(userId);
+    if (registration.rider.familyId !== familyId) {
+      throw AppError.notFound('Inscription introuvable');
+    }
+  }
+
+  if (registration.status === 'cancelled') {
+    return prisma.eventRegistration.findUniqueOrThrow({
+      where: { id: registrationId },
+      include: REGISTRATION_LIST_INCLUDE,
+    });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    if (registration.horseId) {
+      const durationHours = durationHoursFromRange(
+        registration.event.startAt,
+        registration.event.endAt
+      );
+      await tx.horse.update({
+        where: { id: registration.horseId },
+        data: { weeklyLoadHours: { decrement: durationHours } },
+      });
+    }
+
+    return tx.eventRegistration.update({
+      where: { id: registrationId },
+      data: { status: 'cancelled', horseId: null },
+      include: REGISTRATION_LIST_INCLUDE,
+    });
+  });
 }

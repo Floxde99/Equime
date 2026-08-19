@@ -15,6 +15,7 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Logs
 *.log
@@ -30,3 +31,6 @@ uploads/
 
 # Playwright auth/session cache
 playwright/.auth/
+
+# Audit reports (generated, not source)
+audit-*.json

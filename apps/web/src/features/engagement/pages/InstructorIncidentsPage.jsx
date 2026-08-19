@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
+import { Textarea } from '@/components/ui/textarea.jsx';
 import { createIncident, fetchIncidents, resolveIncident } from '@/features/engagement/api.js';
 
 const SEVERITY_OPTIONS = [
@@ -53,16 +55,19 @@ export function InstructorIncidentsPage({ admin = false }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">{admin ? 'Incidents' : 'Déclarer un incident'}</h1>
-        <p className="mt-1 font-sans text-sm text-muted">
-          {admin
+      <PageHeader
+        eyebrow={admin ? 'Administration' : 'Espace moniteur'}
+        title={admin ? 'Incidents' : 'Déclarer un incident'}
+        description={
+          admin
             ? 'Suivi des incidents ouverts avec résolution côté administration.'
-            : 'Tracez les événements de sécurité observés pendant la séance.'}
-        </p>
-      </div>
+            : 'Tracez les événements de sécurité observés pendant la séance.'
+        }
+      />
 
-      {status ? <Alert variant={status.includes('déclaré') ? 'success' : 'error'}>{status}</Alert> : null}
+      {status ? (
+        <Alert variant={status.includes('déclaré') ? 'success' : 'error'}>{status}</Alert>
+      ) : null}
 
       {!admin ? (
         <Card title="Nouvelle déclaration">
@@ -103,17 +108,22 @@ export function InstructorIncidentsPage({ admin = false }) {
               />
             </Field>
             <Field label="Description" htmlFor="incident-description" className="md:col-span-2">
-              <textarea
+              <Textarea
                 id="incident-description"
                 rows={5}
                 value={form.description}
-                onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-surface px-4 py-3 font-sans text-sm text-text"
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, description: e.target.value }))
+                }
               />
             </Field>
           </div>
           <div className="mt-4">
-            <Button type="button" loading={createMutation.isPending} onClick={() => createMutation.mutate(form)}>
+            <Button
+              type="button"
+              loading={createMutation.isPending}
+              onClick={() => createMutation.mutate(form)}
+            >
               Déclarer
             </Button>
           </div>
@@ -122,7 +132,10 @@ export function InstructorIncidentsPage({ admin = false }) {
         <Card title="Incidents ouverts">
           <ul className="space-y-3">
             {incidents.map((incident) => (
-              <li key={incident.id} className="rounded-lg border border-border p-4">
+              <li
+                key={incident.id}
+                className="rounded-xl border border-border-on-card bg-paper p-4"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-sans text-sm font-semibold text-text">
@@ -131,7 +144,11 @@ export function InstructorIncidentsPage({ admin = false }) {
                     <p className="font-sans text-sm text-muted">{incident.description}</p>
                   </div>
                   {incident.status === 'open' ? (
-                    <Button type="button" variant="secondary" onClick={() => resolveMutation.mutate(incident.id)}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => resolveMutation.mutate(incident.id)}
+                    >
                       Résoudre
                     </Button>
                   ) : null}

@@ -38,18 +38,15 @@ export async function uploadDocument(req, res) {
 }
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
-export async function downloadDocument(req, res) {
-  const { createReadStream } = await import('node:fs');
+export async function downloadDocument(req, res, next) {
   const path = await riderService.getRiderDocumentPath(
     req.user.id,
     req.params.id,
     req.params.docType,
     req.user.role
   );
-  const { resolveStoredFilePath } = await import('../lib/uploads.js');
-  const absolutePath = resolveStoredFilePath(path);
-  res.setHeader('Content-Disposition', 'inline');
-  createReadStream(absolutePath).pipe(res);
+  const { streamStoredFile } = await import('../lib/uploads.js');
+  streamStoredFile(path, res, next);
 }
 
 /** @param {import('express').Request} req @param {import('express').Response} res */

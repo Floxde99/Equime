@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { loginAs } from './helpers.js';
+import { clickSidebarLink, loginAs } from './helpers.js';
 
 test('un client peut payer une facture et l’admin voit le statut mis à jour', async ({
   browser,
@@ -9,11 +9,11 @@ test('un client peut payer une facture et l’admin voit le statut mis à jour',
   await loginAs(page, {
     email: 'lina@equime.local',
     password: 'Equime!2026',
-    landingHeading: 'Bonjour, Lina',
+    landingHeading: /Bonjour, Lina/,
   });
 
-  await page.getByRole('main').getByRole('link', { name: 'Factures' }).click();
-  await expect(page.getByRole('heading', { name: 'Mes factures' })).toBeVisible();
+  await clickSidebarLink(page, 'Facturation');
+  await expect(page.getByRole('heading', { name: 'Historique & facturation' })).toBeVisible();
 
   const invoiceRow = page.locator('li').filter({ hasText: 'FAC-2026-0002' }).first();
   await expect(invoiceRow).toBeVisible();
@@ -30,10 +30,10 @@ test('un client peut payer une facture et l’admin voit le statut mis à jour',
   await loginAs(adminPage, {
     email: 'admin@equime.local',
     password: 'Equime!2026',
-    landingHeading: 'Tableau de bord',
+    landingHeading: "Vue d'ensemble",
   });
 
-  await adminPage.getByRole('link', { name: 'Facturation' }).click();
+  await clickSidebarLink(adminPage, 'Facturation');
   await expect(adminPage.getByRole('heading', { name: 'Facturation & abonnements' })).toBeVisible();
 
   const adminInvoiceRow = adminPage.locator('li').filter({ hasText: 'FAC-2026-0002' }).first();

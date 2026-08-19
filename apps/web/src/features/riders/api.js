@@ -19,11 +19,12 @@ export function deleteRider(id) {
   return api.delete(`/riders/${id}`);
 }
 
-/** @param {string} riderId @param {'medical_certificate' | 'license'} docType @param {File} file @param {boolean} [medicalConsent] */
-export function uploadRiderDocument(riderId, docType, file, medicalConsent) {
+/** @param {string} riderId @param {'medical_certificate' | 'license'} docType @param {File} file @param {boolean} [medicalConsent] @param {string} [expiresAt] */
+export function uploadRiderDocument(riderId, docType, file, medicalConsent, expiresAt) {
   const form = new FormData();
   form.append('file', file);
   if (medicalConsent) form.append('medicalConsent', 'true');
+  if (expiresAt) form.append('expiresAt', expiresAt);
   return api.upload(`/riders/${riderId}/documents/${docType}`, form).then((r) => r.rider);
 }
 

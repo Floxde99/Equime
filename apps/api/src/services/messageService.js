@@ -134,7 +134,9 @@ export async function listConversations(userId) {
 
   return conversations.map((conversation) => {
     const participant = conversation.participants.find((entry) => entry.userId === userId);
-    const contacts = conversation.participants.filter((entry) => entry.userId !== userId).map((entry) => entry.user);
+    const contacts = conversation.participants
+      .filter((entry) => entry.userId !== userId)
+      .map((entry) => entry.user);
     const lastMessage = conversation.messages[0] ?? null;
     const hasUnread =
       Boolean(lastMessage) &&

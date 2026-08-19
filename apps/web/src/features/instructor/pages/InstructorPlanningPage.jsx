@@ -3,7 +3,10 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
+import { QueryState } from '@/components/ui/query-state.jsx';
 import { Select } from '@/components/ui/select.jsx';
+import { Skeleton } from '@/components/ui/skeleton.jsx';
 import {
   assignHorses,
   fetchEnrollments,
@@ -12,6 +15,7 @@ import {
   overrideHorse,
 } from '@/features/admin/api.js';
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
+import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 
 const DEFAULT_RANGE = {
   from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
@@ -25,7 +29,13 @@ export function InstructorPlanningPage() {
   const [range, setRange] = useState(DEFAULT_RANGE);
   const [courseId, setCourseId] = useState('');
 
-  const { data: events = [], isLoading } = useQuery({
+  const {
+    data: events = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
   });
@@ -49,24 +59,34 @@ export function InstructorPlanningPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Mon planning</h1>
-        <p className="mt-1 font-sans text-sm text-muted">Préparez vos séances à venir.</p>
+      <PageHeader
+        eyebrow="Espace moniteur"
+        title="Mon planning"
+        description="Vue semaine 7 h – 21 h. Filtrez vos séances ou celles de toute la structure."
+      />
+      <div className="overflow-hidden rounded-xl">
+        <img src={STITCH_PHOTOS.instructorPaddock} alt="" className="h-48 w-full object-cover" />
       </div>
-      {isLoading ? (
-        <p className="font-sans text-muted">Chargement du calendrier…</p>
-      ) : (
+      <QueryState
+        isPending={isPending}
+        isError={isError}
+        error={error}
+        onRetry={refetch}
+        skeleton={<Skeleton lines={8} />}
+      >
         <PlanningCalendar
           events={events}
           scope={scope}
           onScopeChange={setScope}
           onDatesChange={setRange}
         />
-      )}
+      </QueryState>
 
       <Card title="Attribution des chevaux">
         <div className="space-y-4">
           <Select
+            id="instructor-session"
+            name="courseId"
             label="Séance"
             value={courseId}
             onChange={(e) => setCourseId(e.target.value)}
@@ -79,7 +99,11 @@ export function InstructorPlanningPage() {
             ]}
           />
           {courseId ? (
-            <Button type="button" loading={assignMutation.isPending} onClick={() => assignMutation.mutate(courseId)}>
+            <Button
+              type="button"
+              loading={assignMutation.isPending}
+              onClick={() => assignMutation.mutate(courseId)}
+            >
               Attribution automatique
             </Button>
           ) : null}
@@ -104,7 +128,9 @@ export function InstructorPlanningPage() {
                   key={enrollment.id}
                   courseId={courseId}
                   enrollment={enrollment}
-                  onOverride={(horseId) => overrideMutation.mutate({ enrollmentId: enrollment.id, horseId })}
+                  onOverride={(horseId) =>
+                    overrideMutation.mutate({ enrollmentId: enrollment.id, horseId })
+                  }
                 />
               ))}
             </ul>
@@ -123,7 +149,7 @@ function OverrideRow({ courseId, enrollment, onOverride }) {
   const [selectedHorseId, setSelectedHorseId] = useState(enrollment.horse?.id ?? '');
 
   return (
-    <li className="rounded-lg border border-border p-3">
+    <li className="rounded-xl border border-border-on-card bg-paper p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-sans text-sm font-semibold text-text">
@@ -135,6 +161,8 @@ function OverrideRow({ courseId, enrollment, onOverride }) {
         </div>
         <div className="flex min-w-72 flex-wrap items-end gap-2">
           <Select
+            id={`override-horse-${enrollment.id}`}
+            name="horseId"
             label="Override manuel"
             value={selectedHorseId}
             onChange={(e) => setSelectedHorseId(e.target.value)}
@@ -146,7 +174,12 @@ function OverrideRow({ courseId, enrollment, onOverride }) {
               })),
             ]}
           />
-          <Button type="button" variant="secondary" onClick={() => onOverride(selectedHorseId)} disabled={!selectedHorseId}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onOverride(selectedHorseId)}
+            disabled={!selectedHorseId}
+          >
             Remplacer
           </Button>
         </div>

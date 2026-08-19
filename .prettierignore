@@ -6,3 +6,5 @@ build/
 coverage/
 package-lock.json
 *.md
+
+audit-*.json

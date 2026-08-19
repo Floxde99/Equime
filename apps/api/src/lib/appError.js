@@ -52,4 +52,14 @@ export class AppError extends Error {
   static tooManyRequests(message = 'Trop de tentatives, réessayez plus tard') {
     return new AppError(message, { statusCode: 429, code: 'TOO_MANY_REQUESTS' });
   }
+
+  /** @param {string} [message] */
+  static payloadTooLarge(message = 'Fichier trop volumineux') {
+    return new AppError(message, { statusCode: 413, code: 'PAYLOAD_TOO_LARGE' });
+  }
+
+  /** @param {string} [message] */
+  static serviceUnavailable(message = 'Service temporairement indisponible') {
+    return new AppError(message, { statusCode: 503, code: 'SERVICE_UNAVAILABLE' });
+  }
 }

@@ -39,7 +39,7 @@ export function ResetPasswordPage() {
 
   return (
     <>
-      <h1 className="font-display-semi text-2xl text-text">Nouveau mot de passe</h1>
+      <h1 className="font-display text-4xl text-on-card">Nouveau mot de passe</h1>
 
       {done ? (
         <>

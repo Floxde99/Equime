@@ -73,7 +73,7 @@ export function signAccessToken(user) {
  */
 export function verifyAccessToken(token) {
   const payload = /** @type {jwt.JwtPayload} */ (
-    jwt.verify(token, env.JWT_ACCESS_SECRET, { issuer: 'equime-api' })
+    jwt.verify(token, env.JWT_ACCESS_SECRET, { issuer: 'equime-api', algorithms: ['HS256'] })
   );
   return { sub: String(payload.sub), role: String(payload.role), jti: String(payload.jti) };
 }

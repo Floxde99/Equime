@@ -14,8 +14,7 @@ const apiEnv = {
   NODE_ENV: 'development',
   PORT: apiPort,
   DATABASE_URL:
-    process.env.DATABASE_URL ??
-    'postgresql://equime:equime_dev_password@localhost:5432/equime',
+    process.env.DATABASE_URL ?? 'postgresql://equime:equime_dev_password@localhost:5432/equime',
   REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
   JWT_ACCESS_SECRET:
     process.env.JWT_ACCESS_SECRET ?? 'change_me_dev_secret_at_least_32_characters_long',
@@ -48,6 +47,20 @@ function stopChild(child) {
   if (!child.killed) {
     child.kill('SIGTERM');
   }
+}
+
+async function migrateDatabase() {
+  await new Promise((resolve, reject) => {
+    const migrator = spawn('npm', ['run', 'migrate', '-w', 'apps/api'], {
+      cwd: root,
+      env: apiEnv,
+      stdio: 'inherit',
+      shell: true,
+    });
+    migrator.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error('Échec des migrations avant les tests E2E'))
+    );
+  });
 }
 
 async function prepareDatabase() {
@@ -85,6 +98,7 @@ async function main() {
   const useExternalStack = process.env.PLAYWRIGHT_EXTERNAL_STACK === '1';
 
   await clearRateLimits();
+  await migrateDatabase();
   if (!useExternalStack) {
     await prepareDatabase();
   }
@@ -95,7 +109,9 @@ async function main() {
       stdio: 'inherit',
       shell: true,
     });
-    installer.on('close', (code) => (code === 0 ? resolve() : reject(new Error('Playwright install failed'))));
+    installer.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error('Playwright install failed'))
+    );
   });
 
   try {
@@ -108,7 +124,18 @@ async function main() {
       });
       const web = spawn(
         'npm',
-        ['run', 'dev', '-w', 'apps/web', '--', '--host', '127.0.0.1', '--port', webPort, '--strictPort'],
+        [
+          'run',
+          'dev',
+          '-w',
+          'apps/web',
+          '--',
+          '--host',
+          '127.0.0.1',
+          '--port',
+          webPort,
+          '--strictPort',
+        ],
         {
           cwd: root,
           env: {

@@ -62,6 +62,7 @@ enum SpaceType {
   indoor
   outdoor
   paddock
+  stall
 }
 
 enum CourseStatus {
@@ -204,9 +205,13 @@ model Rider {
   medicalCertificateUrl              String?
   medicalCertificateStatus           DocumentStatus @default(missing)
   medicalCertificateRejectionReason  String?
+  /// Date de fin de validité du certificat (Excel 7.2) ; null = pas encore saisie
+  medicalCertificateExpiresAt        DateTime?
   licenseUrl                         String?
   licenseStatus                      DocumentStatus @default(missing)
   licenseRejectionReason             String?
+  /// Date de fin de validité de la licence FFE (Excel 7.2)
+  licenseExpiresAt                   DateTime?
   /// RGPD : consentement explicite au stockage du certificat médical
   medicalConsentAt         DateTime?
   createdAt                DateTime       @default(now())
@@ -245,10 +250,11 @@ model Horse {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  affinities  HorseAffinity[]
-  enrollments CourseEnrollment[]
-  healthLogs  HorseHealthLog[]
-  incidents   Incident[]
+  affinities         HorseAffinity[]
+  enrollments        CourseEnrollment[]
+  eventRegistrations EventRegistration[]
+  healthLogs         HorseHealthLog[]
+  incidents          Incident[]
 
   @@index([status])
   @@map("horses")
@@ -388,15 +394,20 @@ model EventRegistration {
   id        String             @id @default(cuid())
   eventId   String
   riderId   String
+  /// Monture affectée au stage (Excel 11.2) ; null tant qu'aucun cheval éligible
+  horseId   String?
   status    RegistrationStatus @default(pending)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  event Event @relation(fields: [eventId], references: [id])
-  rider Rider @relation(fields: [riderId], references: [id])
+  event       Event        @relation(fields: [eventId], references: [id])
+  rider       Rider        @relation(fields: [riderId], references: [id])
+  horse       Horse?       @relation(fields: [horseId], references: [id])
+  invoiceItem InvoiceItem?
 
   @@unique([eventId, riderId])
   @@index([riderId])
+  @@index([horseId])
   @@map("event_registrations")
 }
 
@@ -454,16 +465,19 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id         String   @id @default(cuid())
-  invoiceId  String
-  label      String
-  quantity   Int      @default(1)
-  unitCents  Int
-  totalCents Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  invoiceId            String
+  label                String
+  quantity             Int      @default(1)
+  unitCents            Int
+  totalCents           Int
+  /// Idempotence facture stage (Excel 12.1) : une ligne max par inscription
+  eventRegistrationId  String?  @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  invoice            Invoice            @relation(fields: [invoiceId], references: [id])
+  eventRegistration  EventRegistration? @relation(fields: [eventRegistrationId], references: [id])
 
   @@index([invoiceId])
   @@map("invoice_items")
@@ -674,4 +688,15 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+/// Liste d'inscription newsletter (hors compte utilisateur) — consentement horodaté.
+model NewsletterSubscription {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  consentedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("newsletter_subscriptions")
 }

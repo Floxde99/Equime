@@ -9,11 +9,20 @@ const MEMBER_SELECT = {
   email: true,
   firstName: true,
   lastName: true,
+  phone: true,
   role: true,
   banned: true,
   bannedAt: true,
   anonymizedAt: true,
   createdAt: true,
+  family: {
+    select: {
+      id: true,
+      sessionQuota: true,
+      subscriptionPlanId: true,
+      subscriptionPlan: { select: { id: true, name: true, sessionsPerWeek: true } },
+    },
+  },
 };
 
 /**
@@ -65,9 +74,7 @@ export async function getDashboardKpis() {
   const courseOccupancyPercent =
     totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
 
-  const horsesInLoadAlert = horses.filter(
-    (h) => h.weeklyLoadHours >= h.alertThresholdHours
-  ).length;
+  const horsesInLoadAlert = horses.filter((h) => h.weeklyLoadHours >= h.alertThresholdHours).length;
 
   return {
     courseOccupancyPercent,

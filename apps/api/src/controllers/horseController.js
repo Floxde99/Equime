@@ -48,3 +48,22 @@ export async function listLoadAlerts(_req, res) {
   const horses = await horseService.listHorsesOverLoadThreshold();
   res.json({ horses });
 }
+
+/** @param {import('express').Request} req @param {import('express').Response} res */
+export async function uploadPhoto(req, res) {
+  const horse = await horseService.uploadHorsePhoto(req.params.id, req.file);
+  res.json({ horse });
+}
+
+/** @param {import('express').Request} req @param {import('express').Response} res */
+export async function deletePhoto(req, res) {
+  const horse = await horseService.deleteHorsePhoto(req.params.id);
+  res.json({ horse });
+}
+
+/** @param {import('express').Request} req @param {import('express').Response} res */
+export async function downloadPhoto(req, res, next) {
+  const photoPath = await horseService.getHorsePhotoPath(req.params.id);
+  const { streamStoredFile } = await import('../lib/uploads.js');
+  streamStoredFile(photoPath, res, next);
+}
