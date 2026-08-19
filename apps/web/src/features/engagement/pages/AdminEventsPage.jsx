@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Select } from '@/components/ui/select.jsx';
-import { createEvent, deleteEvent, fetchAdminEvents } from '@/features/engagement/api.js';
+import { createEvent, deleteEvent, fetchAdminEvents, updateEvent } from '@/features/engagement/api.js';
 
 const EVENT_TYPES = [
   { value: 'stage', label: 'Stage' },
@@ -26,9 +26,29 @@ const initialForm = {
   location: '',
 };
 
+/** @param {object} event */
+function eventToForm(event) {
+  const toLocal = (iso) => {
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  return {
+    title: event.title,
+    description: event.description ?? '',
+    type: event.type,
+    startAt: toLocal(event.startAt),
+    endAt: toLocal(event.endAt),
+    capacity: event.capacity,
+    priceCents: event.priceCents,
+    location: event.location ?? '',
+  };
+}
+
 export function AdminEventsPage() {
   const qc = useQueryClient();
   const [form, setForm] = useState(initialForm);
+  const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
   const { data: events = [] } = useQuery({
     queryKey: ['admin-events'],
@@ -44,10 +64,28 @@ export function AdminEventsPage() {
     },
     onError: (err) => setStatus(err.message),
   });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }) => updateEvent(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      setEditingId(null);
+      setForm(initialForm);
+      setStatus('Événement mis à jour.');
+    },
+    onError: (err) => setStatus(err.message),
+  });
   const deleteMutation = useMutation({
     mutationFn: deleteEvent,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-events'] }),
   });
+
+  const handleSubmit = () => {
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, body: form });
+    } else {
+      createMutation.mutate(form);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -56,9 +94,13 @@ export function AdminEventsPage() {
         <p className="mt-1 font-sans text-sm text-muted">CRUD admin des stages et compétitions.</p>
       </div>
 
-      {status ? <Alert variant={status.includes('créé') ? 'success' : 'error'}>{status}</Alert> : null}
+      {status ? (
+        <Alert variant={status.includes('créé') || status.includes('mis à jour') ? 'success' : 'error'}>
+          {status}
+        </Alert>
+      ) : null}
 
-      <Card title="Créer un événement">
+      <Card title={editingId ? 'Modifier l\'événement' : 'Créer un événement'}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Titre" htmlFor="event-title">
             <Input
@@ -128,10 +170,26 @@ export function AdminEventsPage() {
             />
           </Field>
         </div>
-        <div className="mt-4">
-          <Button type="button" loading={createMutation.isPending} onClick={() => createMutation.mutate(form)}>
-            Créer
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            loading={createMutation.isPending || updateMutation.isPending}
+            onClick={handleSubmit}
+          >
+            {editingId ? 'Enregistrer' : 'Créer'}
           </Button>
+          {editingId ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setEditingId(null);
+                setForm(initialForm);
+              }}
+            >
+              Annuler
+            </Button>
+          ) : null}
         </div>
       </Card>
 
@@ -145,9 +203,22 @@ export function AdminEventsPage() {
                   {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/{event.capacity}
                 </p>
               </div>
-              <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(event.id)}>
-                Supprimer
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditingId(event.id);
+                    setForm(eventToForm(event));
+                    setStatus('');
+                  }}
+                >
+                  Modifier
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(event.id)}>
+                  Supprimer
+                </Button>
+              </div>
             </li>
           ))}
           {events.length === 0 ? (

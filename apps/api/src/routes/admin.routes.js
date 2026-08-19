@@ -1,16 +1,21 @@
 // @ts-check
 import {
+  adminRiderDocumentParamSchema,
   compatibilityAuditSchema,
   createDiscountRuleSchema,
   createInvoiceSchema,
   createSubscriptionPlanSchema,
   invoiceIdParamSchema,
+  reviewDocumentSchema,
+  riderDocumentReviewParamSchema,
   ROLES,
   updateDiscountRuleSchema,
   updateSubscriptionPlanSchema,
+  userIdParamSchema,
 } from '@equime/shared';
 import { Router } from 'express';
 
+import * as adminController from '../controllers/adminController.js';
 import * as billingController from '../controllers/billingController.js';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
@@ -18,6 +23,25 @@ import { validate } from '../middlewares/validate.js';
 const router = Router();
 
 router.use(requireAuth, requireRole(ROLES.ADMIN));
+
+router.get('/dashboard-kpis', adminController.dashboardKpis);
+router.get('/members', adminController.listMembers);
+router.get('/instructors', adminController.listInstructors);
+router.get('/audit-logs', adminController.listAuditLogs);
+router.post('/members/:id/ban', validate(userIdParamSchema, 'params'), adminController.banMember);
+router.post('/members/:id/unban', validate(userIdParamSchema, 'params'), adminController.unbanMember);
+router.get('/pending-documents', adminController.listPendingDocuments);
+router.post(
+  '/riders/:riderId/review-document',
+  validate(riderDocumentReviewParamSchema, 'params'),
+  validate(reviewDocumentSchema),
+  adminController.reviewDocument
+);
+router.get(
+  '/riders/:riderId/documents/:docType',
+  validate(adminRiderDocumentParamSchema, 'params'),
+  adminController.downloadRiderDocument
+);
 
 router.post(
   '/compatibility-audit',

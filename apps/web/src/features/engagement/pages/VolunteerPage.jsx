@@ -11,6 +11,7 @@ import {
   deleteVolunteerMission,
   fetchVolunteerMissions,
   signupVolunteerMission,
+  updateVolunteerMission,
 } from '@/features/engagement/api.js';
 
 const initialForm = {
@@ -21,9 +22,27 @@ const initialForm = {
   slots: 4,
 };
 
+/** @param {object} mission */
+function missionToForm(mission) {
+  const toLocal = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  return {
+    title: mission.title,
+    description: mission.description ?? '',
+    startAt: toLocal(mission.startAt),
+    endAt: toLocal(mission.endAt),
+    slots: mission.slots,
+  };
+}
+
 export function VolunteerPage({ admin = false }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(initialForm);
+  const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
   const { data: missions = [] } = useQuery({
     queryKey: ['volunteer-missions'],
@@ -36,6 +55,16 @@ export function VolunteerPage({ admin = false }) {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
       setForm(initialForm);
       setStatus('Mission créée.');
+    },
+    onError: (err) => setStatus(err.message),
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, body }) => updateVolunteerMission(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
+      setEditingId(null);
+      setForm(initialForm);
+      setStatus('Mission mise à jour.');
     },
     onError: (err) => setStatus(err.message),
   });
@@ -52,6 +81,16 @@ export function VolunteerPage({ admin = false }) {
     onError: (err) => setStatus(err.message),
   });
 
+  const handleSubmit = () => {
+    const body = { ...form };
+    if (!body.endAt) delete body.endAt;
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, body });
+    } else {
+      createMutation.mutate(body);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -62,13 +101,13 @@ export function VolunteerPage({ admin = false }) {
       </div>
 
       {status ? (
-        <Alert variant={status.includes('confirmée') || status.includes('créée') ? 'success' : 'error'}>
+        <Alert variant={status.includes('confirmée') || status.includes('créée') || status.includes('mise à jour') ? 'success' : 'error'}>
           {status}
         </Alert>
       ) : null}
 
       {admin ? (
-        <Card title="Créer une mission">
+        <Card title={editingId ? 'Modifier la mission' : 'Créer une mission'}>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Titre" htmlFor="mission-title">
               <Input
@@ -112,10 +151,22 @@ export function VolunteerPage({ admin = false }) {
               />
             </Field>
           </div>
-          <div className="mt-4">
-            <Button type="button" loading={createMutation.isPending} onClick={() => createMutation.mutate(form)}>
-              Créer la mission
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" loading={createMutation.isPending || updateMutation.isPending} onClick={handleSubmit}>
+              {editingId ? 'Enregistrer' : 'Créer la mission'}
             </Button>
+            {editingId ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(initialForm);
+                }}
+              >
+                Annuler
+              </Button>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -135,9 +186,22 @@ export function VolunteerPage({ admin = false }) {
                   ) : null}
                 </div>
                 {admin ? (
-                  <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(mission.id)}>
-                    Supprimer
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setEditingId(mission.id);
+                        setForm(missionToForm(mission));
+                        setStatus('');
+                      }}
+                    >
+                      Modifier
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(mission.id)}>
+                      Supprimer
+                    </Button>
+                  </div>
                 ) : (
                   <Button
                     type="button"

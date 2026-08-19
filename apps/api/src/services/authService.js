@@ -12,8 +12,9 @@ import { AppError } from '../lib/appError.js';
 import { sendPasswordResetEmail } from '../lib/mailer.js';
 import { hashPassword, verifyPassword } from '../lib/passwords.js';
 import { prisma } from '../lib/prisma.js';
+import { deleteStoredFile } from '../lib/uploads.js';
 
-import { blacklistUser, hashToken, issueTokenPair, revokeAllUserTokens } from './tokenService.js';
+import { blacklistUser, hashToken, issueTokenPair, revokeAllUserTokens, blacklistAccessToken } from './tokenService.js';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 h
 
@@ -84,6 +85,9 @@ export async function login(input, context) {
   }
   if (user.banned) {
     throw AppError.forbidden('Compte suspendu — contactez le centre équestre');
+  }
+  if (user.anonymizedAt) {
+    throw AppError.forbidden('Ce compte a été supprimé');
   }
 
   const { accessToken, refreshToken } = await issueTokenPair(user, context);
@@ -175,4 +179,167 @@ export async function banUser(userId) {
   });
   await revokeAllUserTokens(userId);
   await blacklistUser(userId);
+}
+
+/**
+ * Levée du bannissement (US-9.2).
+ * @param {string} userId
+ */
+export async function unbanUser(userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw AppError.notFound('Utilisateur introuvable');
+  if (user.anonymizedAt) throw AppError.conflict('Compte anonymisé — action impossible');
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { banned: false, bannedAt: null },
+  });
+}
+
+/**
+ * Suppression de compte RGPD : anonymisation des données personnelles,
+ * conservation des factures, révocation des sessions (US-1.6).
+ *
+ * @param {string} userId
+ * @param {string | undefined} accessJti jti du token courant à blacklister
+ */
+export async function anonymizeAccount(userId, accessJti) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { family: { include: { riders: true } } },
+  });
+  if (!user) throw AppError.unauthorized();
+  if (user.anonymizedAt) throw AppError.conflict('Compte déjà supprimé');
+  if (user.role !== 'client') {
+    throw AppError.forbidden('Seuls les comptes clients peuvent être supprimés depuis l\'espace client');
+  }
+
+  for (const rider of user.family?.riders ?? []) {
+    await deleteStoredFile(rider.medicalCertificateUrl);
+    await deleteStoredFile(rider.licenseUrl);
+  }
+
+  const placeholderPassword = await hashPassword(randomBytes(32).toString('base64url'));
+
+  await prisma.$transaction(async (tx) => {
+    if (user.family) {
+      for (const rider of user.family.riders) {
+        await tx.rider.update({
+          where: { id: rider.id },
+          data: {
+            firstName: 'Anonyme',
+            lastName: rider.id.slice(-6),
+            medicalCertificateUrl: null,
+            licenseUrl: null,
+            medicalCertificateStatus: 'missing',
+            licenseStatus: 'missing',
+            medicalConsentAt: null,
+            medicalCertificateRejectionReason: null,
+            licenseRejectionReason: null,
+          },
+        });
+      }
+    }
+
+    await tx.message.updateMany({
+      where: { senderId: userId },
+      data: { body: '[Message supprimé]' },
+    });
+
+    await tx.notification.deleteMany({ where: { userId } });
+    await tx.notificationPreference.deleteMany({ where: { userId } });
+    await tx.volunteerSignup.deleteMany({ where: { userId } });
+    await tx.passwordResetToken.deleteMany({ where: { userId } });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        email: `deleted-${userId}@anonymized.local`,
+        firstName: 'Utilisateur',
+        lastName: 'supprimé',
+        phone: null,
+        passwordHash: placeholderPassword,
+        anonymizedAt: new Date(),
+      },
+    });
+  });
+
+  await revokeAllUserTokens(userId);
+  await blacklistUser(userId);
+  if (accessJti) await blacklistAccessToken(accessJti);
+}
+
+/**
+ * Export portabilité RGPD : données structurées du compte client (profil, cavaliers, factures).
+ * @param {string} userId
+ * @returns {Promise<object>}
+ */
+export async function exportPortableData(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+      family: {
+        select: {
+          sessionQuota: true,
+          riders: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              birthdate: true,
+              level: true,
+              medicalCertificateStatus: true,
+              licenseStatus: true,
+              medicalConsentAt: true,
+              createdAt: true,
+            },
+          },
+          invoices: {
+            select: {
+              id: true,
+              number: true,
+              status: true,
+              totalCents: true,
+              issuedAt: true,
+              paidAt: true,
+              items: {
+                select: { label: true, quantity: true, unitCents: true },
+              },
+            },
+            orderBy: { issuedAt: 'desc' },
+          },
+        },
+      },
+    },
+  });
+  if (!user) throw AppError.unauthorized();
+  if (user.role !== ROLES.CLIENT) {
+    throw AppError.forbidden('L\'export portabilité est réservé aux comptes clients');
+  }
+
+  return {
+    exportedAt: new Date().toISOString(),
+    format: 'equime-portability-v1',
+    profile: {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      createdAt: user.createdAt,
+    },
+    family: user.family
+      ? {
+          sessionQuota: user.family.sessionQuota,
+          riders: user.family.riders,
+          invoices: user.family.invoices,
+        }
+      : null,
+  };
 }

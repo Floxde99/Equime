@@ -66,8 +66,23 @@ npm run seed              # load the development dataset (4 accounts, password: 
 
 ## Documentation
 
-All project documentation lives in [`docs/`](docs/) (in French): architecture diagrams, design system, ADRs, agile backlog, test plans, security (OWASP mapping), RGPD compliance and deployment procedures.
+All project documentation lives in [`docs/`](docs/) (in French). Key references:
+
+| Document | Purpose |
+|---|---|
+| [`architecture.md`](docs/architecture.md) | System overview and layering |
+| [`backlog.md`](docs/backlog.md) | Agile backlog (MoSCoW user stories) |
+| [`cahier-de-tests.md`](docs/cahier-de-tests.md) | Test catalog |
+| [`cahier-de-recette.md`](docs/cahier-de-recette.md) | Acceptance test book (Phase 6) |
+| [`traceabilite.md`](docs/traceabilite.md) | Requirements → modules → tests matrix |
+| [`rgpd.md`](docs/rgpd.md) | GDPR processing, consent, retention |
+| [`securite.md`](docs/securite.md) | OWASP controls mapping |
+| [`soutenance-plan.md`](docs/soutenance-plan.md) | Demo script for the oral defense |
+| [`questions-jury.md`](docs/questions-jury.md) | Anticipated jury Q&A |
+| [`design-system.md`](docs/design-system.md) | UI tokens and components |
+| [`adr/`](docs/adr/) | Architecture decision records |
 
 ## License
 
 Educational project — all rights reserved.
+

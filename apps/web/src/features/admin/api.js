@@ -104,3 +104,51 @@ export function overrideHorse(courseId, enrollmentId, horseId) {
 export function runCompatibilityAudit() {
   return api.post('/admin/compatibility-audit', {}).then((r) => r.report);
 }
+
+export function fetchDashboardKpis() {
+  return api.get('/admin/dashboard-kpis').then((r) => r.kpis);
+}
+
+export function fetchMembers() {
+  return api.get('/admin/members').then((r) => r.members);
+}
+
+/** @param {string} id */
+export function banMember(id) {
+  return api.post(`/admin/members/${id}/ban`);
+}
+
+/** @param {string} id */
+export function unbanMember(id) {
+  return api.post(`/admin/members/${id}/unban`);
+}
+
+export function fetchPendingDocuments() {
+  return api.get('/admin/pending-documents').then((r) => r.riders);
+}
+
+/**
+ * @param {string} riderId
+ * @param {{ docType: string, decision: string, rejectionReason?: string }} body
+ */
+export function reviewDocument(riderId, body) {
+  return api.post(`/admin/riders/${riderId}/review-document`, body).then((r) => r.rider);
+}
+
+/** @param {string} riderId @param {'medical_certificate' | 'license'} docType */
+export function getAdminRiderDocumentUrl(riderId, docType) {
+  return `/api/v1/admin/riders/${riderId}/documents/${docType}`;
+}
+
+export function fetchInstructors() {
+  return api.get('/admin/instructors').then((r) => r.instructors);
+}
+
+export function fetchAuditLogs() {
+  return api.get('/admin/audit-logs').then((r) => r.logs);
+}
+
+/** @param {string} courseId @param {boolean} [cancelSeries] */
+export function cancelCourse(courseId, cancelSeries = false) {
+  return api.post(`/courses/${courseId}/cancel`, { cancelSeries });
+}

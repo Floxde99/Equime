@@ -191,7 +191,13 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <span className="font-sans text-xs text-muted">Certificat :</span> {docBadge(rider.medicalCertificateStatus)}
+        {rider.medicalCertificateStatus === 'rejected' && rider.medicalCertificateRejectionReason ? (
+          <span className="font-sans text-xs text-danger">({rider.medicalCertificateRejectionReason})</span>
+        ) : null}
         <span className="font-sans text-xs text-muted">Licence :</span> {docBadge(rider.licenseStatus)}
+        {rider.licenseStatus === 'rejected' && rider.licenseRejectionReason ? (
+          <span className="font-sans text-xs text-danger">({rider.licenseRejectionReason})</span>
+        ) : null}
       </div>
 
       <div className="mt-4 space-y-3 border-t border-border pt-4">

@@ -134,6 +134,12 @@ enum NotificationType {
   rider_absence
 }
 
+/// Journal d'audit admin (consultation / validation certificats médicaux — RGPD)
+enum AdminAuditAction {
+  medical_document_viewed
+  medical_document_reviewed
+}
+
 // ============================================================
 // Utilisateurs, familles, cavaliers
 // ============================================================
@@ -164,6 +170,7 @@ model User {
   sentMessages            Message[]                 @relation("MessageSender")
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  adminAuditLogs          AdminAuditLog[]
 
   @@index([role])
   @@map("users")
@@ -194,10 +201,12 @@ model Rider {
   lastName                 String
   birthdate                DateTime
   level                    RiderLevel     @default(initiation)
-  medicalCertificateUrl    String?
-  medicalCertificateStatus DocumentStatus @default(missing)
-  licenseUrl               String?
-  licenseStatus            DocumentStatus @default(missing)
+  medicalCertificateUrl              String?
+  medicalCertificateStatus           DocumentStatus @default(missing)
+  medicalCertificateRejectionReason  String?
+  licenseUrl                         String?
+  licenseStatus                      DocumentStatus @default(missing)
+  licenseRejectionReason             String?
   /// RGPD : consentement explicite au stockage du certificat médical
   medicalConsentAt         DateTime?
   createdAt                DateTime       @default(now())
@@ -208,6 +217,7 @@ model Rider {
   enrollments        CourseEnrollment[]
   eventRegistrations EventRegistration[]
   incidents          Incident[]
+  adminAuditLogs     AdminAuditLog[]
 
   @@index([familyId])
   @@map("riders")
@@ -599,6 +609,27 @@ model NotificationPreference {
 
   @@unique([userId, type])
   @@map("notification_preferences")
+}
+
+// ============================================================
+// Audit admin (RGPD — traçabilité accès données sensibles)
+// ============================================================
+
+model AdminAuditLog {
+  id        String           @id @default(cuid())
+  adminId   String
+  action    AdminAuditAction
+  riderId   String
+  details   String?
+  createdAt DateTime         @default(now())
+
+  admin User  @relation(fields: [adminId], references: [id])
+  rider Rider @relation(fields: [riderId], references: [id])
+
+  @@index([adminId])
+  @@index([riderId])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
 }
 
 // ============================================================

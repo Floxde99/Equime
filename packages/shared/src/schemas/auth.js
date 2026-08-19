@@ -43,3 +43,12 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Jeton manquant'),
   password: passwordSchema,
 });
+
+/** Confirmation explicite pour la suppression de compte (US-1.6). */
+export const deleteAccountSchema = z.object({
+  confirmation: z.literal('SUPPRIMER MON COMPTE', {
+    errorMap: () => ({
+      message: 'Saisissez exactement « SUPPRIMER MON COMPTE » pour confirmer',
+    }),
+  }),
+});

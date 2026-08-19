@@ -82,6 +82,15 @@ export async function logout(req, res) {
   res.status(204).end();
 }
 
+/** GET /api/v1/auth/me/export — export portabilité RGPD (JSON structuré) */
+export async function exportData(req, res) {
+  const user = /** @type {{ id: string }} */ (req.user);
+  const data = await authService.exportPortableData(user.id);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="equime-export.json"');
+  res.json(data);
+}
+
 /** GET /api/v1/auth/me */
 export async function me(req, res) {
   const user = /** @type {{ id: string }} */ (req.user);
@@ -100,4 +109,12 @@ export async function forgotPassword(req, res) {
 export async function resetPassword(req, res) {
   await authService.resetPassword(req.body);
   res.json({ message: 'Mot de passe mis à jour, vous pouvez vous connecter.' });
+}
+
+/** DELETE /api/v1/auth/me — suppression de compte RGPD (US-1.6) */
+export async function deleteAccount(req, res) {
+  const user = /** @type {{ id: string, jti: string }} */ (req.user);
+  await authService.anonymizeAccount(user.id, user.jti);
+  res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_OPTIONS.path });
+  res.status(204).end();
 }

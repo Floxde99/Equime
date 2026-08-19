@@ -189,7 +189,7 @@ export async function revokeAllUserTokens(userId) {
 export async function rotateRefreshToken(presentedToken) {
   const stored = await prisma.refreshToken.findUnique({
     where: { tokenHash: hashToken(presentedToken) },
-    include: { user: { select: { id: true, role: true, banned: true } } },
+    include: { user: { select: { id: true, role: true, banned: true, anonymizedAt: true } } },
   });
 
   if (!stored) throw AppError.unauthorized('Session invalide');
@@ -209,6 +209,11 @@ export async function rotateRefreshToken(presentedToken) {
   if (stored.user.banned) {
     await revokeFamily(stored.familyId);
     throw AppError.forbidden('Compte suspendu');
+  }
+
+  if (stored.user.anonymizedAt) {
+    await revokeFamily(stored.familyId);
+    throw AppError.forbidden('Ce compte a été supprimé');
   }
 
   // Rotation : l'ancien token est consommé, un nouveau prend sa place
@@ -235,4 +240,18 @@ export async function revokeSession(presentedToken, accessJti) {
     if (stored) await revokeFamily(stored.familyId);
   }
   if (accessJti) await blacklistAccessToken(accessJti);
+}
+
+/**
+ * Purge les refresh tokens expirés ou révoqués depuis plus de 30 jours (minimisation RGPD).
+ * @returns {Promise<number>} Nombre de lignes supprimées
+ */
+export async function purgeExpiredRefreshTokens() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const result = await prisma.refreshToken.deleteMany({
+    where: {
+      OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: cutoff } }],
+    },
+  });
+  return result.count;
 }

@@ -176,20 +176,45 @@ export async function updateCourse(courseId, input) {
  */
 export async function cancelCourse(courseId, cancelSeries) {
   const course = await getCourse(courseId);
+  let cancelledCourseIds = [courseId];
 
   if (cancelSeries && course.recurrenceRule) {
     const rootId = course.parentCourseId ?? course.id;
-    await prisma.course.updateMany({
+    const seriesCourses = await prisma.course.findMany({
       where: {
         OR: [{ id: rootId }, { parentCourseId: rootId }],
-        status: { not: 'cancelled' },
+        status: { not: COURSE_STATUS.CANCELLED },
       },
+      select: { id: true },
+    });
+    cancelledCourseIds = seriesCourses.map((c) => c.id);
+    await prisma.course.updateMany({
+      where: { id: { in: cancelledCourseIds } },
       data: { status: COURSE_STATUS.CANCELLED },
     });
   } else {
     await prisma.course.update({
       where: { id: courseId },
       data: { status: COURSE_STATUS.CANCELLED },
+    });
+  }
+
+  const enrollments = await prisma.courseEnrollment.findMany({
+    where: { courseId: { in: cancelledCourseIds } },
+    include: {
+      rider: { include: { family: { select: { userId: true } } } },
+      course: { select: { title: true, startAt: true } },
+    },
+  });
+
+  for (const enrollment of enrollments) {
+    const dateLabel = enrollment.course.startAt.toLocaleDateString('fr-FR');
+    await createNotification({
+      userId: enrollment.rider.family.userId,
+      type: NOTIFICATION_TYPES.COURSE_CANCELLED,
+      title: 'Cours annulé',
+      body: `Le cours « ${enrollment.course.title} » du ${dateLabel} a été annulé`,
+      linkUrl: '/app/planning',
     });
   }
 

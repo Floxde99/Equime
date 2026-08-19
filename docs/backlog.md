@@ -14,9 +14,9 @@
 | S2 | Phase 2 | Un utilisateur peut créer un compte et se connecter de façon sécurisée | ✅ Terminé |
 | S3 | Phase 3 | Le cœur opérationnel tourne : familles, cavalerie, espaces, planning | ✅ Terminé |
 | S4 | Phase 4 | L'attribution des chevaux et la facturation fonctionnent de bout en bout | ✅ Terminé |
-| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | En revue |
-| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | En cours |
-| S7 | Phase 7 | Dossier professionnel consolidé | À venir |
+| S5 | Phase 5 | Modules relationnels : messagerie, incidents, bénévolat, événements, notifications | ✅ Terminé |
+| S6 | Phase 6 | Application recettée, déployée en préprod puis prod | 🔄 En revue (E2E + recette manuelle) |
+| S7 | Phase 7 | Dossier professionnel consolidé | 🔄 En cours |
 
 ---
 
@@ -70,9 +70,9 @@ Critères d'acceptation :
 **En tant que** client, **je veux** supprimer mon compte **afin d'** exercer mon droit à l'effacement.
 
 Critères d'acceptation :
-- [ ] Confirmation explicite nommant les conséquences.
-- [ ] Données personnelles anonymisées (nom, email, téléphone, documents supprimés) ; factures conservées anonymisées (obligation comptable).
-- [ ] Connexion impossible après suppression ; sessions révoquées.
+- [x] Confirmation explicite nommant les conséquences.
+- [x] Données personnelles anonymisées (nom, email, téléphone, documents supprimés) ; factures conservées anonymisées (obligation comptable).
+- [x] Connexion impossible après suppression ; sessions révoquées.
 
 ---
 
@@ -90,10 +90,10 @@ Critères d'acceptation :
 **En tant que** client, **je veux** téléverser le certificat médical et la licence d'un cavalier **afin de** valider son dossier.
 
 Critères d'acceptation :
-- [ ] Formats acceptés : PDF/JPG/PNG, taille ≤ 5 Mo, contrôle du MIME réel côté serveur.
-- [ ] Consentement explicite requis avant le téléversement du certificat médical (RGPD).
-- [ ] Statut visible : manquant / en attente / validé / refusé (badge design system).
-- [ ] Fichiers stockés dans le volume `/uploads`, servis derrière Nginx, inaccessibles sans autorisation.
+- [x] Formats acceptés : PDF/JPG/PNG, taille ≤ 5 Mo, contrôle du MIME réel côté serveur.
+- [x] Consentement explicite requis avant le téléversement du certificat médical (RGPD).
+- [x] Statut visible : manquant / en attente / validé / refusé (badge design system).
+- [x] Fichiers stockés dans le volume `/uploads`, servis derrière Nginx, inaccessibles sans autorisation.
 
 ### US-2.3 — Déclarer les affinités chevaux `S`
 **En tant que** client, **je veux** indiquer les chevaux favoris / à éviter de chaque cavalier **afin d'** influencer l'attribution.
@@ -283,8 +283,8 @@ Critères d'acceptation :
 **En tant qu'** admin, **je veux** gérer les membres (rôles, ban/déban, validation des documents) **afin de** contrôler l'accès au service.
 
 Critères d'acceptation :
-- [ ] Ban : connexion refusée + sessions actives révoquées immédiatement.
-- [ ] Validation des documents cavalier avec motif en cas de refus.
+- [x] Ban : connexion refusée + sessions actives révoquées immédiatement.
+- [x] Validation des documents cavalier avec motif en cas de refus.
 
 ---
 

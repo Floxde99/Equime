@@ -87,3 +87,21 @@ npm run e2e
 - [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 sans écart bloquant
 - [ ] Variables `.env.prod` renseignées (secrets ≥ 32 car., SMTP, certificats SSL)
 - [ ] Sauvegarde Postgres testée et procédure de rollback documentée
+
+---
+
+## 5. Critères de passage en production
+
+- [ ] Les quatre parcours E2E-1 à E2E-4 sont **verts** en préproduction (
+pm run e2e ou CI).
+- [ ] Journal §4 complété avec date, exécutant et observations.
+- [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 validés manuellement.
+- [ ] Variables .env.prod renseignées (secrets hors dépôt), certificats SSL Nginx actifs.
+- [ ] Sauvegarde PostgreSQL testée ; procédure de rollback documentée.
+
+## 6. Traçabilité et conformité
+
+- Matrice US → code → tests : docs/traceabilite.md
+- RGPD (consentement médical, anonymisation, durées) : docs/rgpd.md
+- Plan de démonstration soutenance : docs/soutenance-plan.md
+

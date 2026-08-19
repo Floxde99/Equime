@@ -211,4 +211,159 @@ describe('Planning cache', () => {
     expect(res.body.events).toHaveLength(1);
     expect(res.body.events[0].title).toBe('Séance test');
   });
+
+  it('invalide le cache Redis après mutation de cours (T-4.7)', async () => {
+    const space = await prisma.space.create({
+      data: { name: 'Cache Arena', type: 'indoor', capacity: 10 },
+    });
+
+    const query = {
+      from: '2026-11-01T00:00:00.000Z',
+      to: '2026-11-15T00:00:00.000Z',
+      scope: 'all',
+    };
+
+    await request(app)
+      .get('/api/v1/courses/planning')
+      .query(query)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    const keysAfterRead = await redis.keys('planning:*');
+    expect(keysAfterRead.length).toBeGreaterThan(0);
+
+    await request(app)
+      .post('/api/v1/courses')
+      .set(authHeader(adminToken))
+      .send({
+        title: 'Nouveau cours cache',
+        instructorId,
+        spaceId: space.id,
+        startAt: '2026-11-05T10:00:00.000Z',
+        endAt: '2026-11-05T11:00:00.000Z',
+        capacity: 6,
+        status: 'scheduled',
+      })
+      .expect(201);
+
+    const keysAfterMutation = await redis.keys('planning:*');
+    expect(keysAfterMutation).toHaveLength(0);
+
+    const after = await request(app)
+      .get('/api/v1/courses/planning')
+      .query(query)
+      .set(authHeader(adminToken));
+    expect(after.body.events.some((e) => e.title === 'Nouveau cours cache')).toBe(true);
+  });
+});
+
+describe('Annulation de séance (T-4.2)', () => {
+  it('annule une séance et notifie les inscrits', async () => {
+    const space = await prisma.space.create({
+      data: { name: 'Manège B', type: 'indoor', capacity: 8 },
+    });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Nina',
+        lastName: 'Test',
+        birthdate: new Date('2011-01-01'),
+        level: 'galop_2',
+      },
+    });
+    const course = await prisma.course.create({
+      data: {
+        title: 'Séance à annuler',
+        instructorId,
+        spaceId: space.id,
+        startAt: new Date('2026-12-01T14:00:00.000Z'),
+        endAt: new Date('2026-12-01T15:00:00.000Z'),
+        capacity: 6,
+        status: 'scheduled',
+      },
+    });
+    await prisma.courseEnrollment.create({ data: { courseId: course.id, riderId: rider.id } });
+
+    const cancelRes = await request(app)
+      .post(`/api/v1/courses/${course.id}/cancel`)
+      .set(authHeader(adminToken))
+      .send({ cancelSeries: false });
+    expect(cancelRes.status).toBe(204);
+
+    const updated = await prisma.course.findUnique({ where: { id: course.id } });
+    expect(updated?.status).toBe('cancelled');
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: clientId, type: 'course_cancelled' },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].body).toContain('Séance à annuler');
+  });
+});
+
+describe('Upload documents cavaliers (T-2.3 à T-2.5)', () => {
+  it('accepte un PDF avec consentement médical', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Eva',
+        lastName: 'Test',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+      },
+    });
+
+    const pdfBuffer = Buffer.from('%PDF-1.4 minimal test content');
+
+    const res = await request(app)
+      .post(`/api/v1/riders/${rider.id}/documents/medical_certificate`)
+      .set(authHeader(clientToken))
+      .field('medicalConsent', 'true')
+      .attach('file', pdfBuffer, { filename: 'certificat.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rider.medicalCertificateStatus).toBe('pending');
+  });
+
+  it('refuse un upload sans consentement médical (T-2.5)', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Noa',
+        lastName: 'Test',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+      },
+    });
+
+    const pdfBuffer = Buffer.from('%PDF-1.4 test');
+
+    const res = await request(app)
+      .post(`/api/v1/riders/${rider.id}/documents/medical_certificate`)
+      .set(authHeader(clientToken))
+      .attach('file', pdfBuffer, { filename: 'certificat.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('refuse un fichier au MIME invalide (T-2.4)', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Zoé',
+        lastName: 'Test',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+      },
+    });
+
+    const exeBuffer = Buffer.from('MZ fake executable');
+
+    const res = await request(app)
+      .post(`/api/v1/riders/${rider.id}/documents/license`)
+      .set(authHeader(clientToken))
+      .attach('file', exeBuffer, { filename: 'licence.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(400);
+  });
 });

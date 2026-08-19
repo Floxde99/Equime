@@ -46,6 +46,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-1.11 | Rate limiting | 11 logins ratés en 15 min même IP | 429 | ✅ intégration | ✅ |
 | T-1.12 | Mot de passe oublié | Demande + reset via lien email | 200 systématique ; nouveau mdp actif ; sessions révoquées | ✅ intégration | ✅ |
 | T-1.13 | Déconnexion | Logout puis rejeu de l'ancien access | 401 (blacklist Redis) | ✅ intégration | ✅ |
+| T-1.14 | Suppression compte RGPD | DELETE /auth/me avec confirmation | 204, anonymisation, factures conservées, sessions révoquées | ✅ `auth.test.js` | ✅ |
 
 ## Module 2 — Famille & cavaliers (Phase 3)
 
@@ -126,9 +127,9 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-9.1 | KPIs dashboard | Charger le dashboard admin | Occupation, CA, charge chevaux exacts vs seed | ⬜ intégration | ⬜ |
-| T-9.2 | Ban immédiat | Bannir un client connecté | Sessions révoquées, reconnexion refusée | ⬜ intégration | ⬜ |
-| T-9.3 | Validation documents | Approuver/refuser un certificat | Statut mis à jour, motif obligatoire si refus | ⬜ intégration | ⬜ |
+| T-9.1 | KPIs dashboard | Charger le dashboard admin | Occupation, CA, charge chevaux exacts vs seed | ✅ `admin.test.js` | ✅ |
+| T-9.2 | Ban immédiat | Bannir un client connecté | Sessions révoquées, reconnexion refusée | ✅ `admin.test.js` | ✅ |
+| T-9.3 | Validation documents | Approuver/refuser un certificat | Statut mis à jour, motif obligatoire si refus | ✅ `admin.test.js` | ✅ |
 
 ## Parcours E2E (Phase 6 — Playwright, 4 et pas plus)
 

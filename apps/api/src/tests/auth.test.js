@@ -260,6 +260,20 @@ describe('POST /api/v1/auth/refresh', () => {
     const res = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
     expect(res.status).toBe(401);
   });
+
+  it('T-1.7 : après refresh, le nouvel access token authentifie une route protégée', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const cookie = refreshCookieOf(reg);
+
+    const refreshed = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
+    expect(refreshed.status).toBe(200);
+
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshed.body.accessToken}`);
+    expect(me.status).toBe(200);
+    expect(me.body.user.email).toBe('client@test.fr');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -389,6 +403,112 @@ describe('POST /api/v1/auth/forgot-password + reset-password', () => {
       .post('/api/v1/auth/reset-password')
       .send({ token: knownToken, password: 'NouveauMotDePasse1' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suppression de compte RGPD (US-1.6)
+// ---------------------------------------------------------------------------
+describe('DELETE /api/v1/auth/me', () => {
+  it('anonymise le compte, révoque les sessions et empêche la reconnexion', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const userId = reg.body.user.id;
+    const family = await prisma.family.findUnique({ where: { userId } });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId: family.id,
+        firstName: 'Test',
+        lastName: 'Rider',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+        medicalCertificateStatus: 'approved',
+      },
+    });
+    await prisma.invoice.create({
+      data: {
+        familyId: family.id,
+        number: 'FAC-DEL-001',
+        status: 'paid',
+        totalCents: 3000,
+        paidAt: new Date(),
+        items: { create: [{ label: 'Abo', quantity: 1, unitCents: 3000, totalCents: 3000 }] },
+      },
+    });
+
+    const del = await request(app)
+      .delete('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ confirmation: 'SUPPRIMER MON COMPTE' });
+    expect(del.status).toBe(204);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    expect(user.anonymizedAt).not.toBeNull();
+    expect(user.email).toBe(`deleted-${userId}@anonymized.local`);
+    expect(user.firstName).toBe('Utilisateur');
+
+    const riderAfter = await prisma.rider.findUnique({ where: { id: rider.id } });
+    expect(riderAfter.firstName).toBe('Anonyme');
+
+    const invoices = await prisma.invoice.count({ where: { familyId: family.id } });
+    expect(invoices).toBe(1);
+
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+    expect(me.status).toBe(401);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'client@test.fr', password: 'MotDePasse123' });
+    expect(login.status).toBe(401);
+  });
+
+  it('exige la confirmation exacte', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const res = await request(app)
+      .delete('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ confirmation: 'supprimer' });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/auth/me/export — portabilité RGPD
+// ---------------------------------------------------------------------------
+describe('GET /api/v1/auth/me/export', () => {
+  it('exporte les données structurées du compte client', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+
+    const res = await request(app)
+      .get('/api/v1/auth/me/export')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.format).toBe('equime-portability-v1');
+    expect(res.body.profile.email).toBe('client@test.fr');
+    expect(res.body.family).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Purge refresh tokens expirés
+// ---------------------------------------------------------------------------
+describe('purgeExpiredRefreshTokens', () => {
+  it('supprime les tokens expirés de la base', async () => {
+    const { purgeExpiredRefreshTokens } = await import('../services/tokenService.js');
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+
+    await prisma.refreshToken.updateMany({
+      where: { userId: reg.body.user.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const count = await purgeExpiredRefreshTokens();
+    expect(count).toBeGreaterThan(0);
+
+    const remaining = await prisma.refreshToken.count({ where: { userId: reg.body.user.id } });
+    expect(remaining).toBe(0);
   });
 });
 

@@ -14,7 +14,9 @@ const RIDER_SELECT = {
   birthdate: true,
   level: true,
   medicalCertificateStatus: true,
+  medicalCertificateRejectionReason: true,
   licenseStatus: true,
+  licenseRejectionReason: true,
   medicalConsentAt: true,
   createdAt: true,
   updatedAt: true,
@@ -165,4 +167,104 @@ export async function upsertRiderAffinity(userId, riderId, horseId, affinity) {
     update: { affinity },
     include: { horse: { select: { id: true, name: true, status: true } } },
   });
+}
+
+const PENDING_DOC_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  medicalCertificateStatus: true,
+  licenseStatus: true,
+  family: {
+    select: {
+      user: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
+  },
+};
+
+/**
+ * Cavaliers avec au moins un document en attente de validation (US-9.3).
+ * @returns {Promise<object[]>}
+ */
+export async function listPendingDocuments() {
+  return prisma.rider.findMany({
+    where: {
+      OR: [{ medicalCertificateStatus: 'pending' }, { licenseStatus: 'pending' }],
+    },
+    select: PENDING_DOC_SELECT,
+    orderBy: { updatedAt: 'desc' },
+  });
+}
+
+/**
+ * Validation ou refus d'un document cavalier par l'admin (US-9.3).
+ *
+ * @param {string} riderId
+ * @param {'medical_certificate' | 'license'} docType
+ * @param {'approved' | 'rejected'} decision
+ * @param {string | undefined} rejectionReason
+ * @param {string} [adminId] Pour journal d'audit RGPD
+ */
+export async function reviewRiderDocument(riderId, docType, decision, rejectionReason, adminId) {
+  const rider = await prisma.rider.findUnique({ where: { id: riderId } });
+  if (!rider) throw AppError.notFound('Cavalier introuvable');
+
+  const statusField =
+    docType === 'medical_certificate' ? 'medicalCertificateStatus' : 'licenseStatus';
+  const reasonField =
+    docType === 'medical_certificate'
+      ? 'medicalCertificateRejectionReason'
+      : 'licenseRejectionReason';
+
+  if (rider[statusField] !== 'pending') {
+    throw AppError.conflict('Ce document n\'est pas en attente de validation');
+  }
+
+  if (decision === 'rejected' && !rejectionReason?.trim()) {
+    throw AppError.badRequest('Le motif est obligatoire en cas de refus');
+  }
+
+  const updated = await prisma.rider.update({
+    where: { id: riderId },
+    data: {
+      [statusField]: decision,
+      [reasonField]: decision === 'rejected' ? rejectionReason.trim() : null,
+    },
+    select: RIDER_SELECT,
+  });
+
+  if (docType === 'medical_certificate' && adminId) {
+    const { logAdminAudit } = await import('./adminService.js');
+    await logAdminAudit({
+      adminId,
+      action: 'medical_document_reviewed',
+      riderId,
+      details: decision,
+    });
+  }
+
+  return updated;
+}
+
+/**
+ * Téléchargement admin d'un document cavalier avec journal d'audit (certificat médical).
+ *
+ * @param {string} adminId
+ * @param {string} riderId
+ * @param {'medical_certificate' | 'license'} docType
+ * @returns {Promise<string>} Chemin relatif du fichier
+ */
+export async function getAdminRiderDocumentPath(adminId, riderId, docType) {
+  const relativePath = await getRiderDocumentPath(adminId, riderId, docType, 'admin');
+
+  if (docType === 'medical_certificate') {
+    const { logAdminAudit } = await import('./adminService.js');
+    await logAdminAudit({
+      adminId,
+      action: 'medical_document_viewed',
+      riderId,
+    });
+  }
+
+  return relativePath;
 }
