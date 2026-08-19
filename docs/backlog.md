@@ -328,7 +328,7 @@ Critères d'acceptation :
 ## EPIC 9 — Administration & pilotage (Sprints 4-5)
 
 ### US-9.1 — Dashboard KPIs `M`
-**En tant qu'** admin, **je veux** un dashboard (occupation des cours, CA, charge des chevaux) avec alertes **afin de** piloter le centre. (KPI or « l'or est rare » : un seul chiffre clé en or par écran.)
+**En tant qu'** admin, **je veux** un dashboard (occupation des cours, CA, charge des chevaux) avec alertes **afin de** piloter le centre. (« L'or est rare » : or **uniquement** sur le sceau vitrine, pas sur les KPI admin — `docs/design-system.md`.)
 
 ### US-9.2 — Gestion des membres `M`
 **En tant qu'** admin, **je veux** gérer les membres (rôles, ban/déban, validation des documents) **afin de** contrôler l'accès au service.

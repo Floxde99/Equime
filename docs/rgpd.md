@@ -40,7 +40,7 @@
 | Rectification | Modification des cavaliers et du profil |
 | Effacement | Suppression de compte (US-1.6) — voir anonymisation |
 | Limitation / opposition | À traiter manuellement par l’administrateur du centre (hors périmètre automatique v1) |
-| Portabilité | Export structuré : évolution possible (non bloquant soutenance) |
+| Portabilité | **Livré** — export JSON structuré `GET /api/v1/auth/me/export` (`authService.exportPortableData`, `authController.exportData`, `apps/api/src/routes/auth.routes.js`) |
 
 ## 5. Suppression de compte et anonymisation
 
@@ -63,7 +63,7 @@ Fichiers de référence : service auth (suppression), `docs/securite.md` (contr�
 | Factures et pièces | 10 ans | Code de commerce |
 | Tokens reset mot de passe | 1 h | Minimisation |
 | Inscription newsletter | Jusqu’à désinscription (demande au club) | Consentement |
-| Refresh tokens révoqués | Purge périodique (job à planifier en prod) | Minimisation |
+| Refresh tokens expirés / révoqués | Purge au démarrage de l’API puis toutes les 24 h | Minimisation — `tokenService.purgeExpiredRefreshTokens` appelé depuis `apps/api/src/index.js` ; test `apps/api/src/tests/tokenPurge.test.js` |
 
 ## 7. Sous-traitants et transferts
 
@@ -80,9 +80,13 @@ Voir `docs/securite.md` : chiffrement TLS, argon2id, cookies httpOnly, rate limi
 - Le centre tient le **registre des activités de traitement** (modèle CNIL) en complément de ce document.
 - DPO : à désigner par le centre si seuils CNIL atteints.
 
-## 10. Évolutions identifiées
+## 10. Mesures livrées (portabilité, minimisation, audit)
 
-- Export portabilité JSON/PDF.
-- Purge automatisée des refresh tokens expirés.
-- Journal d’audit admin (qui a consulté un certificat médical).
+- **Export de portabilité** : JSON (`format: equime-portability-v1`) — profil, cavaliers, factures. Route `GET /api/v1/auth/me/export` ; `apps/api/src/services/authService.js` (`exportPortableData`) ; `apps/api/src/controllers/authController.js` (`exportData`).
+- **Purge des refresh tokens expirés** : exécutée au boot puis intervalle quotidien (`unref`) dans `apps/api/src/index.js` ; logique `apps/api/src/services/tokenService.js` (`purgeExpiredRefreshTokens`) ; test `apps/api/src/tests/tokenPurge.test.js`.
+- **Journal d’audit admin** : consultation et validation des certificats médicaux (`medical_document_viewed` / `medical_document_reviewed`) dans `apps/api/src/services/riderService.js` ; persistance `adminService.logAdminAudit` ; lecture `GET /api/v1/admin/audit-logs` (`adminController.listAuditLogs`, `apps/api/src/routes/admin.routes.js`).
+
+## 11. Évolutions identifiées
+
+- Limitation / opposition automatisées (traitement manuel par l’administrateur en v1).
 
