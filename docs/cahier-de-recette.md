@@ -73,8 +73,10 @@ npm run e2e
 | T-S.2 | XSS messagerie | Envoyer `<script>alert(1)</script>` | Texte échappé, pas d'exécution | ⬜ |
 | T-S.3 | Headers sécurité | `curl -I` sur le frontal Nginx | X-Content-Type-Options, X-Frame-Options, Referrer-Policy | ⬜ |
 | T-S.4 | IDOR | Client tente un ID d'une autre famille | 403 ou 404, pas de fuite | ⬜ |
-| T-A.1 | Navigation clavier | Parcourir login → dashboard → déconnexion au clavier | Focus visible, ordre logique | ⬜ |
-| T-A.2 | Lecteur d'écran | Badges de statut, labels de formulaire | Texte explicite, pas couleur seule | ⬜ |
+| T-A.1 | Navigation clavier | Parcourir login → dashboard → déconnexion au clavier | Focus visible, ordre logique | ✅ |
+| T-A.2 | Lecteur d'écran | Badges de statut, labels de formulaire | Texte explicite, pas couleur seule | ⚠️ |
+
+Légende T-A : ✅ critère du cahier atteint sur le périmètre exercé ; ⚠️ partie code / arbre d'accessibilité OK, session lecteur d'écran humaine restante. Détail au §4.
 
 ---
 
@@ -82,13 +84,51 @@ npm run e2e
 
 | Date | Environnement | Exécutant | Parcours | Résultat | Observations |
 |---|---|---|---|---|---|
-| À compléter | Préproduction | — | E2E-1 à E2E-13 + T-S/T-A | ⬜ | Première recette après déploiement préprod |
+| 2026-08-19 | Dev Docker (service web port 5173, seed développement `lina@equime.local`) | Lot 8 — revue du code UI + spot-check clavier Playwright headless (pas la suite E2E) | T-A.1 | ✅ | Skip-link, ordre Tab login → shell → déconnexion, anneau `:focus-visible`. Voir fiche ci-dessous. |
+| 2026-08-19 | Idem + revue statique `apps/web` | Lot 8 — revue code + arbre d'accessibilité Chrome (Playwright `ariaSnapshot`). **Aucune session NVDA / VoiceOver / JAWS.** | T-A.2 | ⚠️ | Labels `Field`, landmarks, badges toujours textuels. Session lecteur d'écran humaine restante. |
+| À compléter | Préproduction | — | E2E-1 à E2E-13 + T-S.1–T-S.4 | ⬜ | Première recette après déploiement préprod |
 
-### Modèle de fiche d'écart
+### T-A.1 — Navigation clavier (2026-08-19)
+
+**Périmètre exercé.** Parcours demandé : `/login` → dashboard client `/app` → déconnexion, au clavier, viewport desktop 1280×800. Stack Docker locale déjà levée (`equime-web-1`). Pas de rejeu de la suite Playwright E2E-1–13.
+
+**Implémenté dans le code (Lot 6 inclus).**
+
+- Lien d'évitement `SkipLink` en premier élément tabulable (`AuthLayout` → `#auth`, `ConnectedShell` → `#contenu`).
+- Focus visible global : `apps/web/src/styles/index.css` (`:focus-visible` → `ring-2 ring-primary/60`, `outline-none`).
+- Modale `Dialog` : `useId()` pour `aria-labelledby`, focus initial, piège Tab / Maj+Tab, restauration du focus, Échap.
+- `Button` : `disabled` / `aria-busy` posés **après** `{...rest}` (état chargement non écrasable).
+- Déconnexion : bouton réel « Se déconnecter » (pas une icône seule).
+
+**Constat live (spot-check).**
+
+- Premier Tab sur `/login` : lien « Aller au contenu ». Suite : marque Equime, champ email, mot de passe, « Mot de passe oublié ? », « Se connecter », « Créer un compte », puis boucle.
+- `html lang="fr"`. Anneau de focus présent (`box-shadow` oklab, outline CSS volontairement `none`).
+- Après connexion : premier Tab = skip-link `#contenu`, puis nav « Navigation famille » (Accueil → … → Mon compte), CTA « Réserver », « Se déconnecter », cloche Notifications du bandeau.
+- Entrée sur « Se déconnecter » ramène `/login` (titre « Connexion »).
+
+**Hors périmètre / non exercé live.** Menu tiroir mobile (pas de piège de focus dédié, viewport desktop uniquement). Modale non ouverte sur ce seed (aucune séance à venir donc pas de « Signaler une absence ») — le piège de focus reste justifié par le code Lot 6, pas par une session manuelle.
+
+### T-A.2 — Badges, labels, jamais la couleur seule (2026-08-19)
+
+**Ce qui est vérifié (code + arbre d'accessibilité Chrome).** Ce n'est **pas** un audit lecteur d'écran.
+
+- Formulaires via `Field` : `<label htmlFor>` + `aria-invalid` / `aria-describedby` ; erreurs en texte (`role="alert"`), pas seulement `border-danger`.
+- Login (arbre a11y) : `textbox "Email"`, `textbox "Mot de passe"` — le nom accessible n'est pas vide.
+- Landmarks shell : `main#contenu`, `nav` nommé (`aria-label`, ex. « Navigation famille »), `aside` / `header` (complémentaire / bannière). Nom de l'utilisateur en `sr-only` dans le bandeau.
+- `Badge` : toujours des enfants textuels (`HORSE_STATUS_LABELS`, `INVOICE_STATUS_LABELS`, `DOCUMENT_STATUS_LABELS`, `ATTENDANCE_STATUS_LABELS`, « En cours » / « Planifié », « Banni » / « Actif », « Lue » / « Nouvelle », « Favori »). Jamais une pastille couleur vide.
+- Planning : pastilles de légende `aria-hidden` **et** libellé `COURSE_STATUS_LABELS` ; événements FullCalendar avec `aria-label` incluant le statut (`formatEventAriaLabel`).
+- Occupation boxes : `role="img"` + `aria-label` chiffré ; barres de charge cheval `aria-hidden` avec les heures en texte adjacent.
+
+**Reste à faire par un humain.** Parcours NVDA (Windows) ou VoiceOver (macOS) : annonce réelle des badges, des erreurs de formulaire, du skip-link, du piège de focus des modales, et des événements du planning. Mesure des contrastes (jetons, dont `danger-fg` du Lot 6) et revue RGAA 4.1 / WCAG 2.1 AA hors T-A.1–T-A.2.
+
+### Fiche d'écart (T-A)
 
 | ID test | Gravité | Description | Correctif | Statut |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| T-A.1 | Mineure | Tiroir de navigation mobile : pas de piège de focus (hors parcours desktop T-A.1). | À traiter si recette mobile / RGAA complète. | Ouvert |
+| T-A.2 | Mineure | Critère « jamais couleur seule » OK en code ; aucune session lecteur d'écran consignée. | Exécuter NVDA ou VoiceOver et annexer le journal. | Ouvert |
+| T-A.1 | Info | Piège de focus `Dialog` non rejoué live (seed sans séances à venir). | Spot-check manuel sur une fiche avec modale (absence, facture, confirmation). | Ouvert |
 
 ---
 
@@ -97,7 +137,7 @@ npm run e2e
 - [ ] La suite étendue Playwright (E2E-1 à E2E-13) est **verte** en CI sur `develop`
 - [ ] Recette manuelle E2E-1 à E2E-13 validée en préprod avec seed recette (`npm run e2e` ou CI)
 - [ ] Journal §4 complété avec date, exécutant et observations
-- [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 sans écart bloquant
+- [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 sans écart bloquant (T-A.1 OK ; T-A.2 sans écart bloquant sur le critère « couleur seule », session lecteur d'écran restante ; T-S.x non exécutés)
 - [ ] Variables `.env.prod` renseignées (secrets ≥ 32 car., SMTP, certificats SSL)
 - [ ] Sauvegarde PostgreSQL testée et procédure de rollback documentée
 

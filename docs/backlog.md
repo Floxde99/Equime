@@ -375,5 +375,7 @@ sont consignés en préprod dans `docs/cahier-de-recette.md` (Phase 6).
 - [x] Squelettes préprod/prod finalisés (`docker-compose.preprod.yml`, `docker-compose.prod.yml`, Nginx).
 - [ ] Déploiement préproduction automatisé (`develop`).
 - [ ] Déploiement production avec approbation manuelle (`main`).
-- [ ] Audit accessibilité RGAA/WCAG AA exécuté et consigné.
+- [x] T-A.1 (navigation clavier, focus visible) exécuté et consigné dans `docs/cahier-de-recette.md` (2026-08-19 : revue code + spot-check clavier login → dashboard → déconnexion).
+- [x] T-A.2 critère « jamais couleur seule » / labels / badges textuels : revue code + arbre d'accessibilité Chrome consignés (même journal).
+- [ ] Session lecteur d'écran humaine (NVDA ou VoiceOver) et revue RGAA/WCAG 2.1 AA complète (contrastes mesurés, parcours mobile, modales en situation).
 - [ ] Reverse proxy SSL / HSTS validés en situation réelle.
