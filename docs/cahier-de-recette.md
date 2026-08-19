@@ -1,7 +1,8 @@
 # Cahier de recette — Equime
 
-> Support Phase 6 pour la préproduction. Dérivé de `docs/cahier-de-tests.md` (parcours E2E-1 à
-> E2E-4 + contrôles transverses T-S.x / T-A.x). Les exécutions sont consignées ici avant
+> Support Phase 6 pour la préproduction. Dérivé de `docs/cahier-de-tests.md` (
+> **4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13)**
+> + contrôles transverses T-S.x / T-A.x). Les exécutions sont consignées ici avant
 > ouverture de la production.
 
 ## 1. Préparation de l'environnement
@@ -32,7 +33,7 @@ npm run seed:recette -w apps/api
 
 ### Automatisation de référence
 
-Les parcours E2E-1 à E2E-4 sont rejouables en local :
+La suite étendue (E2E-1 à E2E-13) est rejouable en local :
 
 ```bash
 docker compose up -d postgres redis
@@ -44,12 +45,23 @@ npm run e2e
 
 ## 2. Parcours fonctionnels (recette manuelle)
 
+**4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13).**
+
 | ID | Parcours | Étapes clés | Résultat attendu | Auto Playwright | Statut |
 |---|---|---|---|---|---|
 | E2E-1 | Inscription client | `/register` → création compte → déconnexion | Dashboard client puis retour `/login` | `auth.spec.js` | ✅ auto |
 | E2E-2 | Client cavaliers + planning | Connexion client → ajout cavalier → réservation cours → planning | Cavalier visible, inscription confirmée, séance au planning | `client-flow.spec.js` | ✅ auto |
 | E2E-3 | Moniteur planning + appel | Connexion moniteur → planning → appel séance | Filtre planning, attribution chevaux, sélection séance appel | `instructor-flow.spec.js` | ✅ auto |
 | E2E-4 | Paiement facture | Client paie FAC-2026-0002 → admin vérifie statut | Statut « Payée » côté client et admin | `billing-flow.spec.js` | ✅ auto |
+| E2E-5 | Vitrine | Nav Accueil / Formules / Cours, CTA Connexion | Pages publiques accessibles, lien vers `/login` | `public.spec.js` | ⬜ |
+| E2E-6 | Isolation des rôles | Client ouvre `/admin` ; visiteur ouvre `/app` | Client renvoyé vers `/app` ; visiteur vers `/login` | `guards.spec.js` | ⬜ |
+| E2E-7 | Inscription aux stages | Client → Inscriptions aux stages → inscrire Emma au Stage vacances (seed) | Inscription confirmée | `client-engagement.spec.js` | ⬜ |
+| E2E-8 | Cavalerie admin | Vue d'ensemble → Cavalerie & espaces → 1re fiche cheval | Fiche cheval affichée | `admin-flow.spec.js` | ⬜ |
+| E2E-9 | Fumée client | Navigation Messages / Bénévolat / Compte / Notifications | Chaque écran se charge sans erreur | `client-engagement.spec.js` | ⬜ |
+| E2E-10 | Fumée moniteur | Santé (Carnet de santé) + Incidents | Chaque écran se charge sans erreur | `instructor-smoke.spec.js` | ⬜ |
+| E2E-11 | Fumée admin | Vue d'ensemble → Adhérents | Chaque écran se charge sans erreur | `admin-flow.spec.js` | ⬜ |
+| E2E-12 | Page 404 | Ouvrir une URL inconnue | Écran « Page introuvable » | `public.spec.js` | ⬜ |
+| E2E-13 | Newsletter vitrine | Formulaire newsletter sur l'accueil | Inscription acceptée (email valide) | `public.spec.js` | ⬜ |
 
 ---
 
@@ -70,7 +82,7 @@ npm run e2e
 
 | Date | Environnement | Exécutant | Parcours | Résultat | Observations |
 |---|---|---|---|---|---|
-| À compléter | Préproduction | — | E2E-1 à E2E-4 + T-S/T-A | ⬜ | Première recette après déploiement préprod |
+| À compléter | Préproduction | — | E2E-1 à E2E-13 + T-S/T-A | ⬜ | Première recette après déploiement préprod |
 
 ### Modèle de fiche d'écart
 
@@ -82,26 +94,18 @@ npm run e2e
 
 ## 5. Critères de passage en production
 
-- [ ] Les 4 parcours E2E passent en CI sur `develop`
-- [ ] Recette manuelle E2E-1 à E2E-4 validée en préprod avec seed recette
+- [ ] La suite étendue Playwright (E2E-1 à E2E-13) est **verte** en CI sur `develop`
+- [ ] Recette manuelle E2E-1 à E2E-13 validée en préprod avec seed recette (`npm run e2e` ou CI)
+- [ ] Journal §4 complété avec date, exécutant et observations
 - [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 sans écart bloquant
 - [ ] Variables `.env.prod` renseignées (secrets ≥ 32 car., SMTP, certificats SSL)
-- [ ] Sauvegarde Postgres testée et procédure de rollback documentée
+- [ ] Sauvegarde PostgreSQL testée et procédure de rollback documentée
 
 ---
 
-## 5. Critères de passage en production
-
-- [ ] Les quatre parcours E2E-1 à E2E-4 sont **verts** en préproduction (
-pm run e2e ou CI).
-- [ ] Journal §4 complété avec date, exécutant et observations.
-- [ ] Contrôles T-S.1 à T-S.4 et T-A.1 à T-A.2 validés manuellement.
-- [ ] Variables .env.prod renseignées (secrets hors dépôt), certificats SSL Nginx actifs.
-- [ ] Sauvegarde PostgreSQL testée ; procédure de rollback documentée.
-
 ## 6. Traçabilité et conformité
 
-- Matrice US → code → tests : docs/traceabilite.md
-- RGPD (consentement médical, anonymisation, durées) : docs/rgpd.md
-- Plan de démonstration soutenance : docs/soutenance-plan.md
+- Matrice US → code → tests : `docs/traceabilite.md`
+- RGPD (consentement médical, anonymisation, durées) : `docs/rgpd.md`
+- Plan de démonstration soutenance : `docs/soutenance-plan.md`
 

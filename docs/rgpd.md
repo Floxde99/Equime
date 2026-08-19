@@ -14,6 +14,7 @@
 | Facturation | Coordonnées, lignes de facturation, statuts de paiement | Obligation légale (comptabilité) + exécution du contrat |
 | Messagerie, incidents, bénévolat, événements | Contenus saisis par les utilisateurs | Exécution du contrat / intérêt légitime (sécurité des personnes) |
 | Notifications | Préférences, historique des notifications | Exécution du contrat |
+| Newsletter vitrine | Email + horodatage de consentement | Consentement (art. 6.1.a) |
 
 ## 2. Catégories de données traitées
 
@@ -23,6 +24,7 @@
 - **Cavalerie** : fiche cheval, carnet de santé (notes vétérinaires — données opérationnelles du centre).
 - **Facturation** : factures, montants, références ; pas de stockage de données de carte bancaire (paiement simulé / marquage manuel en recette).
 - **Traces techniques** : logs applicatifs (pino) sans mot de passe ni jeton en clair ; refresh tokens hashés en base.
+- **Newsletter** : adresse email et date de consentement (`newsletter_subscriptions`), hors compte utilisateur.
 
 ## 3. Consentement médical
 
@@ -60,6 +62,7 @@ Fichiers de référence : service auth (suppression), `docs/securite.md` (contr�
 | Certificats médicaux | Saison sportive + 1 an | Intérêt légitime sécurité |
 | Factures et pièces | 10 ans | Code de commerce |
 | Tokens reset mot de passe | 1 h | Minimisation |
+| Inscription newsletter | Jusqu’à désinscription (demande au club) | Consentement |
 | Refresh tokens révoqués | Purge périodique (job à planifier en prod) | Minimisation |
 
 ## 7. Sous-traitants et transferts

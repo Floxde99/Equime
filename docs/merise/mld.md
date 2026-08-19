@@ -74,6 +74,8 @@ notifications(#id, utilisateur_id → utilisateurs(id), type, titre, corps?, lie
 préférences_notification(#id, utilisateur_id → utilisateurs(id), type, email_activé, in_app_activé,
                          UNIQUE(utilisateur_id, type))
 
+inscriptions_newsletter(#id, email UNIQUE, consenti_le)
+
 jetons_rafraîchissement(#id, utilisateur_id → utilisateurs(id), jeton_hash UNIQUE, famille_id,
                         expire_le, révoqué_le?, user_agent?, ip?)
 

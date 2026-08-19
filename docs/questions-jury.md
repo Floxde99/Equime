@@ -18,7 +18,7 @@
 
 9. **GitFlow ?** `main` prod, `develop` préprod, branches `feature/*` ; commits conventionnels.
 10. **Traçabilité exigences → tests ?** `docs/traceabilite.md` + backlog MoSCoW.
-11. **CI ?** Lint, tests API couverture 70 %, job Playwright sur les 4 parcours.
+11. **CI ?** Lint, tests API couverture 70 %, job Playwright (4 parcours métier critiques E2E-1–4 + fumée étendue E2E-5–13).
 
 ## Métier
 
@@ -28,5 +28,5 @@
 ## Pièges à préparer
 
 - Différence **préprod** vs **prod** (compose + Nginx SSL).
-- Limites connues : paiement simulé, KPIs dashboard partiels, export portabilité à venir.
+- Limites connues : paiement simulé (pas Stripe), pas de WebSocket, pas de PWA / hors-ligne (Excel 4.7 — web responsive), KPIs d’analyse sans prédiction ML (Excel 5.1). L’export portabilité JSON est disponible depuis « Mon compte ».
 

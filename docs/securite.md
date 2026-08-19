@@ -40,6 +40,7 @@ Equime applique une défense en profondeur : validation systématique des entré
 | `POST /refresh` | 60 req | 15 min |
 | `POST /forgot-password` | 5 req | 1 h |
 | `POST /reset-password` | 10 req | 1 h |
+| `POST /api/v1/public/newsletter` | 5 req | 1 h |
 
 Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/rateLimit.js`).
 
@@ -81,7 +82,15 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 | Contrôle MIME réel | Magic bytes via `file-type`, pas l'extension seule | `apps/api/src/lib/uploads.js` |
 | Taille max | 5 Mo via `multer.limits` | idem |
 | Consentement RGPD | Obligatoire avant certificat médical | `apps/api/src/services/riderService.js` |
-| Stockage hors webroot | Volume `UPLOAD_DIR`, servi via route authentifiée | `docker-compose.yml`, `apps/api/src/routes/riders.routes.js` |
+| Stockage hors webroot | Volume `UPLOAD_DIR`, servi via route authentifiée | `docker-compose.yml`, `apps/api/src/routes/riders.routes.js`, `apps/api/src/routes/horses.routes.js` |
+
+### Photos cavalerie
+
+| Mesure | Détail | Fichier |
+|---|---|---|
+| Contrôle MIME réel | JPEG/PNG/WebP via magic bytes | `apps/api/src/lib/uploads.js` (`persistHorsePhoto`) |
+| Conversion WebP | Sharp, max 1200 px, qualité 80 | `apps/api/src/lib/imageConvert.js` |
+| Accès authentifié | GET `/horses/:id/photo` derrière JWT | `apps/api/src/routes/horses.routes.js` |
 
 ### Planning
 
@@ -96,7 +105,7 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 |---|---|---|
 | Attribution transactionnelle | Affectation chevaux + charge hebdo dans une unique transaction Prisma, rollback complet sur erreur | `apps/api/src/services/horseAssignment.js` |
 | Audit sans écriture | Simulation batch admin sans modification BDD | `apps/api/src/services/horseAssignment.js`, `apps/api/src/routes/admin.routes.js` |
-| Isolation famille factures | Consultation/paiement client bornés à `family.userId` | `apps/api/src/services/billingService.js`, `apps/api/src/routes/client.routes.js` |
+| Isolation famille factures | Consultation/paiement/PDF client bornés à `family.userId` ; brouillons exclus de la liste et du PDF client | `apps/api/src/services/billingService.js`, `apps/api/src/lib/invoicePdf.js`, `apps/api/src/routes/client.routes.js` |
 | Paiement simulé maîtrisé | Aucun PSP réel ; simple changement d'état + notification | `apps/api/src/services/billingService.js` |
 
 ## Détail — événements, incidents, bénévolat, messagerie, notifications (Phase 5)
@@ -114,7 +123,7 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 
 | Mesure | Détail | Fichier |
 |---|---|---|
-| Tests E2E Playwright | 4 parcours (auth, client, moniteur, facturation) exécutés en CI Chromium | `playwright/e2e/`, `playwright.config.js`, `.github/workflows/ci.yml` |
+| Tests E2E Playwright | 4 parcours métier critiques (E2E-1–4 : auth, client, moniteur, facturation) + extension fumée/modules (E2E-5–13) en CI Chromium | `playwright/e2e/`, `playwright.config.js`, `.github/workflows/ci.yml` |
 | Isolation rate limit E2E | Purge Redis `rl:*` avant la suite pour éviter les 429 après tests d'intégration | `playwright/clear-rate-limits.mjs`, `playwright/start-stack.mjs` |
 | Seed recette déterministe | Jeu de données volumétrique pour préprod, rejouable | `apps/api/prisma/seed-recette.js` |
 | Headers Nginx | X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy ; gzip prod | `docker/nginx/web.conf`, `docker/nginx/preprod.conf`, `docker/nginx/prod.conf` |
