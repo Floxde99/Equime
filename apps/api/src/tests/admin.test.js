@@ -7,6 +7,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
+import * as adminService from '../services/adminService.js';
 import { issueTokenPair } from '../services/tokenService.js';
 
 import {
@@ -287,5 +288,168 @@ describe('Validation documents (T-9.3)', () => {
     expect(res.status).toBe(200);
     expect(res.body.rider.licenseStatus).toBe('rejected');
     expect(res.body.rider.licenseRejectionReason).toBe('Document illisible');
+  });
+
+  it('renvoie 404 si le cavalier n’existe pas', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/riders/missing-rider-id/review-document')
+      .set(authHeader(adminToken))
+      .send({ docType: 'license', decision: 'approved' });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toMatch(/cavalier introuvable/i);
+  });
+
+  it('refuse de valider un document qui n’est pas en attente', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Hugo',
+        lastName: 'Test',
+        birthdate: new Date('2013-01-01'),
+        level: 'galop_1',
+        licenseStatus: 'approved',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/admin/riders/${rider.id}/review-document`)
+      .set(authHeader(adminToken))
+      .send({ docType: 'license', decision: 'approved' });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('Chemins d’erreur membres (entités introuvables)', () => {
+  const unknownUserId = 'missing-user-id';
+
+  it('renvoie 404 pour ban, unban et mise à jour d’un membre inexistant', async () => {
+    const ban = await request(app)
+      .post(`/api/v1/admin/members/${unknownUserId}/ban`)
+      .set(authHeader(adminToken));
+    expect(ban.status).toBe(404);
+
+    const unban = await request(app)
+      .post(`/api/v1/admin/members/${unknownUserId}/unban`)
+      .set(authHeader(adminToken));
+    expect(unban.status).toBe(404);
+
+    const patch = await request(app)
+      .patch(`/api/v1/admin/members/${unknownUserId}`)
+      .set(authHeader(adminToken))
+      .send({ firstName: 'Inconnu', lastName: 'Membre' });
+    expect(patch.status).toBe(404);
+  });
+
+  it('refuse de débannir un compte anonymisé', async () => {
+    await prisma.user.update({
+      where: { id: clientId },
+      data: { anonymizedAt: new Date() },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/admin/members/${clientId}/unban`)
+      .set(authHeader(adminToken));
+    expect(res.status).toBe(409);
+  });
+
+  it('refuse de modifier un administrateur', async () => {
+    const otherAdmin = await createUser({ email: 'admin-edit@test.fr', role: 'admin' });
+    const res = await request(app)
+      .patch(`/api/v1/admin/members/${otherAdmin.id}`)
+      .set(authHeader(adminToken))
+      .send({ firstName: 'Nope', lastName: 'Admin' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('Listes admin et KPI vides', () => {
+  it('renvoie des KPI à zéro sans cours ni factures', async () => {
+    const res = await request(app).get('/api/v1/admin/dashboard-kpis').set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.kpis).toMatchObject({
+      courseOccupancyPercent: 0,
+      upcomingCoursesCount: 0,
+      revenueCents: 0,
+      paidInvoicesCount: 0,
+      horsesInLoadAlert: 0,
+      pendingDocumentsCount: 0,
+    });
+  });
+
+  it('liste membres, moniteurs, documents en attente et journal d’audit', async () => {
+    const instructor = await createUser({
+      email: 'coach-list@test.fr',
+      role: 'instructor',
+      firstName: 'Marc',
+      lastName: 'Coach',
+    });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Emma',
+        lastName: 'Pending',
+        birthdate: new Date('2012-01-01'),
+        level: 'galop_2',
+        medicalCertificateStatus: 'pending',
+      },
+    });
+
+    await request(app)
+      .post(`/api/v1/admin/riders/${rider.id}/review-document`)
+      .set(authHeader(adminToken))
+      .send({ docType: 'medical_certificate', decision: 'approved' })
+      .expect(200);
+
+    const members = await request(app).get('/api/v1/admin/members').set(authHeader(adminToken));
+    expect(members.status).toBe(200);
+    expect(members.body.members.map((member) => member.id)).toEqual(
+      expect.arrayContaining([clientId, instructor.id])
+    );
+
+    const instructors = await request(app)
+      .get('/api/v1/admin/instructors')
+      .set(authHeader(adminToken));
+    expect(instructors.status).toBe(200);
+    expect(instructors.body.instructors).toHaveLength(1);
+    expect(instructors.body.instructors[0].id).toBe(instructor.id);
+
+    const pending = await request(app)
+      .get('/api/v1/admin/pending-documents')
+      .set(authHeader(adminToken));
+    expect(pending.status).toBe(200);
+    expect(pending.body.riders).toHaveLength(0);
+
+    const logs = await request(app).get('/api/v1/admin/audit-logs').set(authHeader(adminToken));
+    expect(logs.status).toBe(200);
+    expect(logs.body.logs.length).toBeGreaterThan(0);
+    expect(logs.body.logs[0].action).toBe('medical_document_reviewed');
+
+    const adminUser = await prisma.user.findFirstOrThrow({ where: { role: 'admin' } });
+    await adminService.logAdminAudit({
+      adminId: adminUser.id,
+      action: 'medical_document_viewed',
+      riderId: rider.id,
+    });
+    const limited = await adminService.listAuditLogs(1);
+    expect(limited).toHaveLength(1);
+    expect(limited[0].details).toBeNull();
+  });
+
+  it('renvoie 404 pour un document cavalier absent', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Noa',
+        lastName: 'Doc',
+        birthdate: new Date('2012-01-01'),
+        level: 'initiation',
+      },
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/admin/riders/${rider.id}/documents/medical_certificate`)
+      .set(authHeader(adminToken));
+    expect(res.status).toBe(404);
   });
 });

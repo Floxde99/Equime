@@ -708,4 +708,121 @@ describe('Phase 5 — messagerie', () => {
     expect(readRes.status).toBe(200);
     expect(readRes.body.participant.lastReadAt).toBeTruthy();
   });
+
+  it('liste les contacts autorisés pour les trois rôles', async () => {
+    const otherInstructor = await createUser({
+      email: 'coach2-phase5@test.fr',
+      role: 'instructor',
+      firstName: 'Léa',
+    });
+
+    const clientContacts = await request(app)
+      .get('/api/v1/messages/contacts')
+      .set(authHeader(clientToken));
+    expect(clientContacts.status).toBe(200);
+    const clientIds = clientContacts.body.contacts.map((contact) => contact.id);
+    expect(clientIds).toEqual(
+      expect.arrayContaining([admin.id, instructor.id, otherInstructor.id])
+    );
+    expect(clientIds).not.toContain(otherClient.id);
+    expect(clientIds).not.toContain(client.id);
+
+    const instructorContacts = await request(app)
+      .get('/api/v1/messages/contacts')
+      .set(authHeader(instructorToken));
+    expect(instructorContacts.status).toBe(200);
+    const instructorIds = instructorContacts.body.contacts.map((contact) => contact.id);
+    expect(instructorIds).toEqual(expect.arrayContaining([admin.id, client.id, otherClient.id]));
+    expect(instructorIds).not.toContain(otherInstructor.id);
+    expect(instructorIds).not.toContain(instructor.id);
+
+    const adminContacts = await request(app)
+      .get('/api/v1/messages/contacts')
+      .set(authHeader(adminToken));
+    expect(adminContacts.status).toBe(200);
+    const adminIds = adminContacts.body.contacts.map((contact) => contact.id);
+    expect(adminIds).toEqual(
+      expect.arrayContaining([instructor.id, otherInstructor.id, client.id, otherClient.id])
+    );
+    expect(adminIds).not.toContain(admin.id);
+  });
+
+  it('refuse une conversation d’un client vers un autre client', async () => {
+    const res = await request(app)
+      .post('/api/v1/messages/conversations')
+      .set(authHeader(clientToken))
+      .send({ participantId: otherClient.id, subject: 'Non autorisé' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/contact n’est pas autorisé/i);
+  });
+
+  it('réutilise une conversation, liste les messages et refuse un non-participant', async () => {
+    const first = await request(app)
+      .post('/api/v1/messages/conversations')
+      .set(authHeader(clientToken))
+      .send({ participantId: instructor.id, subject: 'Planning' });
+    expect(first.status).toBe(201);
+    const conversationId = first.body.conversation.id;
+
+    const reused = await request(app)
+      .post('/api/v1/messages/conversations')
+      .set(authHeader(clientToken))
+      .send({ participantId: instructor.id, subject: 'Autre sujet' });
+    expect(reused.status).toBe(201);
+    expect(reused.body.conversation.id).toBe(conversationId);
+
+    const emptyList = await request(app)
+      .get('/api/v1/messages/conversations')
+      .set(authHeader(instructorToken));
+    expect(emptyList.status).toBe(200);
+    expect(emptyList.body.conversations).toHaveLength(1);
+    expect(emptyList.body.conversations[0].lastMessage).toBeNull();
+    expect(emptyList.body.conversations[0].hasUnread).toBe(false);
+
+    const messageRes = await request(app)
+      .post(`/api/v1/messages/conversations/${conversationId}/messages`)
+      .set(authHeader(clientToken))
+      .send({ body: 'Peut-on avancer la séance ?' });
+    expect(messageRes.status).toBe(201);
+
+    const unreadList = await request(app)
+      .get('/api/v1/messages/conversations')
+      .set(authHeader(instructorToken));
+    expect(unreadList.body.conversations[0].hasUnread).toBe(true);
+    expect(unreadList.body.conversations[0].lastMessage.body).toMatch(/avancer/);
+
+    const ownList = await request(app)
+      .get('/api/v1/messages/conversations')
+      .set(authHeader(clientToken));
+    expect(ownList.body.conversations[0].hasUnread).toBe(false);
+
+    const messages = await request(app)
+      .get(`/api/v1/messages/conversations/${conversationId}/messages`)
+      .set(authHeader(clientToken));
+    expect(messages.status).toBe(200);
+    expect(messages.body.messages).toHaveLength(1);
+
+    const readRes = await request(app)
+      .post(`/api/v1/messages/conversations/${conversationId}/read`)
+      .set(authHeader(instructorToken))
+      .send({});
+    expect(readRes.status).toBe(200);
+
+    const afterRead = await request(app)
+      .get('/api/v1/messages/conversations')
+      .set(authHeader(instructorToken));
+    expect(afterRead.body.conversations[0].hasUnread).toBe(false);
+
+    const forbiddenRead = await request(app)
+      .post(`/api/v1/messages/conversations/${conversationId}/read`)
+      .set(authHeader(otherClientToken))
+      .send({});
+    expect(forbiddenRead.status).toBe(404);
+
+    const forbiddenMessages = await request(app)
+      .get(`/api/v1/messages/conversations/${conversationId}/messages`)
+      .set(authHeader(otherClientToken));
+    expect(forbiddenMessages.status).toBe(404);
+  });
 });
