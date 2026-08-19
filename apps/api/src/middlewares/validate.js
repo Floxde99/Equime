@@ -23,9 +23,21 @@ export function validate(schema, source = 'body') {
     }
     if (source === 'body') {
       req.body = result.data;
+    } else if (source === 'query') {
+      Object.defineProperty(req, 'query', {
+        value: result.data,
+        configurable: true,
+        enumerable: true,
+        writable: false,
+      });
     } else {
-      // Express 5 : req.query / req.params sont des getters non réassignables
-      Object.defineProperty(req, source, { value: result.data, writable: false });
+      // Express 5 expose ces objets via des propriétés non réassignables :
+      // on remplace donc leur contenu sans toucher à la propriété elle-même.
+      const target = req[source];
+      for (const key of Object.keys(target)) {
+        delete target[key];
+      }
+      Object.assign(target, result.data);
     }
     next();
   };

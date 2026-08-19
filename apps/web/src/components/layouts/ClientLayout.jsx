@@ -1,4 +1,4 @@
-import { CalendarDays, Home, Receipt, Users } from 'lucide-react';
+import { Bell, CalendarDays, HandHelping, Home, MessageSquare, Receipt, Users } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 
 import { LogoutButton } from '@/features/auth/LogoutButton.jsx';
@@ -8,9 +8,13 @@ import { useAuthStore } from '@/stores/authStore.js';
 /** Entrées de navigation client — les sections arrivent en Phases 3-5. */
 const NAV_ITEMS = [
   { to: '/app', label: 'Accueil', icon: Home, end: true, ready: true },
-  { to: '/app/planning', label: 'Planning', icon: CalendarDays, ready: false },
-  { to: '/app/cavaliers', label: 'Cavaliers', icon: Users, ready: false },
-  { to: '/app/factures', label: 'Factures', icon: Receipt, ready: false },
+  { to: '/app/planning', label: 'Planning', icon: CalendarDays, ready: true },
+  { to: '/app/cavaliers', label: 'Cavaliers', icon: Users, ready: true },
+  { to: '/app/evenements', label: 'Événements', icon: CalendarDays, ready: true },
+  { to: '/app/benevolat', label: 'Bénévolat', icon: HandHelping, ready: true },
+  { to: '/app/messages', label: 'Messages', icon: MessageSquare, ready: true },
+  { to: '/app/notifications', label: 'Notifications', icon: Bell, ready: true },
+  { to: '/app/factures', label: 'Factures', icon: Receipt, ready: true },
 ];
 
 /**
@@ -51,7 +55,7 @@ export function ClientLayout() {
         aria-label="Navigation principale"
         className="fixed inset-x-0 bottom-0 border-t border-border bg-surface md:hidden"
       >
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-4 gap-y-1 py-1">
           {NAV_ITEMS.map((item) => (
             <NavItem key={item.to} item={item} variant="tab" />
           ))}

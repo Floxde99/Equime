@@ -11,6 +11,13 @@ import { redis } from '../lib/redis.js';
 export async function resetAuthTables() {
   await prisma.passwordResetToken.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversationParticipant.deleteMany();
+  await prisma.horseHealthLog.deleteMany();
+  await prisma.incident.deleteMany();
+  await prisma.volunteerSignup.deleteMany();
+  await prisma.notificationPreference.deleteMany();
+  await prisma.notification.deleteMany();
   await prisma.family.deleteMany();
   await prisma.user.deleteMany();
 }
