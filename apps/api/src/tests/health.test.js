@@ -14,6 +14,15 @@ describe('GET /health', () => {
     expect(res.body.timestamp).toBeDefined();
   });
 
+  it("interdit le framing (CSP frame-ancestors 'none')", async () => {
+    const res = await request(createApp()).get('/health');
+    expect(res.headers['content-security-policy']).toMatch(/frame-ancestors 'none'/);
+  });
+
+  it('ne fait pas confiance au proxy hors production', () => {
+    expect(createApp().get('trust proxy')).toBe(false);
+  });
+
   it('répond 404 avec une erreur structurée sur une route inconnue', async () => {
     const res = await request(createApp()).get('/nope');
 

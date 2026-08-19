@@ -15,6 +15,20 @@ if (env.SENDGRID_API_KEY) {
 }
 
 /**
+ * Échappe une valeur interpolée dans un fragment HTML (emails transactionnels).
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+/**
  * @param {{ to: string, subject: string, text: string, html: string }} message
  */
 export async function sendTransactionalEmail(message) {
@@ -35,6 +49,8 @@ export async function sendTransactionalEmail(message) {
  * @param {{ to: string, firstName: string, resetUrl: string }} params
  */
 export async function sendPasswordResetEmail({ to, firstName, resetUrl }) {
+  const safeName = escapeHtml(firstName);
+  const safeUrl = escapeHtml(resetUrl);
   await sendTransactionalEmail({
     to,
     subject: 'Equime — Réinitialisation de votre mot de passe',
@@ -47,9 +63,9 @@ export async function sendPasswordResetEmail({ to, firstName, resetUrl }) {
       "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
     ].join('\n'),
     html: [
-      `<p>Bonjour ${firstName},</p>`,
+      `<p>Bonjour ${safeName},</p>`,
       '<p>Vous avez demandé la réinitialisation de votre mot de passe Equime.</p>',
-      `<p><a href="${resetUrl}">Réinitialiser mon mot de passe</a> (lien valable 1 heure)</p>`,
+      `<p><a href="${safeUrl}">Réinitialiser mon mot de passe</a> (lien valable 1 heure)</p>`,
       "<p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>",
     ].join('\n'),
   });

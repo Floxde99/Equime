@@ -69,7 +69,12 @@ async function loadPublicUser(userId) {
  */
 export async function register(input, context) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
-  if (existing) throw AppError.conflict('Un compte existe déjà avec cette adresse email');
+  if (existing) {
+    // Même coût qu'une création (argon2) pour limiter la fuite temporelle.
+    // Message générique : ne pas confirmer l'existence du compte (US-1.1, T-1.2).
+    await hashPassword(input.password);
+    throw AppError.badRequest('Inscription impossible');
+  }
 
   const passwordHash = await hashPassword(input.password);
   const user = await prisma.$transaction(async (tx) => {

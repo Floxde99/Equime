@@ -7,6 +7,7 @@ import { NOTIFICATION_TYPES } from '@equime/shared';
 import { env } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { buildInvoicePdf, invoicePdfFilename } from '../lib/invoicePdf.js';
+import { escapeHtml } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 
 import { dispatchNotification } from './notificationService.js';
@@ -321,8 +322,8 @@ export async function sendInvoice(invoiceId) {
         `Montant : ${(invoice.totalCents / 100).toFixed(2)} €.`,
       ].join('\n'),
       html: [
-        `<p>Bonjour ${invoice.family.user.firstName},</p>`,
-        `<p>La facture <strong>${invoice.number}</strong> est maintenant disponible dans votre espace Equime.</p>`,
+        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
+        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> est maintenant disponible dans votre espace Equime.</p>`,
         `<p>Montant : ${(invoice.totalCents / 100).toFixed(2)} €</p>`,
       ].join('\n'),
     },
@@ -359,8 +360,8 @@ export async function remindInvoice(invoiceId) {
         'Merci de régulariser la situation depuis votre espace client.',
       ].join('\n'),
       html: [
-        `<p>Bonjour ${invoice.family.user.firstName},</p>`,
-        `<p>La facture <strong>${invoice.number}</strong> reste impayée.</p>`,
+        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
+        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> reste impayée.</p>`,
         '<p>Merci de régulariser la situation depuis votre espace client.</p>',
       ].join('\n'),
     },
@@ -603,8 +604,8 @@ export async function createSentInvoiceForEventRegistration(input) {
         `Montant : ${(invoice.totalCents / 100).toFixed(2)} €.`,
       ].join('\n'),
       html: [
-        `<p>Bonjour ${invoice.family.user.firstName},</p>`,
-        `<p>La facture <strong>${invoice.number}</strong> est maintenant disponible dans votre espace Equime.</p>`,
+        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
+        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> est maintenant disponible dans votre espace Equime.</p>`,
         `<p>Montant : ${(invoice.totalCents / 100).toFixed(2)} €</p>`,
       ].join('\n'),
     },
@@ -643,7 +644,7 @@ export async function payInvoice(userId, invoiceId) {
       ].join('\n'),
       html: [
         '<p>Bonjour,</p>',
-        `<p>Le paiement de la facture <strong>${invoice.number}</strong> a bien été enregistré.</p>`,
+        `<p>Le paiement de la facture <strong>${escapeHtml(invoice.number)}</strong> a bien été enregistré.</p>`,
       ].join('\n'),
     },
   });

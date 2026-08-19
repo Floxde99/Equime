@@ -5,7 +5,7 @@ import express from 'express';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 
-import { env, isTest } from './config/env.js';
+import { env, isProd, isTest } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { handleMulterError } from './lib/uploads.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -34,11 +34,22 @@ export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
-  // Derrière le reverse proxy Nginx en préprod/prod (IP réelle, cookies Secure)
-  app.set('trust proxy', 1);
+  // Derrière le reverse proxy Nginx en prod uniquement : en dev l'API écoute
+  // directement, un X-Forwarded-For forgé remettrait le rate limit à zéro.
+  if (isProd) {
+    app.set('trust proxy', 1);
+  }
 
   // --- Sécurité ---
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          frameAncestors: ["'none'"],
+        },
+      },
+    })
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN, // whitelist stricte issue de la config validée

@@ -90,4 +90,14 @@ describe('signAccessToken / verifyAccessToken', () => {
     });
     expect(() => verifyAccessToken(other)).toThrow(jwt.JsonWebTokenError);
   });
+
+  it('rejette un token HS384 (seul HS256 est accepté)', () => {
+    const hs384 = jwt.sign({ role: 'client' }, env.JWT_ACCESS_SECRET, {
+      subject: 'user_123',
+      jwtid: 'x',
+      issuer: 'equime-api',
+      algorithm: 'HS384',
+    });
+    expect(() => verifyAccessToken(hs384)).toThrow(jwt.JsonWebTokenError);
+  });
 });

@@ -144,7 +144,7 @@ export function streamStoredFile(relativePath, res, next) {
   const ext = path.extname(absolutePath).slice(1).toLowerCase();
   const contentType = STREAM_CONTENT_TYPES[ext];
   if (contentType) res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Content-Disposition', ext === 'pdf' ? 'attachment' : 'inline');
   stream.pipe(res);
 }
 

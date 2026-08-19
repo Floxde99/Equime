@@ -1,13 +1,19 @@
 /**
  * Tests unitaires du stockage de fichiers (path traversal, photos chevaux).
  */
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { PassThrough } from 'node:stream';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { AppError } from './appError.js';
-import { deleteStoredFile, persistHorsePhoto, resolveStoredFilePath } from './uploads.js';
+import {
+  deleteStoredFile,
+  persistHorsePhoto,
+  resolveStoredFilePath,
+  streamStoredFile,
+} from './uploads.js';
 
 /** PNG 1×1 opaque. */
 const TINY_PNG = Buffer.from(
@@ -54,5 +60,35 @@ describe('persistHorsePhoto', () => {
     const stored = await readFile(result.absolutePath);
     expect(stored.subarray(0, 4).toString('ascii')).toBe('RIFF');
     expect(stored.subarray(8, 12).toString('ascii')).toBe('WEBP');
+  });
+});
+
+describe('streamStoredFile Content-Disposition', () => {
+  const relativePath = 'riders/license/disposition-test.pdf';
+
+  afterEach(async () => {
+    await deleteStoredFile(relativePath);
+  });
+
+  it('sert les PDF en attachment', async () => {
+    const absolutePath = resolveStoredFilePath(relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, '%PDF-1.4');
+
+    const headers = {};
+    const res = new PassThrough();
+    res.setHeader = (name, value) => {
+      headers[name] = value;
+    };
+
+    await new Promise((resolve, reject) => {
+      res.on('finish', resolve);
+      res.on('error', reject);
+      streamStoredFile(relativePath, /** @type {any} */ (res), reject);
+      res.resume();
+    });
+
+    expect(headers['Content-Type']).toBe('application/pdf');
+    expect(headers['Content-Disposition']).toBe('attachment');
   });
 });

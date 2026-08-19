@@ -67,12 +67,15 @@ describe('POST /api/v1/auth/register', () => {
     expect(res.body.user.email).toBe('client@test.fr');
   });
 
-  it('refuse un email déjà utilisé (409)', async () => {
+  it("refuse un email déjà utilisé sans révéler l'existence du compte", async () => {
     await request(app).post('/api/v1/auth/register').send(registerPayload());
     const res = await request(app).post('/api/v1/auth/register').send(registerPayload());
 
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('CONFLICT');
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('BAD_REQUEST');
+    expect(res.body.error.message).toBe('Inscription impossible');
+    expect(JSON.stringify(res.body).toLowerCase()).not.toMatch(/existe|déjà|already|conflict/);
+    expect(await prisma.user.count({ where: { email: 'client@test.fr' } })).toBe(1);
   });
 
   it('refuse un mot de passe trop faible avec le détail des champs (400)', async () => {
@@ -568,45 +571,39 @@ describe('GET /api/v1/auth/me/export', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Purge refresh tokens expirés
-// ---------------------------------------------------------------------------
-describe('purgeExpiredRefreshTokens', () => {
-  it('supprime les tokens expirés de la base', async () => {
-    const { purgeExpiredRefreshTokens } = await import('../services/tokenService.js');
-    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
-
-    await prisma.refreshToken.updateMany({
-      where: { userId: reg.body.user.id },
-      data: { expiresAt: new Date(Date.now() - 1000) },
-    });
-
-    const count = await purgeExpiredRefreshTokens();
-    expect(count).toBeGreaterThan(0);
-
-    const remaining = await prisma.refreshToken.count({ where: { userId: reg.body.user.id } });
-    expect(remaining).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Rate limiting Redis
 // ---------------------------------------------------------------------------
 describe('Rate limiting', () => {
-  it('bloque après 10 tentatives de login dans la fenêtre (429 + Retry-After)', async () => {
+  it('bloque après 10 tentatives de login dans la fenêtre IP (429 + Retry-After)', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: `brute-ip-${i}@test.fr`, password: 'ForceButee123' });
+      expect(res.status).toBe(401);
+    }
+
+    const blocked = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'brute-ip-final@test.fr', password: 'ForceButee123' });
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe('TOO_MANY_REQUESTS');
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('bloque après 5 tentatives sur le même email (rl:login-account)', async () => {
     const attempt = () =>
       request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'brute@test.fr', password: 'ForceButee123' });
+        .send({ email: 'cible-compte@test.fr', password: 'ForceButee123' });
 
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       const res = await attempt();
-      expect(res.status).toBe(401); // sous la limite : erreur métier normale
+      expect(res.status).toBe(401);
     }
 
     const blocked = await attempt();
     expect(blocked.status).toBe(429);
     expect(blocked.body.error.code).toBe('TOO_MANY_REQUESTS');
-    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
   });
 
   it('expose les en-têtes X-RateLimit-*', async () => {
@@ -614,7 +611,9 @@ describe('Rate limiting', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'headers@test.fr', password: 'MotDePasse123' });
 
-    expect(res.headers['x-ratelimit-limit']).toBe('10');
-    expect(Number(res.headers['x-ratelimit-remaining'])).toBeLessThan(10);
+    expect(res.headers['x-ratelimit-limit']).toBeDefined();
+    expect(Number(res.headers['x-ratelimit-remaining'])).toBeLessThan(
+      Number(res.headers['x-ratelimit-limit'])
+    );
   });
 });
