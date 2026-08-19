@@ -29,12 +29,7 @@ export function ConnectedShell({ eyebrow, items, cta, notificationsTo, navLabel 
       <SkipLink />
 
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-paper md:flex">
-        <SidebarBody
-          eyebrow={eyebrow}
-          items={items}
-          cta={cta}
-          navLabel={navLabel}
-        />
+        <SidebarBody eyebrow={eyebrow} items={items} cta={cta} navLabel={navLabel} />
       </aside>
 
       {drawerOpen ? (

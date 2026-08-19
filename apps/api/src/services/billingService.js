@@ -67,17 +67,24 @@ export function createSubscriptionPlan(input) {
 
 export async function updateSubscriptionPlan(planId, input) {
   await prisma.subscriptionPlan.findUniqueOrThrow({ where: { id: planId } });
-  return prisma.subscriptionPlan.update({ where: { id: planId }, data: input, select: PLAN_SELECT });
+  return prisma.subscriptionPlan.update({
+    where: { id: planId },
+    data: input,
+    select: PLAN_SELECT,
+  });
 }
 
 export async function deleteSubscriptionPlan(planId) {
   const families = await prisma.family.count({ where: { subscriptionPlanId: planId } });
-  if (families > 0) throw AppError.conflict("Impossible de supprimer une formule déjà attribuée");
+  if (families > 0) throw AppError.conflict('Impossible de supprimer une formule déjà attribuée');
   await prisma.subscriptionPlan.delete({ where: { id: planId } });
 }
 
 export function listDiscountRules() {
-  return prisma.discountRule.findMany({ select: RULE_SELECT, orderBy: [{ percentage: 'desc' }, { label: 'asc' }] });
+  return prisma.discountRule.findMany({
+    select: RULE_SELECT,
+    orderBy: [{ percentage: 'desc' }, { label: 'asc' }],
+  });
 }
 
 export function createDiscountRule(input) {
@@ -124,10 +131,12 @@ async function buildInvoiceItems(tx, familyId, subscriptionPlanId, manualItems) 
   });
   if (!family) throw AppError.notFound('Famille introuvable');
 
-  const plan =
-    subscriptionPlanId
-      ? await tx.subscriptionPlan.findUnique({ where: { id: subscriptionPlanId }, select: PLAN_SELECT })
-      : family.subscriptionPlan;
+  const plan = subscriptionPlanId
+    ? await tx.subscriptionPlan.findUnique({
+        where: { id: subscriptionPlanId },
+        select: PLAN_SELECT,
+      })
+    : family.subscriptionPlan;
   if (!plan) {
     throw AppError.badRequest("Aucune formule d'abonnement n'est associée à cette famille");
   }
@@ -165,7 +174,12 @@ async function buildInvoiceItems(tx, familyId, subscriptionPlanId, manualItems) 
  */
 export async function createInvoice(input) {
   return prisma.$transaction(async (tx) => {
-    const items = await buildInvoiceItems(tx, input.familyId, input.subscriptionPlanId, input.items);
+    const items = await buildInvoiceItems(
+      tx,
+      input.familyId,
+      input.subscriptionPlanId,
+      input.items
+    );
     const totalCents = Math.max(
       0,
       items.reduce((sum, item) => sum + item.totalCents, 0)
@@ -347,7 +361,7 @@ export async function remindInvoice(invoiceId) {
       html: [
         `<p>Bonjour ${invoice.family.user.firstName},</p>`,
         `<p>La facture <strong>${invoice.number}</strong> reste impayée.</p>`,
-        "<p>Merci de régulariser la situation depuis votre espace client.</p>",
+        '<p>Merci de régulariser la situation depuis votre espace client.</p>',
       ].join('\n'),
     },
   });

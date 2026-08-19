@@ -10,9 +10,7 @@ const sampleInvoice = {
   paidAt: null,
   totalCents: 8900,
   family: { user: { firstName: 'Lina', lastName: 'Martin', email: 'lina@test.fr' } },
-  items: [
-    { label: 'Formule Classique', quantity: 1, unitCents: 8900, totalCents: 8900 },
-  ],
+  items: [{ label: 'Formule Classique', quantity: 1, unitCents: 8900, totalCents: 8900 }],
 };
 
 describe('invoicePdfFilename', () => {

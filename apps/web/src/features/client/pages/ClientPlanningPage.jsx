@@ -19,7 +19,13 @@ export function ClientPlanningPage() {
   const [scope, setScope] = useState('mine');
   const [range, setRange] = useState(DEFAULT_RANGE);
 
-  const { data: events = [], isPending, isError, error, refetch } = useQuery({
+  const {
+    data: events = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
   });
@@ -39,14 +45,14 @@ export function ClientPlanningPage() {
         skeleton={<Skeleton lines={6} />}
       >
         <div className="space-y-6">
-        <PlanningCalendar
-          events={events}
-          scope={scope}
-          onScopeChange={setScope}
-          onDatesChange={setRange}
-        />
-        <UpcomingEnrollments />
-        <EnrollSection />
+          <PlanningCalendar
+            events={events}
+            scope={scope}
+            onScopeChange={setScope}
+            onDatesChange={setRange}
+          />
+          <UpcomingEnrollments />
+          <EnrollSection />
         </div>
       </QueryState>
     </div>

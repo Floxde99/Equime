@@ -30,9 +30,15 @@ const INCIDENT_SELECT = {
  */
 export async function createIncident(reporterId, input) {
   const [course, horse, rider] = await Promise.all([
-    input.courseId ? prisma.course.findUnique({ where: { id: input.courseId }, select: { id: true } }) : null,
-    input.horseId ? prisma.horse.findUnique({ where: { id: input.horseId }, select: { id: true } }) : null,
-    input.riderId ? prisma.rider.findUnique({ where: { id: input.riderId }, select: { id: true } }) : null,
+    input.courseId
+      ? prisma.course.findUnique({ where: { id: input.courseId }, select: { id: true } })
+      : null,
+    input.horseId
+      ? prisma.horse.findUnique({ where: { id: input.horseId }, select: { id: true } })
+      : null,
+    input.riderId
+      ? prisma.rider.findUnique({ where: { id: input.riderId }, select: { id: true } })
+      : null,
   ]);
 
   if (input.courseId && !course) throw AppError.notFound('Cours introuvable');

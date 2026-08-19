@@ -9,8 +9,6 @@ import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
-import { missionPhotoSrc } from '@/lib/demoPhotos.js';
 import {
   createVolunteerMission,
   deleteVolunteerMission,
@@ -18,6 +16,8 @@ import {
   signupVolunteerMission,
   updateVolunteerMission,
 } from '@/features/engagement/api.js';
+import { missionPhotoSrc } from '@/lib/demoPhotos.js';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 const initialForm = {
   title: '',
@@ -111,7 +111,15 @@ export function VolunteerPage({ admin = false }) {
       />
 
       {status ? (
-        <Alert variant={status.includes('confirmée') || status.includes('créée') || status.includes('mise à jour') ? 'success' : 'error'}>
+        <Alert
+          variant={
+            status.includes('confirmée') ||
+            status.includes('créée') ||
+            status.includes('mise à jour')
+              ? 'success'
+              : 'error'
+          }
+        >
           {status}
         </Alert>
       ) : null}
@@ -132,7 +140,9 @@ export function VolunteerPage({ admin = false }) {
                 type="number"
                 min="1"
                 value={form.slots}
-                onChange={(e) => setForm((current) => ({ ...current, slots: Number(e.target.value || 0) }))}
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, slots: Number(e.target.value || 0) }))
+                }
               />
             </Field>
             <Field label="Début" htmlFor="mission-start">
@@ -156,12 +166,18 @@ export function VolunteerPage({ admin = false }) {
                 id="mission-description"
                 rows={4}
                 value={form.description}
-                onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, description: e.target.value }))
+                }
               />
             </Field>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button type="button" loading={createMutation.isPending || updateMutation.isPending} onClick={handleSubmit}>
+            <Button
+              type="button"
+              loading={createMutation.isPending || updateMutation.isPending}
+              onClick={handleSubmit}
+            >
               {editingId ? 'Enregistrer' : 'Créer la mission'}
             </Button>
             {editingId ? (
@@ -183,11 +199,7 @@ export function VolunteerPage({ admin = false }) {
       <div className={admin ? 'space-y-3' : 'grid gap-6 md:grid-cols-2'}>
         {missions.map((mission) => (
           <Card key={mission.id} className="overflow-hidden p-0">
-            <img
-              src={missionPhotoSrc(mission.id)}
-              alt=""
-              className="h-48 w-full object-cover"
-            />
+            <img src={missionPhotoSrc(mission.id)} alt="" className="h-48 w-full object-cover" />
             <div className="flex flex-wrap items-start justify-between gap-3 p-5">
               <div>
                 <p className="font-display text-xl text-on-card">{mission.title}</p>
@@ -232,7 +244,9 @@ export function VolunteerPage({ admin = false }) {
         ))}
         {missions.length === 0 ? (
           <Card>
-            <p className="font-sans text-sm text-muted-on-card">Aucune mission ouverte pour le moment.</p>
+            <p className="font-sans text-sm text-muted-on-card">
+              Aucune mission ouverte pour le moment.
+            </p>
           </Card>
         ) : null}
       </div>

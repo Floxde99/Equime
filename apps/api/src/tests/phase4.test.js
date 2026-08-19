@@ -57,7 +57,11 @@ beforeEach(async () => {
   await resetAuthTables();
   await resetRateLimits();
 
-  const admin = await createUser({ email: 'admin-phase4@test.fr', role: 'admin', firstName: 'Ada' });
+  const admin = await createUser({
+    email: 'admin-phase4@test.fr',
+    role: 'admin',
+    firstName: 'Ada',
+  });
   const instructor = await createUser({
     email: 'coach-phase4@test.fr',
     role: 'instructor',
@@ -86,8 +90,18 @@ beforeEach(async () => {
 
   await prisma.subscriptionPlan.createMany({
     data: [
-      { name: 'Découverte', priceCents: 4900, sessionsPerWeek: 1, description: '1 séance par semaine' },
-      { name: 'Classique', priceCents: 8900, sessionsPerWeek: 2, description: '2 séances par semaine' },
+      {
+        name: 'Découverte',
+        priceCents: 4900,
+        sessionsPerWeek: 1,
+        description: '1 séance par semaine',
+      },
+      {
+        name: 'Classique',
+        priceCents: 8900,
+        sessionsPerWeek: 2,
+        description: '2 séances par semaine',
+      },
     ],
   });
   await prisma.discountRule.createMany({
@@ -177,7 +191,9 @@ describe('EPIC 5 — attribution des chevaux', () => {
 
     await prisma.courseEnrollment.create({ data: { courseId: course.id, riderId: rider.id } });
 
-    const spy = vi.spyOn(assignmentWriter, 'apply').mockRejectedValueOnce(new Error('boom during assignment'));
+    const spy = vi
+      .spyOn(assignmentWriter, 'apply')
+      .mockRejectedValueOnce(new Error('boom during assignment'));
 
     const res = await request(app)
       .post(`/api/v1/courses/${course.id}/assign-horses`)
@@ -379,9 +395,7 @@ describe('EPIC 6 — facturation & abonnements', () => {
     });
     expect(notification).not.toBeNull();
 
-    const listMine = await request(app)
-      .get('/api/v1/client/invoices')
-      .set(authHeader(clientToken));
+    const listMine = await request(app).get('/api/v1/client/invoices').set(authHeader(clientToken));
     expect(listMine.status).toBe(200);
     expect(listMine.body.invoices).toHaveLength(1);
 
@@ -483,11 +497,13 @@ describe('EPIC 6 — facturation & abonnements', () => {
 
     const adminList = await request(app).get('/api/v1/admin/invoices').set(authHeader(adminToken));
     expect(adminList.status).toBe(200);
-    expect(adminList.body.invoices.some((item) => item.id === invoice.id && item.status === 'draft')).toBe(
-      true
-    );
+    expect(
+      adminList.body.invoices.some((item) => item.id === invoice.id && item.status === 'draft')
+    ).toBe(true);
 
-    const clientList = await request(app).get('/api/v1/client/invoices').set(authHeader(clientToken));
+    const clientList = await request(app)
+      .get('/api/v1/client/invoices')
+      .set(authHeader(clientToken));
     expect(clientList.status).toBe(200);
     expect(clientList.body.invoices.some((item) => item.id === invoice.id)).toBe(false);
   });
@@ -582,9 +598,7 @@ describe('EPIC 6 — facturation & abonnements', () => {
     expect(created.status).toBe(201);
     const invoiceId = created.body.invoice.id;
 
-    await request(app)
-      .post(`/api/v1/admin/invoices/${invoiceId}/send`)
-      .set(authHeader(adminToken));
+    await request(app).post(`/api/v1/admin/invoices/${invoiceId}/send`).set(authHeader(adminToken));
 
     const clientPdf = await request(app)
       .get(`/api/v1/client/invoices/${invoiceId}/pdf`)

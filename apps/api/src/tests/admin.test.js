@@ -87,9 +87,7 @@ describe('Dashboard KPIs (T-9.1)', () => {
       data: { name: 'Orion', weeklyLoadHours: 11, alertThresholdHours: 10, maxWeeklyLoadHours: 12 },
     });
 
-    const res = await request(app)
-      .get('/api/v1/admin/dashboard-kpis')
-      .set(authHeader(adminToken));
+    const res = await request(app).get('/api/v1/admin/dashboard-kpis').set(authHeader(adminToken));
 
     expect(res.status).toBe(200);
     expect(res.body.kpis.courseOccupancyPercent).toBe(25);
@@ -118,9 +116,7 @@ describe('Gestion membres (T-9.2)', () => {
   });
 
   it('débannit un client banni', async () => {
-    await request(app)
-      .post(`/api/v1/admin/members/${clientId}/ban`)
-      .set(authHeader(adminToken));
+    await request(app).post(`/api/v1/admin/members/${clientId}/ban`).set(authHeader(adminToken));
 
     const unbanRes = await request(app)
       .post(`/api/v1/admin/members/${clientId}/unban`)
@@ -142,16 +138,13 @@ describe('Gestion membres (T-9.2)', () => {
   });
 
   it('crée un compte moniteur avec mot de passe temporaire', async () => {
-    const res = await request(app)
-      .post('/api/v1/admin/members')
-      .set(authHeader(adminToken))
-      .send({
-        email: 'nouveau-moniteur@test.fr',
-        password: 'MotDePasse123',
-        firstName: 'Camille',
-        lastName: 'Coach',
-        phone: '0612345678',
-      });
+    const res = await request(app).post('/api/v1/admin/members').set(authHeader(adminToken)).send({
+      email: 'nouveau-moniteur@test.fr',
+      password: 'MotDePasse123',
+      firstName: 'Camille',
+      lastName: 'Coach',
+      phone: '0612345678',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.member).toMatchObject({
@@ -178,15 +171,12 @@ describe('Gestion membres (T-9.2)', () => {
   });
 
   it('refuse un mot de passe trop court et un email déjà utilisé', async () => {
-    const weak = await request(app)
-      .post('/api/v1/admin/members')
-      .set(authHeader(adminToken))
-      .send({
-        email: 'faible@test.fr',
-        password: 'court',
-        firstName: 'Camille',
-        lastName: 'Coach',
-      });
+    const weak = await request(app).post('/api/v1/admin/members').set(authHeader(adminToken)).send({
+      email: 'faible@test.fr',
+      password: 'court',
+      firstName: 'Camille',
+      lastName: 'Coach',
+    });
     expect(weak.status).toBe(400);
 
     const duplicate = await request(app)
@@ -203,15 +193,12 @@ describe('Gestion membres (T-9.2)', () => {
 
   it('interdit à un client de créer un moniteur', async () => {
     const { accessToken } = await issueTokenPair({ id: clientId, role: 'client' });
-    const res = await request(app)
-      .post('/api/v1/admin/members')
-      .set(authHeader(accessToken))
-      .send({
-        email: 'intrus@test.fr',
-        password: 'MotDePasse123',
-        firstName: 'Intrus',
-        lastName: 'Client',
-      });
+    const res = await request(app).post('/api/v1/admin/members').set(authHeader(accessToken)).send({
+      email: 'intrus@test.fr',
+      password: 'MotDePasse123',
+      firstName: 'Intrus',
+      lastName: 'Client',
+    });
     expect(res.status).toBe(403);
   });
 });

@@ -20,7 +20,12 @@ router.use(requireAuth);
 router.get('/', horseController.listHorses);
 router.get('/load-alerts', requireRole(ROLES.ADMIN), horseController.listLoadAlerts);
 
-router.post('/', requireRole(ROLES.ADMIN), validate(createHorseSchema), horseController.createHorse);
+router.post(
+  '/',
+  requireRole(ROLES.ADMIN),
+  validate(createHorseSchema),
+  horseController.createHorse
+);
 router.get('/:id', validate(horseIdParamSchema, 'params'), horseController.getHorse);
 router.patch(
   '/:id',
@@ -43,11 +48,7 @@ router.post(
   horsePhotoUpload.single('file'),
   horseController.uploadPhoto
 );
-router.get(
-  '/:id/photo',
-  validate(horseIdParamSchema, 'params'),
-  horseController.downloadPhoto
-);
+router.get('/:id/photo', validate(horseIdParamSchema, 'params'), horseController.downloadPhoto);
 router.delete(
   '/:id/photo',
   requireRole(ROLES.ADMIN),

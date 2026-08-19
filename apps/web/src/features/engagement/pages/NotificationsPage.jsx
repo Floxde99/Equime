@@ -5,13 +5,13 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
-import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 import {
   fetchNotificationPreferences,
   fetchNotifications,
   markNotificationRead,
   updateNotificationPreference,
 } from '@/features/engagement/api.js';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 export function NotificationsPage() {
   const eyebrow = useSpaceEyebrow();
@@ -89,10 +89,15 @@ export function NotificationsPage() {
         ) : (
           <ul className="space-y-3">
             {notifications.map((notification) => (
-              <li key={notification.id} className="rounded-xl border border-border-on-card bg-paper p-4">
+              <li
+                key={notification.id}
+                className="rounded-xl border border-border-on-card bg-paper p-4"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <p className="font-sans text-sm font-semibold text-text">{notification.title}</p>
+                    <p className="font-sans text-sm font-semibold text-text">
+                      {notification.title}
+                    </p>
                     <Badge variant={notification.readAt ? 'default' : 'info'}>
                       {notification.readAt ? 'Lue' : 'Nouvelle'}
                     </Badge>

@@ -37,7 +37,11 @@ beforeEach(async () => {
   await resetRateLimits();
 
   const admin = await createUser({ email: 'admin-abo@test.fr', role: 'admin' });
-  const client = await createUser({ email: 'client-abo@test.fr', role: 'client', firstName: 'Lina' });
+  const client = await createUser({
+    email: 'client-abo@test.fr',
+    role: 'client',
+    firstName: 'Lina',
+  });
 
   adminToken = await accessTokenFor(admin);
   clientToken = await accessTokenFor(client);
@@ -164,16 +168,13 @@ describe('Changement de formule admin (Excel 8.2)', () => {
 
 describe('Création et édition de membres (Excel 7.1)', () => {
   it('crée un client avec une famille vide et un quota à 0', async () => {
-    const res = await request(app)
-      .post('/api/v1/admin/members')
-      .set(authHeader(adminToken))
-      .send({
-        email: 'nouveau-client@test.fr',
-        password: 'MotDePasse123',
-        firstName: 'Nora',
-        lastName: 'Martin',
-        role: 'client',
-      });
+    const res = await request(app).post('/api/v1/admin/members').set(authHeader(adminToken)).send({
+      email: 'nouveau-client@test.fr',
+      password: 'MotDePasse123',
+      firstName: 'Nora',
+      lastName: 'Martin',
+      role: 'client',
+    });
 
     expect(res.status).toBe(201);
     expect(res.body.member.role).toBe('client');
@@ -186,16 +187,13 @@ describe('Création et édition de membres (Excel 7.1)', () => {
   });
 
   it('refuse de créer un administrateur via cet endpoint', async () => {
-    const res = await request(app)
-      .post('/api/v1/admin/members')
-      .set(authHeader(adminToken))
-      .send({
-        email: 'intrus-admin@test.fr',
-        password: 'MotDePasse123',
-        firstName: 'Ada',
-        lastName: 'Admin',
-        role: 'admin',
-      });
+    const res = await request(app).post('/api/v1/admin/members').set(authHeader(adminToken)).send({
+      email: 'intrus-admin@test.fr',
+      password: 'MotDePasse123',
+      firstName: 'Ada',
+      lastName: 'Admin',
+      role: 'admin',
+    });
 
     expect(res.status).toBe(400);
   });

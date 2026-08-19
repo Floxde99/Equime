@@ -29,7 +29,10 @@ export function AuthProvider({ children }) {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background" aria-busy="true">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background"
+        aria-busy="true"
+      >
         <BrandLockup size="lg" tone="dark" />
         <div className="h-4 w-48 animate-pulse rounded-lg bg-border-on-card motion-reduce:animate-none" />
       </div>

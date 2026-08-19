@@ -15,7 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { fetchHorses } from '@/features/admin/api.js';
 import { filterHorsesByQuery } from '@/lib/horseDirectory.js';
 
-const HORSE_VARIANT = { fit: 'success', rest: 'warning', unavailable: 'default', injured: 'danger' };
+const HORSE_VARIANT = {
+  fit: 'success',
+  rest: 'warning',
+  unavailable: 'default',
+  injured: 'danger',
+};
 
 /** Annuaire santé cavalerie — lecture seule pour le moniteur (US-3.2). */
 export function InstructorHealthPage() {

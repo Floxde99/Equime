@@ -27,7 +27,12 @@ router.get('/planning', validate(planningQuerySchema, 'query'), courseController
 router.get('/enrollable', requireRole(ROLES.CLIENT), courseController.listEnrollable);
 router.get('/my-enrollments', requireRole(ROLES.CLIENT), courseController.listMyEnrollments);
 
-router.post('/', requireRole(ROLES.ADMIN), validate(createCourseSchema), courseController.createCourse);
+router.post(
+  '/',
+  requireRole(ROLES.ADMIN),
+  validate(createCourseSchema),
+  courseController.createCourse
+);
 router.get('/:id', validate(courseIdParamSchema, 'params'), courseController.getCourse);
 router.patch(
   '/:id',

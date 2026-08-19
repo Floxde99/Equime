@@ -18,8 +18,8 @@ import { Card } from '@/components/ui/card.jsx';
 import { ConfirmDialog, Dialog } from '@/components/ui/dialog.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
-import { QueryState } from '@/components/ui/query-state.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
+import { QueryState } from '@/components/ui/query-state.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import {
   banMember,
@@ -30,10 +30,7 @@ import {
   unbanMember,
   updateMember,
 } from '@/features/admin/api.js';
-import {
-  changeFamilySubscription,
-  fetchSubscriptionPlans,
-} from '@/features/billing/api.js';
+import { changeFamilySubscription, fetchSubscriptionPlans } from '@/features/billing/api.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 import { formatEuroCents } from '@/lib/money.js';
 
@@ -44,7 +41,13 @@ export function AdminMembersPage() {
   const [editingMember, setEditingMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);
 
-  const { data: members = [], isLoading: membersLoading, isError, error, refetch } = useQuery({
+  const {
+    data: members = [],
+    isLoading: membersLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['admin-members'],
     queryFn: fetchMembers,
   });
@@ -145,17 +148,17 @@ export function AdminMembersPage() {
                   {member.lastName?.[0]}
                 </span>
                 <div>
-                <p className="font-sans text-sm font-semibold text-text">
-                  {member.firstName} {member.lastName}
-                </p>
-                <p className="font-sans text-xs text-muted">
-                  {member.email} — {ROLE_LABELS[member.role] ?? member.role}
-                  {member.family?.subscriptionPlan
-                    ? ` · ${member.family.subscriptionPlan.name} (${member.family.sessionQuota} séance(s))`
-                    : member.role === ROLES.CLIENT
-                      ? ' · sans formule'
-                      : ''}
-                </p>
+                  <p className="font-sans text-sm font-semibold text-text">
+                    {member.firstName} {member.lastName}
+                  </p>
+                  <p className="font-sans text-xs text-muted">
+                    {member.email} — {ROLE_LABELS[member.role] ?? member.role}
+                    {member.family?.subscriptionPlan
+                      ? ` · ${member.family.subscriptionPlan.name} (${member.family.sessionQuota} séance(s))`
+                      : member.role === ROLES.CLIENT
+                        ? ' · sans formule'
+                        : ''}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -201,9 +204,7 @@ export function AdminMembersPage() {
 
       <ConfirmDialog
         open={Boolean(pendingBan)}
-        title={
-          pendingBan ? `Bannir ${pendingBan.firstName} ${pendingBan.lastName} ?` : ''
-        }
+        title={pendingBan ? `Bannir ${pendingBan.firstName} ${pendingBan.lastName} ?` : ''}
         confirmLabel="Bannir"
         loading={banMutation.isPending}
         onClose={() => setPendingBan(null)}
@@ -287,16 +288,38 @@ function CreateMemberForm({ onCreated }) {
           </div>
         ) : null}
         <Field label="Prénom" htmlFor="member-first-name" error={errors.firstName?.message}>
-          <Input id="member-first-name" autoComplete="given-name" invalid={!!errors.firstName} {...field('firstName')} />
+          <Input
+            id="member-first-name"
+            autoComplete="given-name"
+            invalid={!!errors.firstName}
+            {...field('firstName')}
+          />
         </Field>
         <Field label="Nom" htmlFor="member-last-name" error={errors.lastName?.message}>
-          <Input id="member-last-name" autoComplete="family-name" invalid={!!errors.lastName} {...field('lastName')} />
+          <Input
+            id="member-last-name"
+            autoComplete="family-name"
+            invalid={!!errors.lastName}
+            {...field('lastName')}
+          />
         </Field>
         <Field label="Email" htmlFor="member-email" error={errors.email?.message}>
-          <Input id="member-email" type="email" autoComplete="email" invalid={!!errors.email} {...field('email')} />
+          <Input
+            id="member-email"
+            type="email"
+            autoComplete="email"
+            invalid={!!errors.email}
+            {...field('email')}
+          />
         </Field>
         <Field label="Téléphone (facultatif)" htmlFor="member-phone" error={errors.phone?.message}>
-          <Input id="member-phone" type="tel" autoComplete="tel" invalid={!!errors.phone} {...field('phone')} />
+          <Input
+            id="member-phone"
+            type="tel"
+            autoComplete="tel"
+            invalid={!!errors.phone}
+            {...field('phone')}
+          />
         </Field>
         <Field label="Rôle" htmlFor="member-role" error={errors.role?.message}>
           <Select
@@ -374,17 +397,48 @@ function EditMemberDialog({ member, onClose, onSaved }) {
       }
     >
       {member ? (
-        <form className="space-y-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))} noValidate>
-          <Field label="Prénom" htmlFor="edit-first-name" error={form.formState.errors.firstName?.message}>
-            <Input id="edit-first-name" invalid={!!form.formState.errors.firstName} {...form.register('firstName')} />
+        <form
+          className="space-y-4"
+          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          noValidate
+        >
+          <Field
+            label="Prénom"
+            htmlFor="edit-first-name"
+            error={form.formState.errors.firstName?.message}
+          >
+            <Input
+              id="edit-first-name"
+              invalid={!!form.formState.errors.firstName}
+              {...form.register('firstName')}
+            />
           </Field>
-          <Field label="Nom" htmlFor="edit-last-name" error={form.formState.errors.lastName?.message}>
-            <Input id="edit-last-name" invalid={!!form.formState.errors.lastName} {...form.register('lastName')} />
+          <Field
+            label="Nom"
+            htmlFor="edit-last-name"
+            error={form.formState.errors.lastName?.message}
+          >
+            <Input
+              id="edit-last-name"
+              invalid={!!form.formState.errors.lastName}
+              {...form.register('lastName')}
+            />
           </Field>
-          <Field label="Téléphone" htmlFor="edit-phone" error={form.formState.errors.phone?.message}>
-            <Input id="edit-phone" type="tel" invalid={!!form.formState.errors.phone} {...form.register('phone')} />
+          <Field
+            label="Téléphone"
+            htmlFor="edit-phone"
+            error={form.formState.errors.phone?.message}
+          >
+            <Input
+              id="edit-phone"
+              type="tel"
+              invalid={!!form.formState.errors.phone}
+              {...form.register('phone')}
+            />
           </Field>
-          {mutation.isError ? <Alert>{mutation.error?.message ?? 'Mise à jour impossible'}</Alert> : null}
+          {mutation.isError ? (
+            <Alert>{mutation.error?.message ?? 'Mise à jour impossible'}</Alert>
+          ) : null}
         </form>
       ) : null}
     </Dialog>
@@ -436,13 +490,17 @@ function ChangePlanDialog({ member, plans, onClose, onSaved }) {
     >
       {member ? (
         <form className="space-y-4" noValidate>
-          <p>
-            Le quota est réinitialisé à quatre semaines de séances du nouveau plan.
-          </p>
+          <p>Le quota est réinitialisé à quatre semaines de séances du nouveau plan.</p>
           <Field label="Formule" htmlFor="admin-family-plan">
-            <Select id="admin-family-plan" options={options} {...form.register('subscriptionPlanId')} />
+            <Select
+              id="admin-family-plan"
+              options={options}
+              {...form.register('subscriptionPlanId')}
+            />
           </Field>
-          {mutation.isError ? <Alert>{mutation.error?.message ?? 'Changement impossible'}</Alert> : null}
+          {mutation.isError ? (
+            <Alert>{mutation.error?.message ?? 'Changement impossible'}</Alert>
+          ) : null}
         </form>
       ) : null}
     </Dialog>
@@ -480,7 +538,8 @@ function PendingDocumentCard({ rider, onReviewed }) {
         {rider.firstName} {rider.lastName}
       </p>
       <p className="font-sans text-xs text-muted">
-        Famille {rider.family.user.firstName} {rider.family.user.lastName} ({rider.family.user.email})
+        Famille {rider.family.user.firstName} {rider.family.user.lastName} (
+        {rider.family.user.email})
       </p>
       <ul className="mt-3 space-y-3">
         {pendingDocs.map((docType) => (
@@ -491,10 +550,7 @@ function PendingDocumentCard({ rider, onReviewed }) {
                 {DOCUMENT_STATUS_LABELS.pending}
               </span>
             </div>
-            <Field
-              label="Date d’expiration"
-              htmlFor={`expires-${rider.id}-${docType}`}
-            >
+            <Field label="Date d’expiration" htmlFor={`expires-${rider.id}-${docType}`}>
               <Input
                 id={`expires-${rider.id}-${docType}`}
                 type="date"

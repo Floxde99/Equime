@@ -45,5 +45,8 @@ export function formatHealthLogDate(value) {
 /** @param {{ weeklyLoadHours?: number, maxWeeklyLoadHours?: number }} horse */
 export function horseLoadPercent(horse) {
   if (!horse?.maxWeeklyLoadHours) return 0;
-  return Math.min(100, Math.round((Number(horse.weeklyLoadHours) / horse.maxWeeklyLoadHours) * 100));
+  return Math.min(
+    100,
+    Math.round((Number(horse.weeklyLoadHours) / horse.maxWeeklyLoadHours) * 100)
+  );
 }

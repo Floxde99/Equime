@@ -11,7 +11,11 @@ export function AuthLayout() {
     <div className="flex min-h-screen bg-paper">
       <SkipLink href="#auth" />
       <aside className="relative hidden w-[46%] overflow-hidden lg:block">
-        <img src="/images/hero-centre.webp" alt="" className="absolute inset-0 size-full object-cover" />
+        <img
+          src="/images/hero-centre.webp"
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
         <div className="absolute inset-0 bg-ink/50" />
         <div className="relative flex h-full flex-col justify-between p-12">
           <Link to="/" className="inline-flex w-fit text-white">

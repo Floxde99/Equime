@@ -40,7 +40,11 @@ router.patch(
 router.get('/instructors', adminController.listInstructors);
 router.get('/audit-logs', adminController.listAuditLogs);
 router.post('/members/:id/ban', validate(userIdParamSchema, 'params'), adminController.banMember);
-router.post('/members/:id/unban', validate(userIdParamSchema, 'params'), adminController.unbanMember);
+router.post(
+  '/members/:id/unban',
+  validate(userIdParamSchema, 'params'),
+  adminController.unbanMember
+);
 router.get('/pending-documents', adminController.listPendingDocuments);
 router.post(
   '/riders/:riderId/review-document',
@@ -61,11 +65,7 @@ router.patch(
   billingController.adminChangeFamilySubscription
 );
 
-router.post(
-  '/compatibility-audit',
-  validate(compatibilityAuditSchema),
-  billingController.runAudit
-);
+router.post('/compatibility-audit', validate(compatibilityAuditSchema), billingController.runAudit);
 
 router
   .route('/subscription-plans')
@@ -74,7 +74,11 @@ router
 
 router
   .route('/subscription-plans/:id')
-  .patch(validate(invoiceIdParamSchema, 'params'), validate(updateSubscriptionPlanSchema), billingController.updateSubscriptionPlan)
+  .patch(
+    validate(invoiceIdParamSchema, 'params'),
+    validate(updateSubscriptionPlanSchema),
+    billingController.updateSubscriptionPlan
+  )
   .delete(validate(invoiceIdParamSchema, 'params'), billingController.deleteSubscriptionPlan);
 
 router
@@ -84,7 +88,11 @@ router
 
 router
   .route('/discount-rules/:id')
-  .patch(validate(invoiceIdParamSchema, 'params'), validate(updateDiscountRuleSchema), billingController.updateDiscountRule)
+  .patch(
+    validate(invoiceIdParamSchema, 'params'),
+    validate(updateDiscountRuleSchema),
+    billingController.updateDiscountRule
+  )
   .delete(validate(invoiceIdParamSchema, 'params'), billingController.deleteDiscountRule);
 
 router
@@ -103,7 +111,11 @@ router.get(
   validate(invoiceIdParamSchema, 'params'),
   billingController.getAdminInvoice
 );
-router.post('/invoices/:id/send', validate(invoiceIdParamSchema, 'params'), billingController.sendInvoice);
+router.post(
+  '/invoices/:id/send',
+  validate(invoiceIdParamSchema, 'params'),
+  billingController.sendInvoice
+);
 router.post(
   '/invoices/:id/remind',
   validate(invoiceIdParamSchema, 'params'),

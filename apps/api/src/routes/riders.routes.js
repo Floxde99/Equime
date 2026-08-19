@@ -22,7 +22,12 @@ router.use(requireAuth, requireRole(ROLES.CLIENT));
 
 router.get('/', riderController.listRiders);
 router.post('/', validate(createRiderSchema), riderController.createRider);
-router.patch('/:id', validate(riderIdParamSchema, 'params'), validate(updateRiderSchema), riderController.updateRider);
+router.patch(
+  '/:id',
+  validate(riderIdParamSchema, 'params'),
+  validate(updateRiderSchema),
+  riderController.updateRider
+);
 router.delete('/:id', validate(riderIdParamSchema, 'params'), riderController.deleteRider);
 
 router.post(
@@ -39,7 +44,11 @@ router.get(
   riderController.downloadDocument
 );
 
-router.get('/:id/affinities', validate(riderIdParamSchema, 'params'), riderController.listAffinities);
+router.get(
+  '/:id/affinities',
+  validate(riderIdParamSchema, 'params'),
+  riderController.listAffinities
+);
 router.put(
   '/:id/affinities/:horseId',
   validate(affinityHorseParamSchema, 'params'),

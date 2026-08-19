@@ -388,7 +388,9 @@ describe('Phase 5 — événements', () => {
 
     expect(first.id).toBe(second.id);
     expect(await prisma.invoice.count({ where: { familyId: clientFamilyId } })).toBe(1);
-    expect(await prisma.invoiceItem.count({ where: { eventRegistrationId: registration.id } })).toBe(1);
+    expect(
+      await prisma.invoiceItem.count({ where: { eventRegistrationId: registration.id } })
+    ).toBe(1);
   });
 
   it('attribue un cheval fit sous charge max et incrémente la charge (Excel 11.2)', async () => {
@@ -423,9 +425,7 @@ describe('Phase 5 — événements', () => {
     const refreshed = await prisma.horse.findUniqueOrThrow({ where: { id: horse.id } });
     expect(refreshed.weeklyLoadHours).toBe(3);
 
-    const adminList = await request(app)
-      .get('/api/v1/events/admin')
-      .set(authHeader(adminToken));
+    const adminList = await request(app).get('/api/v1/events/admin').set(authHeader(adminToken));
     expect(adminList.status).toBe(200);
     const listed = adminList.body.events.find((entry) => entry.id === event.id);
     expect(listed.registrations[0].horse.id).toBe(horse.id);
@@ -576,7 +576,9 @@ describe('Phase 5 — événements', () => {
     expect(assignRes.body.assignments).toHaveLength(1);
     expect(assignRes.body.assignments[0].horse.id).toBe(horse.id);
 
-    const updated = await prisma.eventRegistration.findUniqueOrThrow({ where: { id: registration.id } });
+    const updated = await prisma.eventRegistration.findUniqueOrThrow({
+      where: { id: registration.id },
+    });
     expect(updated.horseId).toBe(horse.id);
     const refreshedHorse = await prisma.horse.findUniqueOrThrow({ where: { id: horse.id } });
     expect(refreshedHorse.weeklyLoadHours).toBe(1);

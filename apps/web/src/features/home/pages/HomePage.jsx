@@ -9,8 +9,8 @@ import { BrandLockup } from '@/components/ui/brand-lockup.jsx';
 import { HorseIcon } from '@/components/ui/horse-icon.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
 import { SkipLink } from '@/components/ui/skip-link.jsx';
-import { fetchPublicEvents } from '@/features/engagement/api.js';
 import { fetchPublicPlans } from '@/features/billing/api.js';
+import { fetchPublicEvents } from '@/features/engagement/api.js';
 import { fetchPublicCourses, subscribeNewsletter } from '@/features/home/api.js';
 import { clubContact } from '@/lib/clubContact.js';
 import { onInPageAnchorClick } from '@/lib/inPageScroll.js';
@@ -84,7 +84,13 @@ function InPageLink({ href, className, children }) {
  * Vitrine publique — artboard Stitch desktop (serif, photo, vert forêt).
  */
 export function HomePage() {
-  const { data: apiEvents = [], isPending, isError, error, refetch } = useQuery({
+  const {
+    data: apiEvents = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['public-events'],
     queryFn: fetchPublicEvents,
   });
@@ -198,13 +204,11 @@ export function HomePage() {
             <ul className="mt-14 grid gap-12 md:grid-cols-3">
               {PROGRAMS.map((program) => (
                 <li key={program.title}>
-                  <img
-                    src={program.src}
-                    alt=""
-                    className="aspect-[4/3] w-full object-cover"
-                  />
+                  <img src={program.src} alt="" className="aspect-[4/3] w-full object-cover" />
                   <h3 className="mt-6 font-display text-2xl text-on-card">{program.title}</h3>
-                  <p className="mt-3 font-sans text-sm leading-relaxed text-muted-on-card">{program.text}</p>
+                  <p className="mt-3 font-sans text-sm leading-relaxed text-muted-on-card">
+                    {program.text}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -337,7 +341,9 @@ export function HomePage() {
             <p className="font-sans text-xs font-semibold uppercase tracking-[0.22em] text-muted-on-card">
               Le domaine
             </p>
-            <h2 className="mt-3 font-display text-4xl text-on-card md:text-5xl">La vie au centre</h2>
+            <h2 className="mt-3 font-display text-4xl text-on-card md:text-5xl">
+              La vie au centre
+            </h2>
             <div className="mt-14 grid gap-4 md:grid-cols-2 md:grid-rows-2">
               <div className="flex min-h-80 items-center justify-center bg-ink md:row-span-2">
                 <div className="flex size-56 items-center justify-center rounded-full border border-gold">
@@ -369,8 +375,8 @@ export function HomePage() {
         <section id="temoignage" className="scroll-mt-24 bg-primary px-8 py-24">
           <blockquote className="mx-auto max-w-4xl text-center">
             <p className="font-display text-3xl italic leading-snug text-primary-fg md:text-5xl">
-              « L&apos;attention portée aux chevaux et aux cavaliers est constante. Equime est vraiment
-              un second chez-soi. »
+              « L&apos;attention portée aux chevaux et aux cavaliers est constante. Equime est
+              vraiment un second chez-soi. »
             </p>
             <footer className="mt-10 flex flex-col items-center gap-3">
               <img
@@ -422,7 +428,9 @@ export function HomePage() {
                             {event.location || 'Centre Equime'}
                             {event.description ? ` — ${event.description}` : ''}
                           </p>
-                          <p className="mt-2 font-sans text-sm font-semibold text-on-card">{priceLabel}</p>
+                          <p className="mt-2 font-sans text-sm font-semibold text-on-card">
+                            {priceLabel}
+                          </p>
                         </div>
                       </div>
                       <Link to="/register" className={cn(outlineLightClass, 'shrink-0')}>

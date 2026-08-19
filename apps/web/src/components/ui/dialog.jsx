@@ -46,7 +46,9 @@ export function Dialog({ open, onClose, title, children, footer, className }) {
         <h2 id="dialog-title" className="font-sans text-lg font-semibold">
           {title}
         </h2>
-        {children ? <div className="mt-3 font-sans text-sm text-muted-on-card">{children}</div> : null}
+        {children ? (
+          <div className="mt-3 font-sans text-sm text-muted-on-card">{children}</div>
+        ) : null}
         {footer ? <div className="mt-6 flex justify-end gap-2">{footer}</div> : null}
       </div>
     </div>

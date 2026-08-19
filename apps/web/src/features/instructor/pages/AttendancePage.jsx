@@ -70,7 +70,9 @@ export function AttendancePage() {
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-3">
               {live ? <Badge variant="success">En cours</Badge> : <Badge>Planifié</Badge>}
-              <span className="font-sans text-sm text-muted">{selected.extendedProps?.spaceName}</span>
+              <span className="font-sans text-sm text-muted">
+                {selected.extendedProps?.spaceName}
+              </span>
             </div>
             <h2 className="font-display text-4xl text-primary">{selected.title}</h2>
             <p className="mt-2 font-sans text-sm text-muted">
@@ -84,11 +86,14 @@ export function AttendancePage() {
         <div className="grid grid-cols-12 gap-6">
           <Card className="col-span-12 lg:col-span-8" title="Liste des élèves">
             {enrollments.length === 0 ? (
-              <p className="font-sans text-sm text-muted-on-card">Aucun cavalier inscrit sur cette séance.</p>
+              <p className="font-sans text-sm text-muted-on-card">
+                Aucun cavalier inscrit sur cette séance.
+              </p>
             ) : (
               <ul className="space-y-4">
                 {enrollments.map((enrollment) => {
-                  const initials = `${enrollment.rider.firstName?.[0] ?? ''}${enrollment.rider.lastName?.[0] ?? ''}`.toUpperCase();
+                  const initials =
+                    `${enrollment.rider.firstName?.[0] ?? ''}${enrollment.rider.lastName?.[0] ?? ''}`.toUpperCase();
                   return (
                     <li
                       key={enrollment.id}
@@ -127,7 +132,9 @@ export function AttendancePage() {
                             key={status}
                             type="button"
                             variant={enrollment.attendance === status ? 'secondary' : 'ghost'}
-                            onClick={() => mutation.mutate({ enrollmentId: enrollment.id, attendance: status })}
+                            onClick={() =>
+                              mutation.mutate({ enrollmentId: enrollment.id, attendance: status })
+                            }
                           >
                             {ATTENDANCE_STATUS_LABELS[status]}
                           </Button>

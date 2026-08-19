@@ -10,7 +10,8 @@ import { excuseEnrollment, fetchMyEnrollments } from '@/features/admin/api.js';
 
 /** @param {object} enrollment */
 function attendanceBadge(enrollment) {
-  if (enrollment.attendance === 'excused') return { variant: 'warning', label: ATTENDANCE_STATUS_LABELS.excused };
+  if (enrollment.attendance === 'excused')
+    return { variant: 'warning', label: ATTENDANCE_STATUS_LABELS.excused };
   return { variant: 'success', label: 'Confirmé' };
 }
 
@@ -56,13 +57,18 @@ export function UpcomingEnrollments({ compact = false, limit } = {}) {
             {compact ? (
               <div className="flex size-16 shrink-0 flex-col items-center justify-center rounded-xl bg-paper">
                 <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  {start.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '').toUpperCase()}
+                  {start
+                    .toLocaleDateString('fr-FR', { weekday: 'short' })
+                    .replace('.', '')
+                    .toUpperCase()}
                 </span>
                 <span className="font-display text-2xl text-on-card">{start.getDate()}</span>
               </div>
             ) : null}
             <div className="min-w-0 flex-1">
-              <p className="font-sans text-sm font-semibold text-on-card">{enrollment.course.title}</p>
+              <p className="font-sans text-sm font-semibold text-on-card">
+                {enrollment.course.title}
+              </p>
               <p className="mt-1 font-sans text-xs text-muted-on-card">
                 {enrollment.rider.firstName} {enrollment.rider.lastName}
                 {' · '}
@@ -115,8 +121,8 @@ export function UpcomingEnrollments({ compact = false, limit } = {}) {
     >
       {pending ? (
         <p>
-          {pending.rider.firstName} sera marqué(e) excusé(e) pour le cours « {pending.course.title} » du{' '}
-          {new Date(pending.course.startAt).toLocaleString('fr-FR')}.
+          {pending.rider.firstName} sera marqué(e) excusé(e) pour le cours « {pending.course.title}{' '}
+          » du {new Date(pending.course.startAt).toLocaleString('fr-FR')}.
         </p>
       ) : null}
       {mutation.isError ? <p className="mt-2 text-danger">{mutation.error.message}</p> : null}

@@ -87,7 +87,10 @@ export function fetchEnrollableCourses() {
 /** @param {string} courseId @param {string} riderId @param {{ force?: boolean }} [options] */
 export function enrollRider(courseId, riderId, options = {}) {
   return api
-    .post(`/courses/${courseId}/enrollments`, { riderId, ...(options.force ? { force: true } : {}) })
+    .post(`/courses/${courseId}/enrollments`, {
+      riderId,
+      ...(options.force ? { force: true } : {}),
+    })
     .then((r) => r.enrollment);
 }
 
@@ -119,7 +122,9 @@ export function assignHorses(courseId) {
 
 /** @param {string} courseId @param {string} enrollmentId */
 export function fetchHorseOptions(courseId, enrollmentId) {
-  return api.get(`/courses/${courseId}/enrollments/${enrollmentId}/horse-options`).then((r) => r.options);
+  return api
+    .get(`/courses/${courseId}/enrollments/${enrollmentId}/horse-options`)
+    .then((r) => r.options);
 }
 
 /** @param {string} courseId @param {string} enrollmentId @param {string} horseId */

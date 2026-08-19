@@ -23,6 +23,10 @@ router.get(
   validate(invoiceIdParamSchema, 'params'),
   billingController.downloadClientInvoicePdf
 );
-router.post('/invoices/:id/pay', validate(invoiceIdParamSchema, 'params'), billingController.payClientInvoice);
+router.post(
+  '/invoices/:id/pay',
+  validate(invoiceIdParamSchema, 'params'),
+  billingController.payClientInvoice
+);
 
 export default router;

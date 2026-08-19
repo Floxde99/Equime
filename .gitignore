@@ -30,3 +30,6 @@ uploads/
 
 # Playwright auth/session cache
 playwright/.auth/
+
+# Audit reports (generated, not source)
+audit-*.json

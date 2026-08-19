@@ -16,7 +16,11 @@ router.use(requireAuth);
 
 router.get('/contacts', messageController.listContacts);
 router.get('/conversations', messageController.listConversations);
-router.post('/conversations', validate(createConversationSchema), messageController.createConversation);
+router.post(
+  '/conversations',
+  validate(createConversationSchema),
+  messageController.createConversation
+);
 router.get(
   '/conversations/:id/messages',
   validate(conversationIdParamSchema, 'params'),

@@ -1,6 +1,5 @@
-import { useState } from 'react';
-
 import { INVOICE_STATUS_LABELS } from '@equime/shared';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -130,49 +129,49 @@ export function InvoiceDetailDialog({
             </dl>
 
             <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <caption className="sr-only">Lignes de la facture {invoice.number}</caption>
-              <thead>
-                <tr className="border-b border-border-on-card text-xs uppercase tracking-wide text-muted-on-card">
-                  <th scope="col" className="py-2 pr-3 font-sans font-semibold">
-                    Libellé
-                  </th>
-                  <th scope="col" className="py-2 px-2 text-right font-sans font-semibold">
-                    Qté
-                  </th>
-                  <th scope="col" className="py-2 px-2 text-right font-sans font-semibold">
-                    Prix unit.
-                  </th>
-                  <th scope="col" className="py-2 pl-2 text-right font-sans font-semibold">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(invoice.items ?? []).map((item) => (
-                  <tr key={item.id} className="border-b border-border-on-card">
-                    <td className="py-2 pr-3">{item.label}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{item.quantity}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">
-                      {currency.format(item.unitCents / 100)}
-                    </td>
-                    <td className="py-2 pl-2 text-right tabular-nums">
-                      {currency.format(item.totalCents / 100)}
+              <table className="w-full border-collapse text-left">
+                <caption className="sr-only">Lignes de la facture {invoice.number}</caption>
+                <thead>
+                  <tr className="border-b border-border-on-card text-xs uppercase tracking-wide text-muted-on-card">
+                    <th scope="col" className="py-2 pr-3 font-sans font-semibold">
+                      Libellé
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right font-sans font-semibold">
+                      Qté
+                    </th>
+                    <th scope="col" className="py-2 px-2 text-right font-sans font-semibold">
+                      Prix unit.
+                    </th>
+                    <th scope="col" className="py-2 pl-2 text-right font-sans font-semibold">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(invoice.items ?? []).map((item) => (
+                    <tr key={item.id} className="border-b border-border-on-card">
+                      <td className="py-2 pr-3">{item.label}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">{item.quantity}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">
+                        {currency.format(item.unitCents / 100)}
+                      </td>
+                      <td className="py-2 pl-2 text-right tabular-nums">
+                        {currency.format(item.totalCents / 100)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={3} className="pt-3 text-right font-sans font-semibold">
+                      Total TTC
+                    </th>
+                    <td className="pt-3 pl-2 text-right font-sans font-semibold tabular-nums">
+                      {currency.format((invoice.totalCents ?? 0) / 100)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th scope="row" colSpan={3} className="pt-3 text-right font-sans font-semibold">
-                    Total TTC
-                  </th>
-                  <td className="pt-3 pl-2 text-right font-sans font-semibold tabular-nums">
-                    {currency.format((invoice.totalCents ?? 0) / 100)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
             </div>
           </div>
         ) : null}

@@ -42,12 +42,23 @@ export function AdminBillingPage() {
     sessionsPerWeek: 1,
     description: '',
   });
-  const [ruleForm, setRuleForm] = useState({ label: '', percentage: 10, minRiders: 2, description: '' });
+  const [ruleForm, setRuleForm] = useState({
+    label: '',
+    percentage: 10,
+    minRiders: 2,
+    description: '',
+  });
   const [invoiceForm, setInvoiceForm] = useState({ familyId: '', dueAt: '' });
   const [openInvoiceId, setOpenInvoiceId] = useState(null);
 
-  const { data: plans = [] } = useQuery({ queryKey: ['subscription-plans'], queryFn: fetchSubscriptionPlans });
-  const { data: rules = [] } = useQuery({ queryKey: ['discount-rules'], queryFn: fetchDiscountRules });
+  const { data: plans = [] } = useQuery({
+    queryKey: ['subscription-plans'],
+    queryFn: fetchSubscriptionPlans,
+  });
+  const { data: rules = [] } = useQuery({
+    queryKey: ['discount-rules'],
+    queryFn: fetchDiscountRules,
+  });
   const {
     data: invoices = [],
     isPending: invoicesPending,
@@ -141,7 +152,11 @@ export function AdminBillingPage() {
                 }
               />
             </Field>
-            <Button type="button" loading={planMutation.isPending} onClick={() => planMutation.mutate(planForm)}>
+            <Button
+              type="button"
+              loading={planMutation.isPending}
+              onClick={() => planMutation.mutate(planForm)}
+            >
               Enregistrer
             </Button>
           </div>
@@ -172,7 +187,11 @@ export function AdminBillingPage() {
                 onChange={(e) => setRuleForm((v) => ({ ...v, minRiders: Number(e.target.value) }))}
               />
             </Field>
-            <Button type="button" loading={ruleMutation.isPending} onClick={() => ruleMutation.mutate(ruleForm)}>
+            <Button
+              type="button"
+              loading={ruleMutation.isPending}
+              onClick={() => ruleMutation.mutate(ruleForm)}
+            >
               Enregistrer
             </Button>
           </div>
@@ -218,7 +237,8 @@ export function AdminBillingPage() {
               <li key={plan.id} className="rounded-xl border border-border-on-card bg-paper p-3">
                 <p className="font-sans text-sm font-semibold text-text">{plan.name}</p>
                 <p className="font-sans text-sm text-muted">
-                  {currency.format(plan.priceCents / 100)} · {plan.sessionsPerWeek} séance(s)/semaine
+                  {currency.format(plan.priceCents / 100)} · {plan.sessionsPerWeek}{' '}
+                  séance(s)/semaine
                 </p>
               </li>
             ))}

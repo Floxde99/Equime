@@ -3,8 +3,8 @@ import { Link } from 'react-router';
 
 import { Badge } from '@/components/ui/badge.jsx';
 import { Card } from '@/components/ui/card.jsx';
-import { fetchClientInvoices } from '@/features/billing/api.js';
 import { HorsePortrait } from '@/components/ui/horse-portrait.jsx';
+import { fetchClientInvoices } from '@/features/billing/api.js';
 import { UpcomingEnrollments } from '@/features/client/components/UpcomingEnrollments.jsx';
 import { fetchHorses, fetchRiderAffinities, fetchRiders } from '@/features/riders/api.js';
 import { useAuthStore } from '@/stores/authStore.js';
@@ -33,12 +33,13 @@ export function ClientDashboardPage() {
       (query.data ?? []).filter((row) => row.affinity === 'favorite').map((row) => row.horseId)
     )
   );
-  const favorites = (favoriteIds.size > 0 ? horses.filter((h) => favoriteIds.has(h.id)) : horses).slice(
-    0,
-    2
-  );
+  const favorites = (
+    favoriteIds.size > 0 ? horses.filter((h) => favoriteIds.has(h.id)) : horses
+  ).slice(0, 2);
 
-  const payable = invoices.filter((invoice) => invoice.status === 'sent' || invoice.status === 'overdue');
+  const payable = invoices.filter(
+    (invoice) => invoice.status === 'sent' || invoice.status === 'overdue'
+  );
   const pendingDocs = riders.filter(
     (rider) => rider.medicalCertificateStatus === 'pending' || rider.licenseStatus === 'pending'
   ).length;
@@ -87,7 +88,9 @@ export function ClientDashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {favorites.length === 0 ? (
               <Card>
-                <p className="font-sans text-sm text-muted-on-card">Aucun cheval à afficher pour le moment.</p>
+                <p className="font-sans text-sm text-muted-on-card">
+                  Aucun cheval à afficher pour le moment.
+                </p>
               </Card>
             ) : (
               favorites.map((horse) => (

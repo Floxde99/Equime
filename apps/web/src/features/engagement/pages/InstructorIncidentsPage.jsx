@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
-import { Select } from '@/components/ui/select.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
+import { Select } from '@/components/ui/select.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { createIncident, fetchIncidents, resolveIncident } from '@/features/engagement/api.js';
 
@@ -65,7 +65,9 @@ export function InstructorIncidentsPage({ admin = false }) {
         }
       />
 
-      {status ? <Alert variant={status.includes('déclaré') ? 'success' : 'error'}>{status}</Alert> : null}
+      {status ? (
+        <Alert variant={status.includes('déclaré') ? 'success' : 'error'}>{status}</Alert>
+      ) : null}
 
       {!admin ? (
         <Card title="Nouvelle déclaration">
@@ -110,12 +112,18 @@ export function InstructorIncidentsPage({ admin = false }) {
                 id="incident-description"
                 rows={5}
                 value={form.description}
-                onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+                onChange={(e) =>
+                  setForm((current) => ({ ...current, description: e.target.value }))
+                }
               />
             </Field>
           </div>
           <div className="mt-4">
-            <Button type="button" loading={createMutation.isPending} onClick={() => createMutation.mutate(form)}>
+            <Button
+              type="button"
+              loading={createMutation.isPending}
+              onClick={() => createMutation.mutate(form)}
+            >
               Déclarer
             </Button>
           </div>
@@ -124,7 +132,10 @@ export function InstructorIncidentsPage({ admin = false }) {
         <Card title="Incidents ouverts">
           <ul className="space-y-3">
             {incidents.map((incident) => (
-              <li key={incident.id} className="rounded-xl border border-border-on-card bg-paper p-4">
+              <li
+                key={incident.id}
+                className="rounded-xl border border-border-on-card bg-paper p-4"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-sans text-sm font-semibold text-text">
@@ -133,7 +144,11 @@ export function InstructorIncidentsPage({ admin = false }) {
                     <p className="font-sans text-sm text-muted">{incident.description}</p>
                   </div>
                   {incident.status === 'open' ? (
-                    <Button type="button" variant="secondary" onClick={() => resolveMutation.mutate(incident.id)}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => resolveMutation.mutate(incident.id)}
+                    >
                       Résoudre
                     </Button>
                   ) : null}

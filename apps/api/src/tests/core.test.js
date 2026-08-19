@@ -57,15 +57,12 @@ afterAll(async () => {
 
 describe('Cavaliers (famille)', () => {
   it('CRUD limité à la famille du client', async () => {
-    const createRes = await request(app)
-      .post('/api/v1/riders')
-      .set(authHeader(clientToken))
-      .send({
-        firstName: 'Léa',
-        lastName: 'Martin',
-        birthdate: '2012-05-10',
-        level: 'galop_2',
-      });
+    const createRes = await request(app).post('/api/v1/riders').set(authHeader(clientToken)).send({
+      firstName: 'Léa',
+      lastName: 'Martin',
+      birthdate: '2012-05-10',
+      level: 'galop_2',
+    });
 
     expect(createRes.status).toBe(201);
     const riderId = createRes.body.rider.id;
@@ -108,18 +105,15 @@ describe('Espaces et conflits', () => {
       })
       .expect(201);
 
-    const conflict = await request(app)
-      .post('/api/v1/courses')
-      .set(authHeader(adminToken))
-      .send({
-        title: 'Cours 2',
-        instructorId,
-        spaceId,
-        startAt,
-        endAt,
-        capacity: 8,
-        status: 'scheduled',
-      });
+    const conflict = await request(app).post('/api/v1/courses').set(authHeader(adminToken)).send({
+      title: 'Cours 2',
+      instructorId,
+      spaceId,
+      startAt,
+      endAt,
+      capacity: 8,
+      status: 'scheduled',
+    });
 
     expect(conflict.status).toBe(409);
   });
@@ -170,22 +164,19 @@ describe('Cours récurrents et inscriptions', () => {
     const endAt = new Date('2026-09-01T15:00:00.000Z');
     const recurrenceEndDate = new Date('2026-09-22T14:00:00.000Z');
 
-    const courseRes = await request(app)
-      .post('/api/v1/courses')
-      .set(authHeader(adminToken))
-      .send({
-        title: 'Galop 2',
-        instructorId,
-        spaceId: space.id,
-        startAt: startAt.toISOString(),
-        endAt: endAt.toISOString(),
-        capacity: 6,
-        minLevel: 'galop_1',
-        maxLevel: 'galop_3',
-        status: 'scheduled',
-        recurrenceRule: 'weekly',
-        recurrenceEndDate: recurrenceEndDate.toISOString(),
-      });
+    const courseRes = await request(app).post('/api/v1/courses').set(authHeader(adminToken)).send({
+      title: 'Galop 2',
+      instructorId,
+      spaceId: space.id,
+      startAt: startAt.toISOString(),
+      endAt: endAt.toISOString(),
+      capacity: 6,
+      minLevel: 'galop_1',
+      maxLevel: 'galop_3',
+      status: 'scheduled',
+      recurrenceRule: 'weekly',
+      recurrenceEndDate: recurrenceEndDate.toISOString(),
+    });
 
     expect(courseRes.status).toBe(201);
     const parentId = courseRes.body.course.id;

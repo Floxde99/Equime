@@ -13,7 +13,9 @@ export function PageHeader({ eyebrow, title, description, action }) {
     <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="font-sans text-xs font-semibold uppercase tracking-wide text-muted">{eyebrow}</p>
+          <p className="font-sans text-xs font-semibold uppercase tracking-wide text-muted">
+            {eyebrow}
+          </p>
         ) : null}
         <h1 className="mt-1 font-display text-3xl text-on-card md:text-4xl">{title}</h1>
         {description ? <p className="mt-2 max-w-2xl font-sans text-muted">{description}</p> : null}

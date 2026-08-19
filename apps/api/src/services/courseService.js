@@ -449,7 +449,10 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
 
   const clientExcuse = actor.role === ROLES.CLIENT && attendance === ATTENDANCE_STATUS.EXCUSED;
   const instructorAbsence = attendance === ATTENDANCE_STATUS.ABSENT;
-  if ((clientExcuse && previous !== ATTENDANCE_STATUS.EXCUSED) || (instructorAbsence && previous !== ATTENDANCE_STATUS.ABSENT)) {
+  if (
+    (clientExcuse && previous !== ATTENDANCE_STATUS.EXCUSED) ||
+    (instructorAbsence && previous !== ATTENDANCE_STATUS.ABSENT)
+  ) {
     await createNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.RIDER_ABSENCE,
@@ -543,7 +546,10 @@ export async function overrideHorse(courseId, enrollmentId, horseId) {
  */
 export async function listEnrollableCourses(userId) {
   const familyId = await getFamilyIdForUser(userId);
-  const riders = await prisma.rider.findMany({ where: { familyId }, select: { id: true, level: true } });
+  const riders = await prisma.rider.findMany({
+    where: { familyId },
+    select: { id: true, level: true },
+  });
   if (riders.length === 0) return [];
 
   const now = new Date();
@@ -561,7 +567,9 @@ export async function listEnrollableCourses(userId) {
 
   return courses
     .filter((c) => {
-      const hasCompatibleRider = riders.some((r) => isLevelInRange(r.level, c.minLevel, c.maxLevel));
+      const hasCompatibleRider = riders.some((r) =>
+        isLevelInRange(r.level, c.minLevel, c.maxLevel)
+      );
       const hasCapacity = c._count.enrollments < c.capacity;
       return hasCompatibleRider && hasCapacity;
     })

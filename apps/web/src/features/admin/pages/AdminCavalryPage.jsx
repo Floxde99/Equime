@@ -38,7 +38,12 @@ import {
 import { filterHorsesByQuery, horseLoadPercent } from '@/lib/horseDirectory.js';
 import { buildSpaceOccupancy } from '@/lib/spaceOccupancy.js';
 
-const HORSE_VARIANT = { fit: 'success', rest: 'warning', unavailable: 'default', injured: 'danger' };
+const HORSE_VARIANT = {
+  fit: 'success',
+  rest: 'warning',
+  unavailable: 'default',
+  injured: 'danger',
+};
 
 /** Cavalerie + espaces admin (US-3.1 → 3.3). */
 export function AdminCavalryPage() {
@@ -84,7 +89,10 @@ function HorsesPanel() {
   const horsesQuery = useQuery({ queryKey: ['admin-horses'], queryFn: fetchHorses });
   const horses = horsesQuery.data ?? [];
   const { data: spaces = [] } = useQuery({ queryKey: ['spaces'], queryFn: fetchSpaces });
-  const filtered = useMemo(() => filterHorsesByQuery(horsesQuery.data, search), [horsesQuery.data, search]);
+  const filtered = useMemo(
+    () => filterHorsesByQuery(horsesQuery.data, search),
+    [horsesQuery.data, search]
+  );
 
   const form = useForm({
     resolver: zodResolver(createHorseSchema),
@@ -121,7 +129,9 @@ function HorsesPanel() {
       horse.weeklyLoadHours >= horse.alertThresholdHours
   );
   const avgLoad = horses.length
-    ? Math.round((horses.reduce((sum, horse) => sum + horse.weeklyLoadHours, 0) / horses.length) * 10) / 10
+    ? Math.round(
+        (horses.reduce((sum, horse) => sum + horse.weeklyLoadHours, 0) / horses.length) * 10
+      ) / 10
     : 0;
   const fitCount = horses.filter((horse) => horse.status === 'fit').length;
   const healthIndex = horses.length ? Math.round((fitCount / horses.length) * 100) : 100;
@@ -141,7 +151,9 @@ function HorsesPanel() {
         <Card className="col-span-12 lg:col-span-5">
           <h3 className="font-display text-xl text-primary">Alertes santé</h3>
           {healthAlerts.length === 0 ? (
-            <p className="mt-4 font-sans text-sm text-muted-on-card">Aucune alerte santé en cours.</p>
+            <p className="mt-4 font-sans text-sm text-muted-on-card">
+              Aucune alerte santé en cours.
+            </p>
           ) : (
             <ul className="mt-4 space-y-3">
               {healthAlerts.slice(0, 4).map((horse) => (
@@ -152,7 +164,8 @@ function HorsesPanel() {
                   >
                     <p className="font-sans text-sm font-semibold text-on-card">{horse.name}</p>
                     <p className="mt-1 font-sans text-xs text-muted-on-card">
-                      {HORSE_STATUS_LABELS[horse.status]} — {horse.weeklyLoadHours}h / {horse.maxWeeklyLoadHours}h
+                      {HORSE_STATUS_LABELS[horse.status]} — {horse.weeklyLoadHours}h /{' '}
+                      {horse.maxWeeklyLoadHours}h
                     </p>
                   </Link>
                 </li>
@@ -165,7 +178,8 @@ function HorsesPanel() {
           <div>
             <h3 className="font-display text-xl">Matching affinités</h3>
             <p className="mt-3 font-sans text-sm text-primary-fg/80">
-              Appariements cavalier–cheval selon le niveau et les préférences, via l&apos;audit du planning.
+              Appariements cavalier–cheval selon le niveau et les préférences, via l&apos;audit du
+              planning.
             </p>
           </div>
           <p className="mt-6 font-sans text-xs text-primary-fg/70">
@@ -242,7 +256,10 @@ function HorsesPanel() {
                             {HORSE_STATUS_LABELS[horse.status]}
                           </Badge>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-paper" aria-hidden="true">
+                        <div
+                          className="h-1.5 overflow-hidden rounded-full bg-paper"
+                          aria-hidden="true"
+                        >
                           <div
                             className="h-full rounded-full bg-primary"
                             style={{ width: `${horseLoadPercent(horse)}%` }}
@@ -335,8 +352,8 @@ function OccupancyCard({ occupancy }) {
 
       {slotCount === 0 ? (
         <p className="mt-6 font-sans text-sm text-muted-on-card">
-          Aucun box défini. Créez des espaces de type « Box / stalle » dans l&apos;onglet Boxes / paddocks /
-          carrières.
+          Aucun box défini. Créez des espaces de type « Box / stalle » dans l&apos;onglet Boxes /
+          paddocks / carrières.
         </p>
       ) : (
         <div
@@ -384,7 +401,9 @@ function SpaceCapacityList({ title, items }) {
   if (items.length === 0) return null;
   return (
     <div className="mt-6">
-      <h4 className="font-sans text-xs font-semibold uppercase tracking-wide text-muted-on-card">{title}</h4>
+      <h4 className="font-sans text-xs font-semibold uppercase tracking-wide text-muted-on-card">
+        {title}
+      </h4>
       <ul className="mt-2 space-y-2">
         {items.map((space) => (
           <li key={space.id ?? space.name} className="flex items-baseline justify-between gap-2">
@@ -517,7 +536,11 @@ function SpacesPanel() {
             updateMutation.mutate({ id: editing.id, values });
           })}
         >
-          <Field label="Nom" htmlFor="edit-space-name" error={editForm.formState.errors.name?.message}>
+          <Field
+            label="Nom"
+            htmlFor="edit-space-name"
+            error={editForm.formState.errors.name?.message}
+          >
             <Input id="edit-space-name" {...editForm.register('name')} />
           </Field>
           <Select
@@ -568,7 +591,9 @@ function SpaceTypeSection({ title, items, onEdit, onDelete }) {
     <section>
       <h3 className="mb-3 font-display text-2xl text-primary">{title}</h3>
       {items.length === 0 ? (
-        <p className="font-sans text-sm text-muted-on-card">Aucun espace de ce type pour le moment.</p>
+        <p className="font-sans text-sm text-muted-on-card">
+          Aucun espace de ce type pour le moment.
+        </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {items.map((space) => (

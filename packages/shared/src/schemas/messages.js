@@ -9,7 +9,12 @@ export const conversationIdParamSchema = z.object({
 
 export const createConversationSchema = z.object({
   participantId: z.string().min(1),
-  subject: z.string().trim().max(120).optional().or(z.literal('').transform(() => undefined)),
+  subject: z
+    .string()
+    .trim()
+    .max(120)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 });
 
 export const createMessageSchema = z.object({

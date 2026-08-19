@@ -179,7 +179,11 @@ export function ClientAccountPage() {
           {profileMutation.isError ? (
             <Alert>{profileMutation.error?.message ?? 'Mise à jour impossible'}</Alert>
           ) : null}
-          <Button type="submit" variant={hasPlan ? 'primary' : 'secondary'} loading={profileMutation.isPending}>
+          <Button
+            type="submit"
+            variant={hasPlan ? 'primary' : 'secondary'}
+            loading={profileMutation.isPending}
+          >
             Enregistrer
           </Button>
         </form>
@@ -187,8 +191,8 @@ export function ClientAccountPage() {
 
       <Card title="Exporter mes données">
         <p className="font-sans text-sm text-muted">
-          Téléchargez une copie structurée de votre profil, vos cavaliers et vos factures (droit à la
-          portabilité RGPD).
+          Téléchargez une copie structurée de votre profil, vos cavaliers et vos factures (droit à
+          la portabilité RGPD).
         </p>
         <div className="mt-4">
           <Button
@@ -207,16 +211,16 @@ export function ClientAccountPage() {
 
       <Card title="Supprimer mon compte">
         <p className="font-sans text-sm text-muted">
-          Cette action est irréversible. Vos données personnelles seront anonymisées, vos
-          documents supprimés et vos sessions révoquées. Les factures seront conservées de façon
-          anonymisée (obligation comptable).
+          Cette action est irréversible. Vos données personnelles seront anonymisées, vos documents
+          supprimés et vos sessions révoquées. Les factures seront conservées de façon anonymisée
+          (obligation comptable).
         </p>
         <form
           className="mt-4 space-y-4"
           onSubmit={deleteForm.handleSubmit((values) => mutation.mutate(values))}
         >
           <Field
-            label='Tapez « SUPPRIMER MON COMPTE » pour confirmer'
+            label="Tapez « SUPPRIMER MON COMPTE » pour confirmer"
             htmlFor="confirmation"
             error={deleteForm.formState.errors.confirmation?.message}
           >
@@ -293,7 +297,9 @@ function FamilySubscriptionCard({ subscription, plans, onSubscribed }) {
             <Alert>{mutation.error?.message ?? 'Souscription impossible'}</Alert>
           ) : null}
           {plans.length === 0 ? (
-            <p className="font-sans text-sm text-muted">Aucune formule n’est proposée pour le moment.</p>
+            <p className="font-sans text-sm text-muted">
+              Aucune formule n’est proposée pour le moment.
+            </p>
           ) : (
             <Button type="submit" loading={mutation.isPending}>
               Choisir une formule

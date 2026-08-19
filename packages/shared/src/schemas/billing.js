@@ -15,7 +15,12 @@ const nullableDateSchema = z
 
 export const subscriptionPlanBodySchema = z.object({
   name: z.string().trim().min(1, 'Le nom est requis').max(80),
-  description: z.string().trim().max(500).optional().or(z.literal('').transform(() => undefined)),
+  description: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   priceCents: z.coerce.number().int().min(0),
   sessionsPerWeek: z.coerce.number().int().positive().max(14),
   active: z.boolean().default(true),
@@ -26,7 +31,12 @@ export const updateSubscriptionPlanSchema = subscriptionPlanBodySchema.partial()
 
 export const discountRuleBodySchema = z.object({
   label: z.string().trim().min(1, 'Le libellé est requis').max(120),
-  description: z.string().trim().max(500).optional().or(z.literal('').transform(() => undefined)),
+  description: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   percentage: z.coerce.number().int().min(0).max(1000),
   minRiders: z.coerce.number().int().positive().max(20).optional(),
   active: z.boolean().default(true),

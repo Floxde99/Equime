@@ -9,7 +9,9 @@ let activeAnimation = 0;
 
 /** @returns {boolean} */
 export function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 /**
@@ -109,7 +111,14 @@ export function scrollToId(id) {
  * @param {import('react').MouseEvent<HTMLAnchorElement>} event
  */
 export function onInPageAnchorClick(event) {
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
     return;
   }
   const id = inPageAnchorId(event.currentTarget.getAttribute('href'));

@@ -35,7 +35,10 @@ export function EnrollSection() {
   const [riderId, setRiderId] = useState('');
 
   const { data: riders = [] } = useQuery({ queryKey: ['riders'], queryFn: fetchRiders });
-  const { data: courses = [] } = useQuery({ queryKey: ['enrollable'], queryFn: fetchEnrollableCourses });
+  const { data: courses = [] } = useQuery({
+    queryKey: ['enrollable'],
+    queryFn: fetchEnrollableCourses,
+  });
 
   useEffect(() => {
     if (!riderId && riders[0]?.id) setRiderId(riders[0].id);
@@ -70,7 +73,8 @@ export function EnrollSection() {
       />
       {!docsOk && selectedRider ? (
         <p className="mt-2 font-sans text-sm text-muted">
-          Le certificat médical et la licence FFE doivent être validés et en cours de validité avant toute inscription.
+          Le certificat médical et la licence FFE doivent être validés et en cours de validité avant
+          toute inscription.
         </p>
       ) : null}
       <ul className="mt-4 space-y-2">

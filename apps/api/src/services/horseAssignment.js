@@ -47,7 +47,11 @@ export function rankCandidateHorses({ rider, horses, affinitiesByHorseId, takenH
     .map((horse) => ({
       horse,
       affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
-      score: scoreRiderHorse({ rider, horse, affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral' }),
+      score: scoreRiderHorse({
+        rider,
+        horse,
+        affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
+      }),
       levelCompatible: isLevelInRange(rider.level, horse.minLevel, horse.maxLevel),
     }))
     .sort(
@@ -64,7 +68,9 @@ export function rankCandidateHorses({ rider, horses, affinitiesByHorseId, takenH
  */
 export function simulateHorseAssignments({ course, enrollments, horses, affinities }) {
   const durationHours = durationHoursFromRange(course.startAt, course.endAt);
-  const takenHorseIds = new Set(enrollments.map((enrollment) => enrollment.horseId).filter(Boolean));
+  const takenHorseIds = new Set(
+    enrollments.map((enrollment) => enrollment.horseId).filter(Boolean)
+  );
   const assignments = [];
   const conflicts = [];
 

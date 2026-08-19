@@ -59,7 +59,8 @@ export async function listMyEnrollments(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function enroll(req, res) {
-  const force = req.user.role === ROLES.ADMIN && (req.body.force === true || req.query.force === true);
+  const force =
+    req.user.role === ROLES.ADMIN && (req.body.force === true || req.query.force === true);
   const enrollment = await courseService.enrollRider(req.user.id, req.params.id, req.body.riderId, {
     role: req.user.role,
     force,
@@ -92,7 +93,10 @@ export async function assignHorses(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function listHorseOptions(req, res) {
-  const options = await courseService.getHorseOverrideOptions(req.params.id, req.params.enrollmentId);
+  const options = await courseService.getHorseOverrideOptions(
+    req.params.id,
+    req.params.enrollmentId
+  );
   res.json({ options });
 }
 

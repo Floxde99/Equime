@@ -48,7 +48,13 @@ export function AdminPlanningPage() {
   const [status, setStatus] = useState('');
   const [createOpen, setCreateOpen] = useState(true);
 
-  const { data: events = [], isPending, isError, error, refetch } = useQuery({
+  const {
+    data: events = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
   });
@@ -106,7 +112,12 @@ export function AdminPlanningPage() {
         title="Planning"
         description="Semaine 7 h – 21 h. Le formulaire de création est sous le calendrier pour laisser la grille lisible."
         action={
-          <Button type="button" variant="secondary" loading={auditMutation.isPending} onClick={() => auditMutation.mutate()}>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={auditMutation.isPending}
+            onClick={() => auditMutation.mutate()}
+          >
             Lancer l&apos;audit compatibilité
           </Button>
         }
@@ -154,131 +165,135 @@ export function AdminPlanningPage() {
           className="border-t border-border-on-card p-5"
           onSubmit={handleCreate}
         >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <Field label="Titre" htmlFor="course-title">
-                <Input
-                  id="course-title"
-                  name="title"
-                  required
-                  autoComplete="off"
-                  disabled={busy}
-                  value={form.title}
-                  onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
-                />
-              </Field>
-              <Field label="Moniteur" htmlFor="course-instructor">
-                <Select
-                  id="course-instructor"
-                  name="instructorId"
-                  required
-                  disabled={busy}
-                  value={form.instructorId}
-                  onChange={(e) => setForm((c) => ({ ...c, instructorId: e.target.value }))}
-                  options={[
-                    { value: '', label: 'Choisir un moniteur' },
-                    ...instructors.map((i) => ({
-                      value: i.id,
-                      label: `${i.firstName} ${i.lastName}`,
-                    })),
-                  ]}
-                />
-              </Field>
-              <Field label="Lieu de cours" htmlFor="course-space">
-                <Select
-                  id="course-space"
-                  name="spaceId"
-                  required
-                  disabled={busy}
-                  value={form.spaceId}
-                  onChange={(e) => setForm((c) => ({ ...c, spaceId: e.target.value }))}
-                  options={[
-                    { value: '', label: 'Choisir un espace' },
-                    ...spaces
-                      .filter((s) => isRidingSpaceType(s.type))
-                      .map((s) => ({ value: s.id, label: s.name })),
-                  ]}
-                />
-              </Field>
-              <Field label="Capacité" htmlFor="course-capacity">
-                <Input
-                  id="course-capacity"
-                  name="capacity"
-                  type="number"
-                  min="1"
-                  required
-                  disabled={busy}
-                  value={form.capacity}
-                  onChange={(e) => setForm((c) => ({ ...c, capacity: Number(e.target.value || 0) }))}
-                />
-              </Field>
-              <Field label="Début" htmlFor="course-start" hint="Date et heure de la première séance">
-                <Input
-                  id="course-start"
-                  name="startAt"
-                  type="datetime-local"
-                  required
-                  disabled={busy}
-                  lang="fr"
-                  value={form.startAt}
-                  onChange={(e) => setForm((c) => ({ ...c, startAt: e.target.value }))}
-                />
-              </Field>
-              <Field label="Fin" htmlFor="course-end" hint="Date et heure de fin de la première séance">
-                <Input
-                  id="course-end"
-                  name="endAt"
-                  type="datetime-local"
-                  required
-                  disabled={busy}
-                  lang="fr"
-                  value={form.endAt}
-                  onChange={(e) => setForm((c) => ({ ...c, endAt: e.target.value }))}
-                />
-              </Field>
-              <Field label="Niveau min" htmlFor="course-min-level">
-                <Select
-                  id="course-min-level"
-                  name="minLevel"
-                  required
-                  disabled={busy}
-                  value={form.minLevel}
-                  onChange={(e) => setForm((c) => ({ ...c, minLevel: e.target.value }))}
-                  options={levelOptions}
-                />
-              </Field>
-              <Field label="Niveau max" htmlFor="course-max-level">
-                <Select
-                  id="course-max-level"
-                  name="maxLevel"
-                  required
-                  disabled={busy}
-                  value={form.maxLevel}
-                  onChange={(e) => setForm((c) => ({ ...c, maxLevel: e.target.value }))}
-                  options={levelOptions}
-                />
-              </Field>
-              <Field
-                label="Fin de récurrence"
-                htmlFor="course-recurrence-end"
-                hint="Optionnel. Si renseigné, le cours est répété chaque semaine jusqu’à cette date."
-                className="sm:col-span-2 xl:col-span-3"
-              >
-                <Input
-                  id="course-recurrence-end"
-                  name="recurrenceEndDate"
-                  type="datetime-local"
-                  disabled={busy}
-                  lang="fr"
-                  value={form.recurrenceEndDate}
-                  onChange={(e) => setForm((c) => ({ ...c, recurrenceEndDate: e.target.value }))}
-                />
-              </Field>
-            </div>
-            <div className="mt-6">
-              <Button type="submit" loading={busy}>
-                Créer le cours
-              </Button>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <Field label="Titre" htmlFor="course-title">
+              <Input
+                id="course-title"
+                name="title"
+                required
+                autoComplete="off"
+                disabled={busy}
+                value={form.title}
+                onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
+              />
+            </Field>
+            <Field label="Moniteur" htmlFor="course-instructor">
+              <Select
+                id="course-instructor"
+                name="instructorId"
+                required
+                disabled={busy}
+                value={form.instructorId}
+                onChange={(e) => setForm((c) => ({ ...c, instructorId: e.target.value }))}
+                options={[
+                  { value: '', label: 'Choisir un moniteur' },
+                  ...instructors.map((i) => ({
+                    value: i.id,
+                    label: `${i.firstName} ${i.lastName}`,
+                  })),
+                ]}
+              />
+            </Field>
+            <Field label="Lieu de cours" htmlFor="course-space">
+              <Select
+                id="course-space"
+                name="spaceId"
+                required
+                disabled={busy}
+                value={form.spaceId}
+                onChange={(e) => setForm((c) => ({ ...c, spaceId: e.target.value }))}
+                options={[
+                  { value: '', label: 'Choisir un espace' },
+                  ...spaces
+                    .filter((s) => isRidingSpaceType(s.type))
+                    .map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
+            </Field>
+            <Field label="Capacité" htmlFor="course-capacity">
+              <Input
+                id="course-capacity"
+                name="capacity"
+                type="number"
+                min="1"
+                required
+                disabled={busy}
+                value={form.capacity}
+                onChange={(e) => setForm((c) => ({ ...c, capacity: Number(e.target.value || 0) }))}
+              />
+            </Field>
+            <Field label="Début" htmlFor="course-start" hint="Date et heure de la première séance">
+              <Input
+                id="course-start"
+                name="startAt"
+                type="datetime-local"
+                required
+                disabled={busy}
+                lang="fr"
+                value={form.startAt}
+                onChange={(e) => setForm((c) => ({ ...c, startAt: e.target.value }))}
+              />
+            </Field>
+            <Field
+              label="Fin"
+              htmlFor="course-end"
+              hint="Date et heure de fin de la première séance"
+            >
+              <Input
+                id="course-end"
+                name="endAt"
+                type="datetime-local"
+                required
+                disabled={busy}
+                lang="fr"
+                value={form.endAt}
+                onChange={(e) => setForm((c) => ({ ...c, endAt: e.target.value }))}
+              />
+            </Field>
+            <Field label="Niveau min" htmlFor="course-min-level">
+              <Select
+                id="course-min-level"
+                name="minLevel"
+                required
+                disabled={busy}
+                value={form.minLevel}
+                onChange={(e) => setForm((c) => ({ ...c, minLevel: e.target.value }))}
+                options={levelOptions}
+              />
+            </Field>
+            <Field label="Niveau max" htmlFor="course-max-level">
+              <Select
+                id="course-max-level"
+                name="maxLevel"
+                required
+                disabled={busy}
+                value={form.maxLevel}
+                onChange={(e) => setForm((c) => ({ ...c, maxLevel: e.target.value }))}
+                options={levelOptions}
+              />
+            </Field>
+            <Field
+              label="Fin de récurrence"
+              htmlFor="course-recurrence-end"
+              hint="Optionnel. Si renseigné, le cours est répété chaque semaine jusqu’à cette date."
+              className="sm:col-span-2 xl:col-span-3"
+            >
+              <Input
+                id="course-recurrence-end"
+                name="recurrenceEndDate"
+                type="datetime-local"
+                disabled={busy}
+                lang="fr"
+                value={form.recurrenceEndDate}
+                onChange={(e) => setForm((c) => ({ ...c, recurrenceEndDate: e.target.value }))}
+              />
+            </Field>
+          </div>
+          <div className="mt-6">
+            <Button type="submit" loading={busy}>
+              Créer le cours
+            </Button>
+          </div>
         </form>
       </section>
 
@@ -286,10 +301,14 @@ export function AdminPlanningPage() {
         <Card title="Rapport d'audit">
           <ul className="space-y-3">
             {auditMutation.data.map((entry) => (
-              <li key={entry.courseId} className="rounded-xl border border-border-on-card bg-paper p-3">
+              <li
+                key={entry.courseId}
+                className="rounded-xl border border-border-on-card bg-paper p-3"
+              >
                 <p className="font-sans text-sm font-semibold text-text">{entry.courseTitle}</p>
                 <p className="font-sans text-sm text-muted">
-                  {entry.assignments.length} attribution(s) simulée(s) · {entry.conflicts.length} conflit(s)
+                  {entry.assignments.length} attribution(s) simulée(s) · {entry.conflicts.length}{' '}
+                  conflit(s)
                 </p>
                 {entry.conflicts.length > 0 ? (
                   <ul className="mt-2 space-y-1 font-sans text-xs text-warning">

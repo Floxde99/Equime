@@ -29,7 +29,13 @@ export function InstructorPlanningPage() {
   const [range, setRange] = useState(DEFAULT_RANGE);
   const [courseId, setCourseId] = useState('');
 
-  const { data: events = [], isPending, isError, error, refetch } = useQuery({
+  const {
+    data: events = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
   });
@@ -93,7 +99,11 @@ export function InstructorPlanningPage() {
             ]}
           />
           {courseId ? (
-            <Button type="button" loading={assignMutation.isPending} onClick={() => assignMutation.mutate(courseId)}>
+            <Button
+              type="button"
+              loading={assignMutation.isPending}
+              onClick={() => assignMutation.mutate(courseId)}
+            >
               Attribution automatique
             </Button>
           ) : null}
@@ -118,7 +128,9 @@ export function InstructorPlanningPage() {
                   key={enrollment.id}
                   courseId={courseId}
                   enrollment={enrollment}
-                  onOverride={(horseId) => overrideMutation.mutate({ enrollmentId: enrollment.id, horseId })}
+                  onOverride={(horseId) =>
+                    overrideMutation.mutate({ enrollmentId: enrollment.id, horseId })
+                  }
                 />
               ))}
             </ul>
@@ -162,7 +174,12 @@ function OverrideRow({ courseId, enrollment, onOverride }) {
               })),
             ]}
           />
-          <Button type="button" variant="secondary" onClick={() => onOverride(selectedHorseId)} disabled={!selectedHorseId}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onOverride(selectedHorseId)}
+            disabled={!selectedHorseId}
+          >
             Remplacer
           </Button>
         </div>

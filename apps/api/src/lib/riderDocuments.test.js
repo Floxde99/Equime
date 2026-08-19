@@ -10,15 +10,15 @@ const approved = {
 
 describe('isDocumentExpired', () => {
   it('considère une date antérieure à aujourd’hui comme expirée', () => {
-    expect(isDocumentExpired(new Date('2020-01-01T00:00:00.000Z'), new Date('2026-08-18T12:00:00.000Z'))).toBe(
-      true
-    );
+    expect(
+      isDocumentExpired(new Date('2020-01-01T00:00:00.000Z'), new Date('2026-08-18T12:00:00.000Z'))
+    ).toBe(true);
   });
 
   it('accepte une date d’expiration égale à aujourd’hui', () => {
-    expect(isDocumentExpired(new Date('2026-08-18T00:00:00.000Z'), new Date('2026-08-18T23:00:00.000Z'))).toBe(
-      false
-    );
+    expect(
+      isDocumentExpired(new Date('2026-08-18T00:00:00.000Z'), new Date('2026-08-18T23:00:00.000Z'))
+    ).toBe(false);
   });
 
   it('ignore une date absente', () => {

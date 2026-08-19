@@ -13,7 +13,9 @@ export function Card({ children, className, title }) {
         className
       )}
     >
-      {title ? <h3 className="mb-4 font-sans text-lg font-semibold text-on-card">{title}</h3> : null}
+      {title ? (
+        <h3 className="mb-4 font-sans text-lg font-semibold text-on-card">{title}</h3>
+      ) : null}
       {children}
     </section>
   );

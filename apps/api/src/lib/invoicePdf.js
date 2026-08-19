@@ -3,9 +3,8 @@
  * Génération du PDF de facture (PDFKit, A4).
  * Le helper est pur : pas d’accès Prisma ni `req`/`res`.
  */
-import PDFDocument from 'pdfkit';
-
 import { INVOICE_STATUS_LABELS } from '@equime/shared';
+import PDFDocument from 'pdfkit';
 
 const PAGE_WIDTH = 595.28;
 const MARGIN = 48;
@@ -83,31 +82,56 @@ export function buildInvoicePdf(invoice, issuer = {}) {
     const items = invoice.items ?? [];
 
     doc.rect(0, 0, PAGE_WIDTH, 72).fill(FOREST);
-    doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(20).text(clubName.toUpperCase(), MARGIN, 22, {
-      width: 280,
-    });
-    doc.font('Helvetica').fontSize(10).text('Facture', PAGE_WIDTH - MARGIN - 180, 26, {
-      width: 180,
-      align: 'right',
-    });
-    doc.font('Helvetica-Bold').fontSize(12).text(invoice.number, PAGE_WIDTH - MARGIN - 180, 42, {
-      width: 180,
-      align: 'right',
-    });
+    doc
+      .fillColor('#ffffff')
+      .font('Helvetica-Bold')
+      .fontSize(20)
+      .text(clubName.toUpperCase(), MARGIN, 22, {
+        width: 280,
+      });
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .text('Facture', PAGE_WIDTH - MARGIN - 180, 26, {
+        width: 180,
+        align: 'right',
+      });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text(invoice.number, PAGE_WIDTH - MARGIN - 180, 42, {
+        width: 180,
+        align: 'right',
+      });
 
     let y = 96;
     doc.fillColor(MUTED).font('Helvetica').fontSize(8).text('ÉMETTEUR', MARGIN, y);
-    doc.fillColor(INK).font('Helvetica-Bold').fontSize(11).text(clubName, MARGIN, y + 12);
+    doc
+      .fillColor(INK)
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .text(clubName, MARGIN, y + 12);
     const issuerLines = [issuer.address, issuer.phone, issuer.email].filter(Boolean);
-    doc.font('Helvetica').fontSize(9).fillColor(INK).text(issuerLines.join('\n') || 'Centre équestre', MARGIN, y + 28, {
-      width: 240,
-      lineGap: 2,
-    });
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor(INK)
+      .text(issuerLines.join('\n') || 'Centre équestre', MARGIN, y + 28, {
+        width: 240,
+        lineGap: 2,
+      });
 
     doc.fillColor(MUTED).fontSize(8).text('DESTINATAIRE', 320, y);
-    doc.fillColor(INK).font('Helvetica-Bold').fontSize(11).text(clientName, 320, y + 12, { width: 227 });
+    doc
+      .fillColor(INK)
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .text(clientName, 320, y + 12, { width: 227 });
     if (user?.email) {
-      doc.font('Helvetica').fontSize(9).text(user.email, 320, y + 28, { width: 227 });
+      doc
+        .font('Helvetica')
+        .fontSize(9)
+        .text(user.email, 320, y + 28, { width: 227 });
     }
 
     y = 186;
@@ -120,8 +144,16 @@ export function buildInvoicePdf(invoice, issuer = {}) {
     ];
     meta.forEach(([label, value], index) => {
       const x = MARGIN + 12 + index * 120;
-      doc.fillColor(MUTED).font('Helvetica').fontSize(8).text(label, x, y + 10, { width: 110 });
-      doc.fillColor(INK).font('Helvetica-Bold').fontSize(9).text(value, x, y + 24, { width: 110 });
+      doc
+        .fillColor(MUTED)
+        .font('Helvetica')
+        .fontSize(8)
+        .text(label, x, y + 10, { width: 110 });
+      doc
+        .fillColor(INK)
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .text(value, x, y + 24, { width: 110 });
     });
 
     y = 258;
@@ -153,7 +185,12 @@ export function buildInvoicePdf(invoice, issuer = {}) {
       doc.text(formatCents(item.unitCents), colUnit, y, { width: 70, align: 'right' });
       doc.text(formatCents(item.totalCents), colTotal, y, { width: 70, align: 'right' });
       y += rowHeight + 8;
-      doc.strokeColor(BORDER).lineWidth(0.5).moveTo(MARGIN, y - 4).lineTo(PAGE_WIDTH - MARGIN, y - 4).stroke();
+      doc
+        .strokeColor(BORDER)
+        .lineWidth(0.5)
+        .moveTo(MARGIN, y - 4)
+        .lineTo(PAGE_WIDTH - MARGIN, y - 4)
+        .stroke();
     }
 
     if (y > 700) {
@@ -166,12 +203,16 @@ export function buildInvoicePdf(invoice, issuer = {}) {
     doc.text('Total TTC', colUnit, y, { width: 70, align: 'right' });
     doc.text(formatCents(invoice.totalCents), colTotal, y, { width: 70, align: 'right' });
 
-    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(
-      'Document généré par Equime. Paiement simulé en recette (aucun prélèvement bancaire).',
-      MARGIN,
-      780,
-      { width: tableWidth, align: 'center' }
-    );
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor(MUTED)
+      .text(
+        'Document généré par Equime. Paiement simulé en recette (aucun prélèvement bancaire).',
+        MARGIN,
+        780,
+        { width: tableWidth, align: 'center' }
+      );
 
     doc.end();
   });

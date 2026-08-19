@@ -74,9 +74,7 @@ export async function getDashboardKpis() {
   const courseOccupancyPercent =
     totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
 
-  const horsesInLoadAlert = horses.filter(
-    (h) => h.weeklyLoadHours >= h.alertThresholdHours
-  ).length;
+  const horsesInLoadAlert = horses.filter((h) => h.weeklyLoadHours >= h.alertThresholdHours).length;
 
   return {
     courseOccupancyPercent,

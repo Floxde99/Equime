@@ -28,7 +28,10 @@ test('un client peut ajouter un cavalier, réserver un cours et consulter le pla
   await expect(page.getByRole('heading', { name: 'Planning' })).toBeVisible();
 
   await selectOptionByLabel(page, 'Cavalier', /Emma Moreau/);
-  const bookingCard = page.locator('li').filter({ has: page.getByRole('button', { name: 'Réserver' }) }).first();
+  const bookingCard = page
+    .locator('li')
+    .filter({ has: page.getByRole('button', { name: 'Réserver' }) })
+    .first();
   await expect(bookingCard).toBeVisible();
   const courseTitle = (await bookingCard.locator('p').first().textContent())?.trim();
   await bookingCard.getByRole('button', { name: 'Réserver' }).click();

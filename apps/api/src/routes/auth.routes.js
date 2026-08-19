@@ -48,12 +48,7 @@ router.patch('/me', requireAuth, validate(updateMeSchema), authController.update
 
 router.get('/me/export', requireAuth, authController.exportData);
 
-router.delete(
-  '/me',
-  requireAuth,
-  validate(deleteAccountSchema),
-  authController.deleteAccount
-);
+router.delete('/me', requireAuth, validate(deleteAccountSchema), authController.deleteAccount);
 
 router.post(
   '/forgot-password',

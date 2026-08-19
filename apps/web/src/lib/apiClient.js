@@ -134,7 +134,10 @@ export async function apiFetchBlob(path, { retry = true } = {}) {
   });
 
   if (res.status === 401) {
-    const data = await res.clone().json().catch(() => ({}));
+    const data = await res
+      .clone()
+      .json()
+      .catch(() => ({}));
     if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
       const refreshed = await refreshOnce();
       if (refreshed) return apiFetchBlob(path, { retry: false });

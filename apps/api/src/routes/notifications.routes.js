@@ -22,7 +22,11 @@ router.put(
   notificationController.updatePreference
 );
 router.get('/', notificationController.listNotifications);
-router.post('/:id/read', validate(notificationIdParamSchema, 'params'), notificationController.markRead);
+router.post(
+  '/:id/read',
+  validate(notificationIdParamSchema, 'params'),
+  notificationController.markRead
+);
 router.post('/read-all', notificationController.markAllRead);
 
 export default router;

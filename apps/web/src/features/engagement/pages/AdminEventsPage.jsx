@@ -10,7 +10,14 @@ import { Input } from '@/components/ui/input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { createEvent, deleteEvent, fetchAdminEvents, updateEvent, assignEventHorses, cancelEventRegistration } from '@/features/engagement/api.js';
+import {
+  createEvent,
+  deleteEvent,
+  fetchAdminEvents,
+  updateEvent,
+  assignEventHorses,
+  cancelEventRegistration,
+} from '@/features/engagement/api.js';
 
 const EVENT_TYPES = [
   { value: 'stage', label: 'Stage' },
@@ -122,19 +129,21 @@ export function AdminEventsPage() {
       />
 
       {status ? (
-        <Alert variant={
-          status.includes('créé') ||
-          status.includes('mis à jour') ||
-          status.includes('attribué') ||
-          status.includes('annulée')
-            ? 'success'
-            : 'error'
-        }>
+        <Alert
+          variant={
+            status.includes('créé') ||
+            status.includes('mis à jour') ||
+            status.includes('attribué') ||
+            status.includes('annulée')
+              ? 'success'
+              : 'error'
+          }
+        >
           {status}
         </Alert>
       ) : null}
 
-      <Card title={editingId ? 'Modifier l\'événement' : 'Créer un événement'}>
+      <Card title={editingId ? "Modifier l'événement" : 'Créer un événement'}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Titre" htmlFor="event-title">
             <Input
@@ -194,14 +203,14 @@ export function AdminEventsPage() {
               onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))}
             />
           </Field>
-            <Field label="Description" htmlFor="event-description" className="md:col-span-2">
-              <Textarea
-                id="event-description"
-                rows={4}
-                value={form.description}
-                onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-              />
-            </Field>
+          <Field label="Description" htmlFor="event-description" className="md:col-span-2">
+            <Textarea
+              id="event-description"
+              rows={4}
+              value={form.description}
+              onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+            />
+          </Field>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
@@ -229,12 +238,16 @@ export function AdminEventsPage() {
       <Card title="Événements planifiés">
         <ul className="space-y-3">
           {events.map((event) => (
-            <li key={event.id} className="space-y-3 rounded-xl border border-border-on-card bg-paper p-4">
+            <li
+              key={event.id}
+              className="space-y-3 rounded-xl border border-border-on-card bg-paper p-4"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-sans text-sm font-semibold text-text">{event.title}</p>
                   <p className="font-sans text-sm text-muted">
-                    {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/{event.capacity}
+                    {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/
+                    {event.capacity}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -265,7 +278,10 @@ export function AdminEventsPage() {
               {event.registrations?.length ? (
                 <ul className="space-y-2 border-t border-border pt-3">
                   {event.registrations.map((registration) => (
-                    <li key={registration.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <li
+                      key={registration.id}
+                      className="flex flex-wrap items-center justify-between gap-2"
+                    >
                       <p className="font-sans text-sm text-on-card">
                         {registration.rider.firstName} {registration.rider.lastName}
                         {' — '}

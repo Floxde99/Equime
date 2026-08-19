@@ -3,7 +3,11 @@
  * Pas de CDN : mapping déterministe pour bandes éditoriales (vitrine, missions, stages).
  */
 
-const MISSION_PHOTOS = ['/images/benevolat-pansage.webp', '/images/benevolat-balade.webp', '/images/experience-ecuries.webp'];
+const MISSION_PHOTOS = [
+  '/images/benevolat-pansage.webp',
+  '/images/benevolat-balade.webp',
+  '/images/experience-ecuries.webp',
+];
 
 const EVENT_PHOTOS = [
   '/images/stage-hero.webp',
@@ -16,7 +20,8 @@ const EVENT_PHOTOS = [
 function pick(list, seed) {
   let hash = 0;
   const value = String(seed ?? '');
-  for (let i = 0; i < value.length; i += 1) hash = (hash + value.charCodeAt(i) * (i + 1)) % list.length;
+  for (let i = 0; i < value.length; i += 1)
+    hash = (hash + value.charCodeAt(i) * (i + 1)) % list.length;
   return list[hash];
 }
 

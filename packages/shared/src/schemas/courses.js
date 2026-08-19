@@ -29,7 +29,12 @@ export const compatibilityAuditSchema = z.object({});
 
 const courseBodySchema = z.object({
   title: z.string().trim().min(1, 'Le titre est requis').max(120),
-  description: z.string().trim().max(2000).optional().or(z.literal('').transform(() => undefined)),
+  description: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   instructorId: z.string().min(1),
   spaceId: z.string().min(1),
   startAt: z.coerce.date(),

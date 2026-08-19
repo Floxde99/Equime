@@ -42,9 +42,7 @@ const DOC_VARIANT = {
 
 /** @param {string} status */
 function docBadge(status) {
-  return (
-    <Badge variant={DOC_VARIANT[status] ?? 'default'}>{DOCUMENT_STATUS_LABELS[status]}</Badge>
-  );
+  return <Badge variant={DOC_VARIANT[status] ?? 'default'}>{DOCUMENT_STATUS_LABELS[status]}</Badge>;
 }
 
 /** CRUD cavaliers famille + documents + affinités (US-2.1 → 2.3). */
@@ -53,7 +51,13 @@ export function RidersPage() {
   const [editingId, setEditingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
 
-  const { data: riders = [], isPending, isError, error, refetch } = useQuery({
+  const {
+    data: riders = [],
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['riders'],
     queryFn: fetchRiders,
   });
@@ -130,14 +134,22 @@ export function RidersPage() {
           onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Prénom" htmlFor="firstName" error={form.formState.errors.firstName?.message}>
+            <Field
+              label="Prénom"
+              htmlFor="firstName"
+              error={form.formState.errors.firstName?.message}
+            >
               <Input id="firstName" {...form.register('firstName')} />
             </Field>
             <Field label="Nom" htmlFor="lastName" error={form.formState.errors.lastName?.message}>
               <Input id="lastName" {...form.register('lastName')} />
             </Field>
           </div>
-          <Field label="Date de naissance" htmlFor="birthdate" error={form.formState.errors.birthdate?.message}>
+          <Field
+            label="Date de naissance"
+            htmlFor="birthdate"
+            error={form.formState.errors.birthdate?.message}
+          >
             <Input id="birthdate" type="date" {...form.register('birthdate')} />
           </Field>
           <Select
@@ -151,7 +163,14 @@ export function RidersPage() {
               {editingId ? 'Enregistrer' : 'Ajouter'}
             </Button>
             {editingId ? (
-              <Button type="button" variant="ghost" onClick={() => { setEditingId(null); form.reset(); }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(null);
+                  form.reset();
+                }}
+              >
                 Annuler
               </Button>
             ) : null}
@@ -162,9 +181,7 @@ export function RidersPage() {
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title={
-          pendingDelete
-            ? `Supprimer ${pendingDelete.firstName} ${pendingDelete.lastName} ?`
-            : ''
+          pendingDelete ? `Supprimer ${pendingDelete.firstName} ${pendingDelete.lastName} ?` : ''
         }
         confirmLabel="Supprimer"
         loading={deleteMutation.isPending}
@@ -222,16 +239,22 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <span className="font-sans text-xs text-muted">Certificat :</span> {docBadge(rider.medicalCertificateStatus)}
+        <span className="font-sans text-xs text-muted">Certificat :</span>{' '}
+        {docBadge(rider.medicalCertificateStatus)}
         {rider.medicalCertificateExpiresAt ? (
           <span className="font-sans text-xs text-muted">
-            (valide jusqu’au {new Date(rider.medicalCertificateExpiresAt).toLocaleDateString('fr-FR')})
+            (valide jusqu’au{' '}
+            {new Date(rider.medicalCertificateExpiresAt).toLocaleDateString('fr-FR')})
           </span>
         ) : null}
-        {rider.medicalCertificateStatus === 'rejected' && rider.medicalCertificateRejectionReason ? (
-          <span className="font-sans text-xs text-danger">({rider.medicalCertificateRejectionReason})</span>
+        {rider.medicalCertificateStatus === 'rejected' &&
+        rider.medicalCertificateRejectionReason ? (
+          <span className="font-sans text-xs text-danger">
+            ({rider.medicalCertificateRejectionReason})
+          </span>
         ) : null}
-        <span className="font-sans text-xs text-muted">Licence :</span> {docBadge(rider.licenseStatus)}
+        <span className="font-sans text-xs text-muted">Licence :</span>{' '}
+        {docBadge(rider.licenseStatus)}
         {rider.licenseExpiresAt ? (
           <span className="font-sans text-xs text-muted">
             (valide jusqu’au {new Date(rider.licenseExpiresAt).toLocaleDateString('fr-FR')})
@@ -278,26 +301,29 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
         <div className="flex flex-wrap gap-2">
           {['medical_certificate', 'license'].map((docType) => {
             const blocked = docType === 'medical_certificate' && !medicalConsent;
-            const expiresAt = docType === 'medical_certificate' ? medicalExpiresAt : licenseExpiresAt;
+            const expiresAt =
+              docType === 'medical_certificate' ? medicalExpiresAt : licenseExpiresAt;
             return (
-            <label
-              key={docType}
-              className={`inline-flex h-11 items-center rounded-lg border border-border-on-card px-4 font-sans text-sm ${
-                blocked || !expiresAt ? 'cursor-not-allowed opacity-50' : 'cursor-pointer text-muted-on-card hover:bg-border-on-card/40'
-              }`}
-            >
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="sr-only"
-                disabled={blocked || !expiresAt}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) uploadMutation.mutate({ docType, file, expiresAt });
-                }}
-              />
-              Téléverser {docType === 'medical_certificate' ? 'certificat' : 'licence'}
-            </label>
+              <label
+                key={docType}
+                className={`inline-flex h-11 items-center rounded-lg border border-border-on-card px-4 font-sans text-sm ${
+                  blocked || !expiresAt
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'cursor-pointer text-muted-on-card hover:bg-border-on-card/40'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="sr-only"
+                  disabled={blocked || !expiresAt}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadMutation.mutate({ docType, file, expiresAt });
+                  }}
+                />
+                Téléverser {docType === 'medical_certificate' ? 'certificat' : 'licence'}
+              </label>
             );
           })}
         </div>

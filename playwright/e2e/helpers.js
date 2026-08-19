@@ -35,14 +35,17 @@ export async function selectOptionByLabel(scope, label, optionName) {
   const select = scope.getByLabel(label);
   await expect(select).toBeVisible({ timeout: 15_000 });
   const matcher = (text) =>
-    typeof optionName === "string" ? text === optionName : optionName.test(text);
+    typeof optionName === 'string' ? text === optionName : optionName.test(text);
   await expect
-    .poll(async () => {
-      const options = await select.locator("option").allTextContents();
-      return options.find(matcher) ?? null;
-    }, { timeout: 15_000 })
+    .poll(
+      async () => {
+        const options = await select.locator('option').allTextContents();
+        return options.find(matcher) ?? null;
+      },
+      { timeout: 15_000 }
+    )
     .not.toBeNull();
-  const options = await select.locator("option").allTextContents();
+  const options = await select.locator('option').allTextContents();
   const match = options.find(matcher);
   if (!match) {
     throw new Error(`Option introuvable pour ${label}`);
@@ -57,11 +60,13 @@ export async function selectOptionByLabel(scope, label, optionName) {
  */
 export async function selectLastNonEmptyOption(scope, label) {
   const select = scope.getByLabel(label);
-  const options = await select.locator('option').evaluateAll((nodes) =>
-    nodes
-      .map((node) => ({ value: node.value, label: node.textContent?.trim() ?? '' }))
-      .filter((option) => option.value)
-  );
+  const options = await select
+    .locator('option')
+    .evaluateAll((nodes) =>
+      nodes
+        .map((node) => ({ value: node.value, label: node.textContent?.trim() ?? '' }))
+        .filter((option) => option.value)
+    );
   const last = options.at(-1);
   if (!last) {
     throw new Error(`Aucune option disponible pour ${label}`);

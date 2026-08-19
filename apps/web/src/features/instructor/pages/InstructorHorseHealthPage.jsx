@@ -22,7 +22,12 @@ import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { fetchHealthLogs, fetchHorse } from '@/features/admin/api.js';
 import { filterHealthLogs, formatHealthLogDate, horseLoadPercent } from '@/lib/horseDirectory.js';
 
-const HORSE_VARIANT = { fit: 'success', rest: 'warning', unavailable: 'default', injured: 'danger' };
+const HORSE_VARIANT = {
+  fit: 'success',
+  rest: 'warning',
+  unavailable: 'default',
+  injured: 'danger',
+};
 
 /** Fiche cheval lecture seule pour le moniteur (US-3.2). */
 export function InstructorHorseHealthPage() {
@@ -72,7 +77,11 @@ export function InstructorHorseHealthPage() {
               icon={<HorseIcon className="size-10" />}
               title="Cheval introuvable."
               action={
-                <Button type="button" variant="secondary" onClick={() => navigate('/moniteur/sante')}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => navigate('/moniteur/sante')}
+                >
                   Retour à l’annuaire
                 </Button>
               }
@@ -85,7 +94,9 @@ export function InstructorHorseHealthPage() {
               title={horse.name}
               description="Consultation de la fiche. La saisie des soins est réservée à l’administration."
               action={
-                <Badge variant={HORSE_VARIANT[horse.status]}>{HORSE_STATUS_LABELS[horse.status]}</Badge>
+                <Badge variant={HORSE_VARIANT[horse.status]}>
+                  {HORSE_STATUS_LABELS[horse.status]}
+                </Badge>
               }
             />
 
@@ -106,7 +117,9 @@ export function InstructorHorseHealthPage() {
                       <dt className="font-sans text-xs font-semibold uppercase tracking-wide text-muted-on-card">
                         Année de naissance
                       </dt>
-                      <dd className="mt-1 font-sans text-sm text-on-card">{horse.birthYear || '—'}</dd>
+                      <dd className="mt-1 font-sans text-sm text-on-card">
+                        {horse.birthYear || '—'}
+                      </dd>
                     </div>
                     <div>
                       <dt className="font-sans text-xs font-semibold uppercase tracking-wide text-muted-on-card">
@@ -121,8 +134,14 @@ export function InstructorHorseHealthPage() {
                         Charge hebdomadaire
                       </dt>
                       <dd className="mt-2">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-paper" aria-hidden="true">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${load}%` }} />
+                        <div
+                          className="h-1.5 overflow-hidden rounded-full bg-paper"
+                          aria-hidden="true"
+                        >
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${load}%` }}
+                          />
                         </div>
                         <p className="mt-2 font-sans text-sm text-muted-on-card">
                           {horse.weeklyLoadHours}h / {horse.maxWeeklyLoadHours}h
@@ -170,11 +189,16 @@ export function InstructorHorseHealthPage() {
                         ]}
                       />
                       {visibleLogs.length === 0 ? (
-                        <p className="font-sans text-sm text-muted-on-card">Aucune entrée de ce type.</p>
+                        <p className="font-sans text-sm text-muted-on-card">
+                          Aucune entrée de ce type.
+                        </p>
                       ) : (
                         <ol className="space-y-2">
                           {visibleLogs.map((log) => (
-                            <li key={log.id} className="rounded-lg border border-border-on-card bg-paper p-3">
+                            <li
+                              key={log.id}
+                              className="rounded-lg border border-border-on-card bg-paper p-3"
+                            >
                               <div className="flex flex-wrap items-baseline justify-between gap-2">
                                 <p className="font-sans text-sm font-semibold text-on-card">
                                   {HEALTH_LOG_TYPE_LABELS[log.type] ?? log.type}
@@ -183,7 +207,9 @@ export function InstructorHorseHealthPage() {
                                   {formatHealthLogDate(log.occurredAt)}
                                 </p>
                               </div>
-                              <p className="mt-1 font-sans text-sm text-muted-on-card">{log.notes}</p>
+                              <p className="mt-1 font-sans text-sm text-muted-on-card">
+                                {log.notes}
+                              </p>
                             </li>
                           ))}
                         </ol>

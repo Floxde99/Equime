@@ -58,7 +58,7 @@ describe('scoreRiderHorse', () => {
 });
 
 describe('rankCandidateHorses', () => {
-  it("écarte les chevaux non éligibles car surchargés", () => {
+  it('écarte les chevaux non éligibles car surchargés', () => {
     const ranked = rankCandidateHorses({
       rider,
       horses: [

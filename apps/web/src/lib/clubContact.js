@@ -48,7 +48,10 @@ export function readClubContact(env) {
     /** Licence FFE en centimes, ou `null` si non configurée. */
     licenseCents: parseOptionalCents(parsed.VITE_CLUB_LICENSE_CENTS, 'VITE_CLUB_LICENSE_CENTS'),
     /** Cotisation club en centimes, ou `null` si non configurée. */
-    cotisationCents: parseOptionalCents(parsed.VITE_CLUB_COTISATION_CENTS, 'VITE_CLUB_COTISATION_CENTS'),
+    cotisationCents: parseOptionalCents(
+      parsed.VITE_CLUB_COTISATION_CENTS,
+      'VITE_CLUB_COTISATION_CENTS'
+    ),
   };
 }
 

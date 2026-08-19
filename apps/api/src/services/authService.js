@@ -14,7 +14,13 @@ import { hashPassword, verifyPassword } from '../lib/passwords.js';
 import { prisma } from '../lib/prisma.js';
 import { deleteStoredFile } from '../lib/uploads.js';
 
-import { blacklistUser, hashToken, issueTokenPair, revokeAllUserTokens, blacklistAccessToken } from './tokenService.js';
+import {
+  blacklistUser,
+  hashToken,
+  issueTokenPair,
+  revokeAllUserTokens,
+  blacklistAccessToken,
+} from './tokenService.js';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 h
 
@@ -214,7 +220,10 @@ export async function getMe(userId) {
  * @returns {Promise<PublicUser>}
  */
 export async function updateMe(userId, input) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, anonymizedAt: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, anonymizedAt: true },
+  });
   if (!user) throw AppError.unauthorized();
   if (user.anonymizedAt) throw AppError.forbidden('Ce compte a été supprimé');
 
@@ -327,7 +336,9 @@ export async function anonymizeAccount(userId, accessJti) {
   if (!user) throw AppError.unauthorized();
   if (user.anonymizedAt) throw AppError.conflict('Compte déjà supprimé');
   if (user.role !== 'client') {
-    throw AppError.forbidden('Seuls les comptes clients peuvent être supprimés depuis l\'espace client');
+    throw AppError.forbidden(
+      "Seuls les comptes clients peuvent être supprimés depuis l'espace client"
+    );
   }
 
   for (const rider of user.family?.riders ?? []) {
@@ -439,7 +450,7 @@ export async function exportPortableData(userId) {
   });
   if (!user) throw AppError.unauthorized();
   if (user.role !== ROLES.CLIENT) {
-    throw AppError.forbidden('L\'export portabilité est réservé aux comptes clients');
+    throw AppError.forbidden("L'export portabilité est réservé aux comptes clients");
   }
 
   return {

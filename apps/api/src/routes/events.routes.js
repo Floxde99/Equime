@@ -22,7 +22,12 @@ router.get('/', eventController.listPublicEvents);
 router.use(requireAuth);
 
 router.get('/admin', requireRole(ROLES.ADMIN), eventController.listAdminEvents);
-router.post('/', requireRole(ROLES.ADMIN), validate(createEventSchema), eventController.createEvent);
+router.post(
+  '/',
+  requireRole(ROLES.ADMIN),
+  validate(createEventSchema),
+  eventController.createEvent
+);
 router.patch(
   '/:id',
   requireRole(ROLES.ADMIN),

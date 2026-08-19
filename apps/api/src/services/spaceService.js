@@ -67,7 +67,8 @@ export async function updateSpace(spaceId, input) {
 export async function deleteSpace(spaceId) {
   await getSpace(spaceId);
   const courses = await prisma.course.count({ where: { spaceId, status: { not: 'cancelled' } } });
-  if (courses > 0) throw AppError.conflict('Impossible de supprimer un espace utilisé par des cours');
+  if (courses > 0)
+    throw AppError.conflict('Impossible de supprimer un espace utilisé par des cours');
   await prisma.space.delete({ where: { id: spaceId } });
 }
 

@@ -10,8 +10,7 @@ export function formatCourseHours(course) {
     day: 'numeric',
     month: 'short',
   });
-  const time = (date) =>
-    date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const time = (date) => date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   return `${day} · ${time(start)} – ${time(end)}`;
 }
 
@@ -47,5 +46,7 @@ function normalizeSessionsCopy(text) {
 export function isRedundantPlanDescription(description, sessionsPerWeek) {
   const trimmed = String(description ?? '').trim();
   if (!trimmed) return true;
-  return normalizeSessionsCopy(trimmed) === normalizeSessionsCopy(formatSessionsPerWeek(sessionsPerWeek));
+  return (
+    normalizeSessionsCopy(trimmed) === normalizeSessionsCopy(formatSessionsPerWeek(sessionsPerWeek))
+  );
 }

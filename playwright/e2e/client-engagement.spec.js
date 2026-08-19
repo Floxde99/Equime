@@ -2,9 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { clickSidebarLink, loginAs, selectOptionByLabel } from './helpers.js';
 
-test('un client peut consulter les stages et inscrire Emma au stage vacances', async ({
-  page,
-}) => {
+test('un client peut consulter les stages et inscrire Emma au stage vacances', async ({ page }) => {
   await loginAs(page, {
     email: 'lina@equime.local',
     password: 'Equime!2026',

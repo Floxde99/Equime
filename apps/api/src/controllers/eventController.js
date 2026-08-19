@@ -41,11 +41,17 @@ export async function listRegistrations(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function registerRider(req, res) {
-  const force = req.user.role === ROLES.ADMIN && (req.body.force === true || req.query.force === true);
-  const registration = await eventService.registerRider(req.user.id, req.params.id, req.body.riderId, {
-    role: req.user.role,
-    force,
-  });
+  const force =
+    req.user.role === ROLES.ADMIN && (req.body.force === true || req.query.force === true);
+  const registration = await eventService.registerRider(
+    req.user.id,
+    req.params.id,
+    req.body.riderId,
+    {
+      role: req.user.role,
+      force,
+    }
+  );
   res.status(201).json({ registration });
 }
 

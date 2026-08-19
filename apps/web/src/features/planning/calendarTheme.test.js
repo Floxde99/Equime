@@ -31,7 +31,10 @@ describe('courseEventColors', () => {
 
 describe('courseEventClassName', () => {
   it('suffixe la classe par le statut', () => {
-    expect(courseEventClassName('ongoing')).toEqual(['equime-fc-event', 'equime-fc-event--ongoing']);
+    expect(courseEventClassName('ongoing')).toEqual([
+      'equime-fc-event',
+      'equime-fc-event--ongoing',
+    ]);
   });
 
   it('retombe sur scheduled', () => {

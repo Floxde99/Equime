@@ -25,7 +25,9 @@ afterAll(async () => {
 
 describe('POST /api/v1/public/newsletter', () => {
   it('refuse un email invalide (400)', async () => {
-    const res = await request(app).post('/api/v1/public/newsletter').send({ email: 'pas-un-email' });
+    const res = await request(app)
+      .post('/api/v1/public/newsletter')
+      .send({ email: 'pas-un-email' });
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('BAD_REQUEST');
@@ -54,7 +56,9 @@ describe('POST /api/v1/public/newsletter', () => {
 
   it('est idempotente sans second enregistrement', async () => {
     await request(app).post('/api/v1/public/newsletter').send({ email: 'deja@club.fr' });
-    const second = await request(app).post('/api/v1/public/newsletter').send({ email: 'deja@club.fr' });
+    const second = await request(app)
+      .post('/api/v1/public/newsletter')
+      .send({ email: 'deja@club.fr' });
 
     expect(second.status).toBe(200);
     expect(await prisma.newsletterSubscription.count()).toBe(1);

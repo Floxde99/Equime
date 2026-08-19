@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
-import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 import {
   createConversation,
   fetchConversationMessages,
@@ -18,6 +17,7 @@ import {
   markConversationRead,
   sendMessage,
 } from '@/features/engagement/api.js';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 export function MessagesPage() {
   const eyebrow = useSpaceEyebrow();
@@ -143,10 +143,14 @@ export function MessagesPage() {
                 }`}
               >
                 <p className="font-sans text-sm font-semibold text-text">
-                  {conversation.contacts.map((contact) => `${contact.firstName} ${contact.lastName}`).join(', ')}
+                  {conversation.contacts
+                    .map((contact) => `${contact.firstName} ${contact.lastName}`)
+                    .join(', ')}
                 </p>
                 <p className="font-sans text-xs text-muted">
-                  {conversation.subject || conversation.lastMessage?.body || 'Conversation sans sujet'}
+                  {conversation.subject ||
+                    conversation.lastMessage?.body ||
+                    'Conversation sans sujet'}
                 </p>
                 {conversation.hasUnread ? (
                   <p className="mt-1 font-sans text-xs text-info">Nouveaux messages</p>
@@ -179,11 +183,16 @@ export function MessagesPage() {
 
               <div className="space-y-3">
                 {messages.map((message) => (
-                  <div key={message.id} className="rounded-xl border border-border-on-card bg-paper p-3">
+                  <div
+                    key={message.id}
+                    className="rounded-xl border border-border-on-card bg-paper p-3"
+                  >
                     <p className="font-sans text-xs text-muted">
                       {message.sender.firstName} {message.sender.lastName}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap font-sans text-sm text-text">{message.body}</p>
+                    <p className="mt-1 whitespace-pre-wrap font-sans text-sm text-text">
+                      {message.body}
+                    </p>
                   </div>
                 ))}
               </div>

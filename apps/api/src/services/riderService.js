@@ -29,7 +29,11 @@ const RIDER_SELECT = {
  */
 export async function listFamilyRiders(userId) {
   const familyId = await getFamilyIdForUser(userId);
-  return prisma.rider.findMany({ where: { familyId }, select: RIDER_SELECT, orderBy: { firstName: 'asc' } });
+  return prisma.rider.findMany({
+    where: { familyId },
+    select: RIDER_SELECT,
+    orderBy: { firstName: 'asc' },
+  });
 }
 
 /**
@@ -213,7 +217,14 @@ export async function listPendingDocuments() {
  * @param {string} [adminId] Pour journal d'audit RGPD
  * @param {Date} [expiresAt] Correction de la date de validité (Excel 7.2)
  */
-export async function reviewRiderDocument(riderId, docType, decision, rejectionReason, adminId, expiresAt) {
+export async function reviewRiderDocument(
+  riderId,
+  docType,
+  decision,
+  rejectionReason,
+  adminId,
+  expiresAt
+) {
   const rider = await prisma.rider.findUnique({ where: { id: riderId } });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
 
@@ -227,7 +238,7 @@ export async function reviewRiderDocument(riderId, docType, decision, rejectionR
     docType === 'medical_certificate' ? 'medicalCertificateExpiresAt' : 'licenseExpiresAt';
 
   if (rider[statusField] !== 'pending') {
-    throw AppError.conflict('Ce document n\'est pas en attente de validation');
+    throw AppError.conflict("Ce document n'est pas en attente de validation");
   }
 
   if (decision === 'rejected' && !rejectionReason?.trim()) {

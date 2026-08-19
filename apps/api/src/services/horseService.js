@@ -59,7 +59,8 @@ export async function updateHorse(horseId, input) {
 export async function deleteHorse(horseId) {
   const horse = await getHorse(horseId);
   const enrollments = await prisma.courseEnrollment.count({ where: { horseId } });
-  if (enrollments > 0) throw AppError.conflict('Impossible de supprimer un cheval attribué à des cours');
+  if (enrollments > 0)
+    throw AppError.conflict('Impossible de supprimer un cheval attribué à des cours');
   await prisma.horse.delete({ where: { id: horseId } });
   await deleteStoredFile(horse.photoUrl);
 }

@@ -40,7 +40,12 @@ import {
 } from '@/features/admin/api.js';
 import { filterHealthLogs, formatHealthLogDate, horseLoadPercent } from '@/lib/horseDirectory.js';
 
-const HORSE_VARIANT = { fit: 'success', rest: 'warning', unavailable: 'default', injured: 'danger' };
+const HORSE_VARIANT = {
+  fit: 'success',
+  rest: 'warning',
+  unavailable: 'default',
+  injured: 'danger',
+};
 
 const LEVEL_OPTIONS = RIDER_LEVEL_VALUES.map((value) => ({
   value,
@@ -211,7 +216,11 @@ export function AdminHorsePage() {
               icon={<HorseIcon className="size-10" />}
               title="Cheval introuvable."
               action={
-                <Button type="button" variant="secondary" onClick={() => navigate('/admin/cavalerie')}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => navigate('/admin/cavalerie')}
+                >
                   Retour à l’annuaire
                 </Button>
               }
@@ -224,7 +233,9 @@ export function AdminHorsePage() {
               title={horse.name}
               description="Fiche, charge de travail et carnet de santé."
               action={
-                <Badge variant={HORSE_VARIANT[horse.status]}>{HORSE_STATUS_LABELS[horse.status]}</Badge>
+                <Badge variant={HORSE_VARIANT[horse.status]}>
+                  {HORSE_STATUS_LABELS[horse.status]}
+                </Badge>
               }
             />
 
@@ -265,12 +276,20 @@ export function AdminHorsePage() {
                       <p className="font-sans text-xs font-semibold uppercase tracking-wide text-muted-on-card">
                         Charge hebdomadaire
                       </p>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper" aria-hidden="true">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${load}%` }} />
+                      <div
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper"
+                        aria-hidden="true"
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${load}%` }}
+                        />
                       </div>
                       <p className="mt-2 font-sans text-sm text-muted-on-card">
                         {horse.weeklyLoadHours}h / {horse.maxWeeklyLoadHours}h
-                        {overAlert ? <span className="text-warning"> — seuil d’alerte atteint</span> : null}
+                        {overAlert ? (
+                          <span className="text-warning"> — seuil d’alerte atteint</span>
+                        ) : null}
                       </p>
                     </div>
                     <Select
@@ -305,14 +324,22 @@ export function AdminHorsePage() {
                   className="grid gap-3 sm:grid-cols-2"
                   onSubmit={identityForm.handleSubmit((values) => identityMutation.mutate(values))}
                 >
-                  <Field label="Nom" htmlFor="edit-horse-name" error={identityForm.formState.errors.name?.message}>
+                  <Field
+                    label="Nom"
+                    htmlFor="edit-horse-name"
+                    error={identityForm.formState.errors.name?.message}
+                  >
                     <Input id="edit-horse-name" {...identityForm.register('name')} />
                   </Field>
                   <Field label="Race" htmlFor="edit-horse-breed" hint="Facultatif.">
                     <Input id="edit-horse-breed" {...identityForm.register('breed')} />
                   </Field>
                   <Field label="Année de naissance" htmlFor="edit-horse-year" hint="Facultatif.">
-                    <Input id="edit-horse-year" type="number" {...identityForm.register('birthYear')} />
+                    <Input
+                      id="edit-horse-year"
+                      type="number"
+                      {...identityForm.register('birthYear')}
+                    />
                   </Field>
                   <Select
                     label="Niveau minimum"
@@ -326,10 +353,20 @@ export function AdminHorsePage() {
                     {...identityForm.register('maxLevel')}
                   />
                   <Field label="Charge max (heures / semaine)" htmlFor="edit-horse-max">
-                    <Input id="edit-horse-max" type="number" step="0.5" {...identityForm.register('maxWeeklyLoadHours')} />
+                    <Input
+                      id="edit-horse-max"
+                      type="number"
+                      step="0.5"
+                      {...identityForm.register('maxWeeklyLoadHours')}
+                    />
                   </Field>
                   <Field label="Seuil d’alerte (heures)" htmlFor="edit-horse-alert">
-                    <Input id="edit-horse-alert" type="number" step="0.5" {...identityForm.register('alertThresholdHours')} />
+                    <Input
+                      id="edit-horse-alert"
+                      type="number"
+                      step="0.5"
+                      {...identityForm.register('alertThresholdHours')}
+                    />
                   </Field>
                   <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
                     {identityMutation.isError ? (
@@ -377,7 +414,11 @@ export function AdminHorsePage() {
                     }))}
                     {...logForm.register('type')}
                   />
-                  <Field label="Date" htmlFor="log-date" error={logForm.formState.errors.occurredAt?.message}>
+                  <Field
+                    label="Date"
+                    htmlFor="log-date"
+                    error={logForm.formState.errors.occurredAt?.message}
+                  >
                     <Input
                       id="log-date"
                       type="datetime-local"
@@ -386,7 +427,11 @@ export function AdminHorsePage() {
                     />
                   </Field>
                   <div className="sm:col-span-2">
-                    <Field label="Notes" htmlFor="log-notes" error={logForm.formState.errors.notes?.message}>
+                    <Field
+                      label="Notes"
+                      htmlFor="log-notes"
+                      error={logForm.formState.errors.notes?.message}
+                    >
                       <Textarea
                         id="log-notes"
                         rows={3}
@@ -429,11 +474,16 @@ export function AdminHorsePage() {
                       skeleton={<Skeleton lines={4} />}
                     >
                       {visibleLogs.length === 0 ? (
-                        <p className="font-sans text-sm text-muted-on-card">Aucune entrée de ce type.</p>
+                        <p className="font-sans text-sm text-muted-on-card">
+                          Aucune entrée de ce type.
+                        </p>
                       ) : (
                         <ol className="space-y-2">
                           {visibleLogs.map((log) => (
-                            <li key={log.id} className="rounded-lg border border-border-on-card bg-paper p-3">
+                            <li
+                              key={log.id}
+                              className="rounded-lg border border-border-on-card bg-paper p-3"
+                            >
                               <div className="flex flex-wrap items-baseline justify-between gap-2">
                                 <p className="font-sans text-sm font-semibold text-on-card">
                                   {HEALTH_LOG_TYPE_LABELS[log.type] ?? log.type}
@@ -442,7 +492,9 @@ export function AdminHorsePage() {
                                   {formatHealthLogDate(log.occurredAt)}
                                 </p>
                               </div>
-                              <p className="mt-1 font-sans text-sm text-muted-on-card">{log.notes}</p>
+                              <p className="mt-1 font-sans text-sm text-muted-on-card">
+                                {log.notes}
+                              </p>
                             </li>
                           ))}
                         </ol>

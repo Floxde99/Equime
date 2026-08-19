@@ -300,7 +300,10 @@ export async function cancelRegistration(userId, eventId, registrationId, option
 
   return prisma.$transaction(async (tx) => {
     if (registration.horseId) {
-      const durationHours = durationHoursFromRange(registration.event.startAt, registration.event.endAt);
+      const durationHours = durationHoursFromRange(
+        registration.event.startAt,
+        registration.event.endAt
+      );
       await tx.horse.update({
         where: { id: registration.horseId },
         data: { weeklyLoadHours: { decrement: durationHours } },
