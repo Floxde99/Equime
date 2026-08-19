@@ -34,8 +34,8 @@ export function ForgotPasswordPage() {
 
   return (
     <>
-      <h1 className="font-display-semi text-2xl text-text">Mot de passe oublié</h1>
-      <p className="mt-1 font-sans text-sm text-muted">
+      <h1 className="font-display text-4xl text-on-card">Mot de passe oublié</h1>
+      <p className="mt-2 font-sans text-sm text-muted-on-card">
         Indiquez votre email : si un compte existe, vous recevrez un lien de réinitialisation
         valable une heure.
       </p>

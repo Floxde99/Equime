@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { PageHeader } from '@/components/ui/page-header.jsx';
+import { QueryState } from '@/components/ui/query-state.jsx';
+import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { fetchPlanning } from '@/features/admin/api.js';
+import { EnrollSection } from '@/features/client/components/EnrollSection.jsx';
+import { UpcomingEnrollments } from '@/features/client/components/UpcomingEnrollments.jsx';
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
 
 const DEFAULT_RANGE = {
@@ -14,27 +19,36 @@ export function ClientPlanningPage() {
   const [scope, setScope] = useState('mine');
   const [range, setRange] = useState(DEFAULT_RANGE);
 
-  const { data: events = [], isLoading } = useQuery({
+  const { data: events = [], isPending, isError, error, refetch } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Planning</h1>
-        <p className="mt-1 font-sans text-sm text-muted">Vos séances et celles du centre.</p>
-      </div>
-      {isLoading ? (
-        <p className="font-sans text-muted">Chargement du calendrier…</p>
-      ) : (
+      <PageHeader
+        eyebrow="Espace famille"
+        title="Planning"
+        description="Vos séances et celles du centre, en vue semaine (7 h – 21 h)."
+      />
+      <QueryState
+        isPending={isPending}
+        isError={isError}
+        error={error}
+        onRetry={refetch}
+        skeleton={<Skeleton lines={6} />}
+      >
+        <div className="space-y-6">
         <PlanningCalendar
           events={events}
           scope={scope}
           onScopeChange={setScope}
           onDatesChange={setRange}
         />
-      )}
+        <UpcomingEnrollments />
+        <EnrollSection />
+        </div>
+      </QueryState>
     </div>
   );
 }

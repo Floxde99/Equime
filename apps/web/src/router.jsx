@@ -7,6 +7,7 @@ import { InstructorLayout } from '@/components/layouts/InstructorLayout.jsx';
 import { AdminBillingPage } from '@/features/admin/pages/AdminBillingPage.jsx';
 import { AdminCavalryPage } from '@/features/admin/pages/AdminCavalryPage.jsx';
 import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage.jsx';
+import { AdminHorsePage } from '@/features/admin/pages/AdminHorsePage.jsx';
 import { AdminMembersPage } from '@/features/admin/pages/AdminMembersPage.jsx';
 import { AdminPlanningPage } from '@/features/admin/pages/AdminPlanningPage.jsx';
 import { AuthProvider } from '@/features/auth/AuthProvider.jsx';
@@ -27,8 +28,12 @@ import { MessagesPage } from '@/features/engagement/pages/MessagesPage.jsx';
 import { NotificationsPage } from '@/features/engagement/pages/NotificationsPage.jsx';
 import { VolunteerPage } from '@/features/engagement/pages/VolunteerPage.jsx';
 import { HomePage } from '@/features/home/pages/HomePage.jsx';
+import { NotFoundPage } from '@/features/home/pages/NotFoundPage.jsx';
+import { RouteErrorPage } from '@/features/home/pages/RouteErrorPage.jsx';
 import { AttendancePage } from '@/features/instructor/pages/AttendancePage.jsx';
 import { InstructorDashboardPage } from '@/features/instructor/pages/InstructorDashboardPage.jsx';
+import { InstructorHealthPage } from '@/features/instructor/pages/InstructorHealthPage.jsx';
+import { InstructorHorseHealthPage } from '@/features/instructor/pages/InstructorHorseHealthPage.jsx';
 import { InstructorPlanningPage } from '@/features/instructor/pages/InstructorPlanningPage.jsx';
 import { RidersPage } from '@/features/riders/pages/RidersPage.jsx';
 
@@ -48,6 +53,7 @@ function AppShell() {
 export const router = createBrowserRouter([
   {
     element: <AppShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { path: '/', element: <HomePage /> },
 
@@ -74,15 +80,20 @@ export const router = createBrowserRouter([
           {
             element: <ClientLayout />,
             children: [
-              { path: '/app', element: <ClientDashboardPage /> },
-              { path: '/app/planning', element: <ClientPlanningPage /> },
-              { path: '/app/cavaliers', element: <RidersPage /> },
-              { path: '/app/evenements', element: <ClientEventsPage /> },
-              { path: '/app/benevolat', element: <VolunteerPage /> },
-              { path: '/app/messages', element: <MessagesPage /> },
-              { path: '/app/notifications', element: <NotificationsPage /> },
-              { path: '/app/factures', element: <ClientInvoicesPage /> },
-              { path: '/app/compte', element: <ClientAccountPage /> },
+              {
+                errorElement: <RouteErrorPage embedded />,
+                children: [
+                  { path: '/app', element: <ClientDashboardPage /> },
+                  { path: '/app/planning', element: <ClientPlanningPage /> },
+                  { path: '/app/cavaliers', element: <RidersPage /> },
+                  { path: '/app/evenements', element: <ClientEventsPage /> },
+                  { path: '/app/benevolat', element: <VolunteerPage /> },
+                  { path: '/app/messages', element: <MessagesPage /> },
+                  { path: '/app/notifications', element: <NotificationsPage /> },
+                  { path: '/app/factures', element: <ClientInvoicesPage /> },
+                  { path: '/app/compte', element: <ClientAccountPage /> },
+                ],
+              },
             ],
           },
         ],
@@ -95,11 +106,18 @@ export const router = createBrowserRouter([
           {
             element: <InstructorLayout />,
             children: [
-              { path: '/moniteur', element: <InstructorDashboardPage /> },
-              { path: '/moniteur/planning', element: <InstructorPlanningPage /> },
-              { path: '/moniteur/appel', element: <AttendancePage /> },
-              { path: '/moniteur/incidents', element: <InstructorIncidentsPage /> },
-              { path: '/moniteur/messages', element: <MessagesPage /> },
+              {
+                errorElement: <RouteErrorPage embedded />,
+                children: [
+                  { path: '/moniteur', element: <InstructorDashboardPage /> },
+                  { path: '/moniteur/planning', element: <InstructorPlanningPage /> },
+                  { path: '/moniteur/appel', element: <AttendancePage /> },
+                  { path: '/moniteur/incidents', element: <InstructorIncidentsPage /> },
+                  { path: '/moniteur/sante', element: <InstructorHealthPage /> },
+                  { path: '/moniteur/sante/:id', element: <InstructorHorseHealthPage /> },
+                  { path: '/moniteur/messages', element: <MessagesPage /> },
+                ],
+              },
             ],
           },
         ],
@@ -112,20 +130,28 @@ export const router = createBrowserRouter([
           {
             element: <AdminLayout />,
             children: [
-              { path: '/admin', element: <AdminDashboardPage /> },
-              { path: '/admin/planning', element: <AdminPlanningPage /> },
-              { path: '/admin/cavalerie', element: <AdminCavalryPage /> },
-              { path: '/admin/evenements', element: <AdminEventsPage /> },
-              { path: '/admin/incidents', element: <InstructorIncidentsPage admin /> },
-              { path: '/admin/benevolat', element: <VolunteerPage admin /> },
-              { path: '/admin/messages', element: <MessagesPage /> },
-              { path: '/admin/notifications', element: <NotificationsPage /> },
-              { path: '/admin/facturation', element: <AdminBillingPage /> },
-              { path: '/admin/clients', element: <AdminMembersPage /> },
+              {
+                errorElement: <RouteErrorPage embedded />,
+                children: [
+                  { path: '/admin', element: <AdminDashboardPage /> },
+                  { path: '/admin/planning', element: <AdminPlanningPage /> },
+                  { path: '/admin/cavalerie', element: <AdminCavalryPage /> },
+                  { path: '/admin/cavalerie/:id', element: <AdminHorsePage /> },
+                  { path: '/admin/evenements', element: <AdminEventsPage /> },
+                  { path: '/admin/incidents', element: <InstructorIncidentsPage admin /> },
+                  { path: '/admin/benevolat', element: <VolunteerPage admin /> },
+                  { path: '/admin/messages', element: <MessagesPage /> },
+                  { path: '/admin/notifications', element: <NotificationsPage /> },
+                  { path: '/admin/facturation', element: <AdminBillingPage /> },
+                  { path: '/admin/clients', element: <AdminMembersPage /> },
+                ],
+              },
             ],
           },
         ],
       },
+
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);

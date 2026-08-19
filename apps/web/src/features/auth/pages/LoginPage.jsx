@@ -39,8 +39,8 @@ export function LoginPage() {
 
   return (
     <>
-      <h1 className="font-display-semi text-2xl text-text">Connexion</h1>
-      <p className="mt-1 font-sans text-sm text-muted">Accédez à votre espace Equime.</p>
+      <h1 className="font-display text-4xl text-on-card">Connexion</h1>
+      <p className="mt-2 font-sans text-sm text-muted-on-card">Accédez à votre espace Equime.</p>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-6 space-y-4">
         {serverError && <Alert>{serverError}</Alert>}
@@ -51,7 +51,7 @@ export function LoginPage() {
             type="email"
             autoComplete="email"
             invalid={!!errors.email}
-            aria-describedby={errors.email ? 'email-error' : undefined}
+            disabled={isSubmitting}
             {...field('email')}
           />
         </Field>
@@ -62,7 +62,7 @@ export function LoginPage() {
             type="password"
             autoComplete="current-password"
             invalid={!!errors.password}
-            aria-describedby={errors.password ? 'password-error' : undefined}
+            disabled={isSubmitting}
             {...field('password')}
           />
         </Field>

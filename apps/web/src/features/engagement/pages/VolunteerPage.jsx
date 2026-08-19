@@ -4,8 +4,13 @@ import { useState } from 'react';
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
+import { ConfirmDialog } from '@/components/ui/dialog.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
+import { Textarea } from '@/components/ui/textarea.jsx';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
+import { missionPhotoSrc } from '@/lib/demoPhotos.js';
 import {
   createVolunteerMission,
   deleteVolunteerMission,
@@ -40,10 +45,12 @@ function missionToForm(mission) {
 }
 
 export function VolunteerPage({ admin = false }) {
+  const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
   const { data: missions = [] } = useQuery({
     queryKey: ['volunteer-missions'],
     queryFn: fetchVolunteerMissions,
@@ -93,12 +100,15 @@ export function VolunteerPage({ admin = false }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Bénévolat</h1>
-        <p className="mt-1 font-sans text-sm text-muted">
-          {admin ? 'Gestion des missions bénévoles du club.' : 'Inscription aux missions ouvertes.'}
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={eyebrow}
+        title={admin ? 'Bénévolat' : 'Espace bénévole'}
+        description={
+          admin
+            ? 'Gestion des missions bénévoles du club.'
+            : 'Donnez un peu de votre temps aux écuries — missions ouvertes, photos du domaine.'
+        }
+      />
 
       {status ? (
         <Alert variant={status.includes('confirmée') || status.includes('créée') || status.includes('mise à jour') ? 'success' : 'error'}>
@@ -142,12 +152,11 @@ export function VolunteerPage({ admin = false }) {
               />
             </Field>
             <Field label="Description" htmlFor="mission-description" className="md:col-span-2">
-              <textarea
+              <Textarea
                 id="mission-description"
                 rows={4}
                 value={form.description}
                 onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-surface px-4 py-3 font-sans text-sm text-text"
               />
             </Field>
           </div>
@@ -171,56 +180,72 @@ export function VolunteerPage({ admin = false }) {
         </Card>
       ) : null}
 
-      <Card title="Missions ouvertes">
-        <ul className="space-y-3">
-          {missions.map((mission) => (
-            <li key={mission.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-sans text-sm font-semibold text-text">{mission.title}</p>
-                  <p className="font-sans text-sm text-muted">
-                    {new Date(mission.startAt).toLocaleString('fr-FR')} · {mission.remainingSlots} place(s) restante(s)
-                  </p>
-                  {mission.description ? (
-                    <p className="mt-2 font-sans text-sm text-muted">{mission.description}</p>
-                  ) : null}
-                </div>
-                {admin ? (
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingId(mission.id);
-                        setForm(missionToForm(mission));
-                        setStatus('');
-                      }}
-                    >
-                      Modifier
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(mission.id)}>
-                      Supprimer
-                    </Button>
-                  </div>
-                ) : (
+      <div className={admin ? 'space-y-3' : 'grid gap-6 md:grid-cols-2'}>
+        {missions.map((mission) => (
+          <Card key={mission.id} className="overflow-hidden p-0">
+            <img
+              src={missionPhotoSrc(mission.id)}
+              alt=""
+              className="h-48 w-full object-cover"
+            />
+            <div className="flex flex-wrap items-start justify-between gap-3 p-5">
+              <div>
+                <p className="font-display text-xl text-on-card">{mission.title}</p>
+                <p className="mt-1 font-sans text-sm text-muted-on-card">
+                  {new Date(mission.startAt).toLocaleString('fr-FR')} · {mission.remainingSlots}{' '}
+                  place(s) restante(s)
+                </p>
+                {mission.description ? (
+                  <p className="mt-2 font-sans text-sm text-muted-on-card">{mission.description}</p>
+                ) : null}
+              </div>
+              {admin ? (
+                <div className="flex gap-2">
                   <Button
                     type="button"
                     variant="secondary"
-                    loading={signupMutation.isPending}
-                    disabled={mission.remainingSlots <= 0}
-                    onClick={() => signupMutation.mutate(mission.id)}
+                    onClick={() => {
+                      setEditingId(mission.id);
+                      setForm(missionToForm(mission));
+                      setStatus('');
+                    }}
                   >
-                    S&apos;inscrire
+                    Modifier
                   </Button>
-                )}
-              </div>
-            </li>
-          ))}
-          {missions.length === 0 ? (
-            <p className="font-sans text-sm text-muted">Aucune mission ouverte pour le moment.</p>
-          ) : null}
-        </ul>
-      </Card>
+                  <Button type="button" variant="ghost" onClick={() => setPendingDelete(mission)}>
+                    Supprimer
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={signupMutation.isPending}
+                  disabled={mission.remainingSlots <= 0}
+                  onClick={() => signupMutation.mutate(mission.id)}
+                >
+                  S&apos;inscrire
+                </Button>
+              )}
+            </div>
+          </Card>
+        ))}
+        {missions.length === 0 ? (
+          <Card>
+            <p className="font-sans text-sm text-muted-on-card">Aucune mission ouverte pour le moment.</p>
+          </Card>
+        ) : null}
+      </div>
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete ? `Supprimer la mission ${pendingDelete.title} ?` : ''}
+        confirmLabel="Supprimer"
+        loading={deleteMutation.isPending}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={() => {
+          deleteMutation.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
     </div>
   );
 }

@@ -37,8 +37,8 @@ export function RegisterPage() {
 
   return (
     <>
-      <h1 className="font-display-semi text-2xl text-text">Créer un compte</h1>
-      <p className="mt-1 font-sans text-sm text-muted">
+      <h1 className="font-display text-4xl text-on-card">Créer un compte</h1>
+      <p className="mt-2 font-sans text-sm text-muted-on-card">
         Gérez vos cavaliers, réservations et factures.
       </p>
 

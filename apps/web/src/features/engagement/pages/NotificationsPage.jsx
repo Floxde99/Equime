@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
+import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 import {
   fetchNotificationPreferences,
   fetchNotifications,
@@ -12,6 +14,7 @@ import {
 } from '@/features/engagement/api.js';
 
 export function NotificationsPage() {
+  const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
   const { data: preferences = [] } = useQuery({
     queryKey: ['notification-preferences'],
@@ -34,19 +37,18 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Notifications</h1>
-        <p className="mt-1 font-sans text-sm text-muted">
-          Gérez vos préférences par canal et consultez vos dernières alertes.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={eyebrow}
+        title="Notifications"
+        description="Gérez vos préférences par canal et consultez vos dernières alertes."
+      />
 
       <Card title="Préférences">
         <ul className="space-y-3">
           {preferences.map((pref) => (
             <li
               key={pref.type}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-paper p-3"
             >
               <div>
                 <p className="font-sans text-sm font-semibold text-text">
@@ -87,7 +89,7 @@ export function NotificationsPage() {
         ) : (
           <ul className="space-y-3">
             {notifications.map((notification) => (
-              <li key={notification.id} className="rounded-lg border border-border p-4">
+              <li key={notification.id} className="rounded-xl border border-border-on-card bg-paper p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <p className="font-sans text-sm font-semibold text-text">{notification.title}</p>
@@ -109,7 +111,12 @@ export function NotificationsPage() {
                   <p className="mt-2 font-sans text-sm text-muted">{notification.body}</p>
                 ) : null}
                 {notification.linkUrl ? (
-                  <p className="mt-2 font-sans text-xs text-muted">Lien conseillé : {notification.linkUrl}</p>
+                  <a
+                    href={notification.linkUrl}
+                    className="mt-2 inline-block font-sans text-xs text-on-card underline underline-offset-2"
+                  >
+                    Ouvrir le lien
+                  </a>
                 ) : null}
               </li>
             ))}
@@ -122,7 +129,7 @@ export function NotificationsPage() {
 
 function ToggleButton({ label, active, onClick }) {
   return (
-    <Button type="button" variant={active ? 'primary' : 'secondary'} onClick={onClick}>
+    <Button type="button" variant={active ? 'secondary' : 'ghost'} onClick={onClick}>
       {label}
     </Button>
   );

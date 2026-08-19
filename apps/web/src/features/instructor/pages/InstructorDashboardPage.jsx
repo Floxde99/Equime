@@ -1,25 +1,52 @@
+import { Link } from 'react-router';
+
+import { Card } from '@/components/ui/card.jsx';
+import { PageHeader } from '@/components/ui/page-header.jsx';
+import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
-/** Tableau de bord moniteur (Phase 2 placeholder — planning en Phase 3). */
+/** Tableau de bord moniteur — accès rapides, photo paddock Stitch. */
 export function InstructorDashboardPage() {
   const user = useAuthStore((s) => s.user);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-text">Mon planning</h1>
-        <p className="mt-2 font-sans text-muted">
-          Bonjour {user?.firstName} — le calendrier des séances, les présences et l&apos;attribution
-          des chevaux seront disponibles en Phase 3.
-        </p>
+      <PageHeader
+        eyebrow="Espace moniteur"
+        title={`Bonjour, ${user?.firstName}`}
+        description="Planning des séances, appel et incidents."
+      />
+
+      <div className="overflow-hidden rounded-xl">
+        <img src={STITCH_PHOTOS.instructorPaddock} alt="" className="h-48 w-full object-cover" />
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-5">
-        <p className="font-sans text-sm text-muted">
-          En attendant, connectez-vous avec le compte seed{' '}
-          <span className="text-text">coach@equime.local</span> pour tester les parcours moniteur.
-        </p>
-      </section>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <h2 className="font-display text-xl text-on-card">Planning</h2>
+          <p className="mt-1 font-sans text-sm text-muted-on-card">
+            Consultez vos cours et l&apos;attribution des chevaux.
+          </p>
+          <Link
+            to="/moniteur/planning"
+            className="mt-4 inline-block font-sans text-sm font-semibold text-primary hover:underline"
+          >
+            Ouvrir le planning →
+          </Link>
+        </Card>
+        <Card>
+          <h2 className="font-display text-xl text-on-card">Appel</h2>
+          <p className="mt-1 font-sans text-sm text-muted-on-card">
+            Saisissez les présences de la séance en cours.
+          </p>
+          <Link
+            to="/moniteur/appel"
+            className="mt-4 inline-block font-sans text-sm font-semibold text-primary hover:underline"
+          >
+            Faire l&apos;appel →
+          </Link>
+        </Card>
+      </div>
     </div>
   );
 }

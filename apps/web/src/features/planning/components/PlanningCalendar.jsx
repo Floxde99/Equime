@@ -1,18 +1,28 @@
+import { COURSE_STATUS_LABELS } from '@equime/shared';
 import frLocale from '@fullcalendar/core/locales/fr';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import { useMemo } from 'react';
 
-/** Couleurs de statut cours (design system §2). */
-const STATUS_COLORS = {
-  scheduled: '#2351a4',
-  ongoing: '#4a8fd4',
-  completed: '#3d9a6b',
-  cancelled: '#c94c4c',
-};
+import {
+  formatEventAriaLabel,
+  PLANNING_LEGEND_STATUSES,
+  planningSlotWindow,
+  toCalendarEvent,
+} from '@/features/planning/calendarTheme.js';
+
+const SCOPE_OPTIONS = [
+  { id: 'mine', label: 'Mon planning' },
+  { id: 'all', label: 'Structure' },
+];
+
+const TIME_FORMAT = { hour: '2-digit', minute: '2-digit', hour12: false };
 
 /**
  * Calendrier planning partagé (US-4.2).
+ * Vue semaine 8 h–18 h (élargie si besoin), couleurs de statut tokens, libellés français.
+ *
  * @param {{ events: Array<object>, scope: 'mine' | 'all', onScopeChange: (s: 'mine' | 'all') => void,
  *   onDatesChange?: (range: { from: string, to: string }) => void, showScopeToggle?: boolean }} props
  */
@@ -23,53 +33,115 @@ export function PlanningCalendar({
   onDatesChange,
   showScopeToggle = true,
 }) {
-  const coloredEvents = events.map((event) => ({
-    ...event,
-    backgroundColor: STATUS_COLORS[event.extendedProps?.status] ?? STATUS_COLORS.scheduled,
-    borderColor: 'transparent',
-  }));
+  const coloredEvents = useMemo(() => events.map(toCalendarEvent), [events]);
+  const slotWindow = useMemo(() => planningSlotWindow(events), [events]);
 
   return (
     <div className="space-y-4">
       {showScopeToggle ? (
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filtre du planning">
-          {[
-            { id: 'mine', label: 'Mon planning' },
-            { id: 'all', label: 'Structure' },
-          ].map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => onScopeChange(opt.id)}
-              className={
-                scope === opt.id
-                  ? 'rounded-lg bg-accent px-3 py-1.5 font-sans text-sm text-text'
-                  : 'rounded-lg border border-border px-3 py-1.5 font-sans text-sm text-muted hover:bg-surface-raised'
-              }
-            >
-              {opt.label}
-            </button>
-          ))}
+          {SCOPE_OPTIONS.map((opt) => {
+            const selected = scope === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onScopeChange(opt.id)}
+                className={
+                  selected
+                    ? 'inline-flex min-h-11 items-center rounded-lg bg-accent/15 px-3 font-sans text-sm font-semibold text-on-card ring-1 ring-accent'
+                    : 'inline-flex min-h-11 items-center rounded-lg border border-border-on-card bg-card px-3 font-sans text-sm text-muted-on-card hover:bg-paper'
+                }
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-surface p-3 [&_.fc]:font-sans [&_.fc-toolbar-title]:font-display [&_.fc-toolbar-title]:text-text [&_.fc-col-header-cell]:text-muted [&_.fc-daygrid-day-number]:text-muted">
+      <div className="equime-fc-wrap overflow-x-auto rounded-xl border border-border-on-card bg-card p-3 md:p-4">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin]}
           locale={frLocale}
+          firstDay={1}
           initialView="timeGridWeek"
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          }}
+          buttonText={{
+            today: "Aujourd'hui",
+            month: 'Mois',
+            week: 'Semaine',
+            day: 'Jour',
           }}
           height="auto"
+          contentHeight="auto"
+          stickyHeaderDates
+          nowIndicator
+          allDaySlot={false}
+          slotMinTime={slotWindow.slotMinTime}
+          slotMaxTime={slotWindow.slotMaxTime}
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          slotEventOverlap={false}
+          displayEventEnd
+          eventTimeFormat={TIME_FORMAT}
+          slotLabelFormat={TIME_FORMAT}
+          dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric' }}
           events={coloredEvents}
+          eventContent={renderEventContent}
+          eventDidMount={annotateEventEl}
           datesSet={({ start, end }) => {
             onDatesChange?.({ from: start.toISOString(), to: end.toISOString() });
           }}
         />
       </div>
+
+      <ul className="flex flex-wrap gap-x-4 gap-y-2" aria-label="Légende des statuts de cours">
+        {PLANNING_LEGEND_STATUSES.map((status) => (
+          <li key={status} className="flex items-center gap-2 font-sans text-sm text-muted">
+            <span
+              className={`size-3 shrink-0 rounded-full equime-fc-swatch--${status}`}
+              aria-hidden="true"
+            />
+            {COURSE_STATUS_LABELS[status]}
+          </li>
+        ))}
+      </ul>
     </div>
   );
+}
+
+/**
+ * Bloc événement : titre + horaire + lieu. Le statut se lit par la couleur et la légende.
+ * @param {import('@fullcalendar/core').EventContentArg} arg
+ */
+function renderEventContent(arg) {
+  const spaceName = arg.event.extendedProps?.spaceName;
+  const isMonth = arg.view.type === 'dayGridMonth';
+
+  return (
+    <div className="equime-fc-event__inner">
+      <p className="equime-fc-event__title">{arg.event.title}</p>
+      {arg.timeText ? <p className="equime-fc-event__time">{arg.timeText}</p> : null}
+      {!isMonth && spaceName ? <p className="equime-fc-event__space">{spaceName}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * @param {import('@fullcalendar/core').EventMountArg} info
+ */
+function annotateEventEl(info) {
+  const label = formatEventAriaLabel({
+    title: info.event.title,
+    timeText: info.timeText,
+    extendedProps: info.event.extendedProps,
+  });
+  info.el.setAttribute('title', label);
+  info.el.setAttribute('aria-label', label);
 }

@@ -3,7 +3,7 @@
  * Appels API du module auth. Chaque fonction synchronise le token mémoire
  * et laisse l'appelant mettre à jour le store.
  */
-import { api, apiFetch, setAccessToken } from '@/lib/apiClient.js';
+import { api, apiFetchBlob, setAccessToken } from '@/lib/apiClient.js';
 
 /** @param {{ email: string, password: string, firstName: string, lastName: string, phone?: string }} input */
 export async function register(input) {
@@ -37,6 +37,12 @@ export function resetPassword(input) {
   return api.post('/auth/reset-password', input);
 }
 
+/** @param {{ firstName: string, lastName: string, phone?: string | null }} input */
+export async function updateProfile(input) {
+  const data = await api.patch('/auth/me', input);
+  return data.user;
+}
+
 /** @param {{ confirmation: string }} input */
 export async function deleteAccount(input) {
   await api.delete('/auth/me', input);
@@ -45,12 +51,7 @@ export async function deleteAccount(input) {
 
 /** Télécharge l'export portabilité RGPD (JSON). */
 export async function exportAccountData() {
-  const response = await apiFetch('/auth/me/export', { method: 'GET' });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body?.error?.message ?? 'Export impossible');
-  }
-  const blob = await response.blob();
+  const blob = await apiFetchBlob('/auth/me/export');
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

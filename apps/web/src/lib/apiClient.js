@@ -28,6 +28,11 @@ export function setAccessToken(token) {
   accessToken = token;
 }
 
+/** @returns {string | null} */
+export function getAccessToken() {
+  return accessToken;
+}
+
 /** @param {() => void} handler */
 export function setOnSessionExpired(handler) {
   onSessionExpired = handler;
@@ -111,6 +116,39 @@ export async function apiFetch(path, { method = 'GET', body, retry = true } = {}
   }
 
   throw new ApiError(res.status, data.error ?? {});
+}
+
+/**
+ * Télécharge une réponse binaire (export RGPD). Ne parse pas le JSON.
+ * @param {string} path
+ * @param {{ retry?: boolean }} [options]
+ * @returns {Promise<Blob>}
+ */
+export async function apiFetchBlob(path, { retry = true } = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+    },
+  });
+
+  if (res.status === 401) {
+    const data = await res.clone().json().catch(() => ({}));
+    if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) return apiFetchBlob(path, { retry: false });
+      onSessionExpired?.();
+    }
+    throw new ApiError(res.status, data.error ?? {});
+  }
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, data.error ?? {});
+  }
+
+  return res.blob();
 }
 
 export const api = {

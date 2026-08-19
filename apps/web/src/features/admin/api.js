@@ -4,6 +4,11 @@ export function fetchHorses() {
   return api.get('/horses').then((r) => r.horses);
 }
 
+/** @param {string} id */
+export function fetchHorse(id) {
+  return api.get(`/horses/${id}`).then((r) => r.horse);
+}
+
 /** @param {object} body */
 export function createHorse(body) {
   return api.post('/horses', body).then((r) => r.horse);
@@ -17,6 +22,18 @@ export function updateHorse(id, body) {
 /** @param {string} id */
 export function deleteHorse(id) {
   return api.delete(`/horses/${id}`);
+}
+
+/** @param {string} id @param {File} file */
+export function uploadHorsePhoto(id, file) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.upload(`/horses/${id}/photo`, form).then((r) => r.horse);
+}
+
+/** @param {string} id */
+export function deleteHorsePhoto(id) {
+  return api.delete(`/horses/${id}/photo`).then((r) => r.horse);
 }
 
 /** @param {string} horseId */
@@ -67,9 +84,15 @@ export function fetchEnrollableCourses() {
   return api.get('/courses/enrollable').then((r) => r.courses);
 }
 
-/** @param {string} courseId @param {string} riderId */
-export function enrollRider(courseId, riderId) {
-  return api.post(`/courses/${courseId}/enrollments`, { riderId }).then((r) => r.enrollment);
+/** @param {string} courseId @param {string} riderId @param {{ force?: boolean }} [options] */
+export function enrollRider(courseId, riderId, options = {}) {
+  return api
+    .post(`/courses/${courseId}/enrollments`, { riderId, ...(options.force ? { force: true } : {}) })
+    .then((r) => r.enrollment);
+}
+
+export function fetchMyEnrollments() {
+  return api.get('/courses/my-enrollments').then((r) => r.enrollments);
 }
 
 /** @param {string} courseId */
@@ -82,6 +105,11 @@ export function updateAttendance(courseId, enrollmentId, attendance) {
   return api
     .patch(`/courses/${courseId}/enrollments/${enrollmentId}/attendance`, { attendance })
     .then((r) => r.enrollment);
+}
+
+/** @param {string} courseId @param {string} enrollmentId */
+export function excuseEnrollment(courseId, enrollmentId) {
+  return updateAttendance(courseId, enrollmentId, 'excused');
 }
 
 /** @param {string} courseId */
@@ -113,6 +141,26 @@ export function fetchMembers() {
   return api.get('/admin/members').then((r) => r.members);
 }
 
+/**
+ * @param {{ email: string, password: string, firstName: string, lastName: string, phone?: string, role?: string }} body
+ */
+export function createMember(body) {
+  return api.post('/admin/members', body).then((r) => r.member);
+}
+
+/** @param {{ email: string, password: string, firstName: string, lastName: string, phone?: string }} body */
+export function createInstructor(body) {
+  return createMember({ ...body, role: 'instructor' });
+}
+
+/**
+ * @param {string} id
+ * @param {{ firstName: string, lastName: string, phone?: string | null }} body
+ */
+export function updateMember(id, body) {
+  return api.patch(`/admin/members/${id}`, body).then((r) => r.member);
+}
+
 /** @param {string} id */
 export function banMember(id) {
   return api.post(`/admin/members/${id}/ban`);
@@ -129,7 +177,7 @@ export function fetchPendingDocuments() {
 
 /**
  * @param {string} riderId
- * @param {{ docType: string, decision: string, rejectionReason?: string }} body
+ * @param {{ docType: string, decision: string, rejectionReason?: string, expiresAt?: string }} body
  */
 export function reviewDocument(riderId, body) {
   return api.post(`/admin/riders/${riderId}/review-document`, body).then((r) => r.rider);
