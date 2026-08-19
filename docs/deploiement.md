@@ -407,8 +407,12 @@ docker image prune -af     # nettoyage, sans toucher aux volumes
 set -euo pipefail
 DATE=$(date +%F_%H%M)
 DEST="$HOME/backups"
-cd "$HOME/apps/equime-prod"
-set -a; source .env.prod; set +a
+cd /apps/projects/equime-prod
+
+# On n'utilise pas `source .env.prod` : les valeurs non quotées contenant des
+# espaces (CLUB_ADDRESS...) sont interprétées comme des commandes par le shell.
+POSTGRES_USER=$(grep -E '^POSTGRES_USER=' .env.prod | cut -d= -f2-)
+POSTGRES_DB=$(grep -E '^POSTGRES_DB=' .env.prod | cut -d= -f2-)
 
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" | gzip > "$DEST/equime_db_$DATE.sql.gz"
@@ -431,8 +435,9 @@ pas une sauvegarde.
 ### Restaurer
 
 ```bash
-cd ~/apps/equime-prod
-set -a; source .env.prod; set +a
+cd /apps/projects/equime-prod
+POSTGRES_USER=$(grep -E '^POSTGRES_USER=' .env.prod | cut -d= -f2-)
+POSTGRES_DB=$(grep -E '^POSTGRES_DB=' .env.prod | cut -d= -f2-)
 gunzip -c ~/backups/equime_db_<date>.sql.gz | \
   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
