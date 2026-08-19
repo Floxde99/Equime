@@ -71,7 +71,7 @@ services:
       REDIS_URL: redis://redis:6379
       UPLOAD_DIR: /app/uploads
     ports:
-      - '127.0.0.1:3000:3000'
+      - '127.0.0.1:3002:3000'
     volumes:
       - uploads-preprod-data:/app/uploads
     depends_on:
