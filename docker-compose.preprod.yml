@@ -1,0 +1,79 @@
+# Environnement de PRÉPRODUCTION — iso-prod (Phase 6).
+#
+# Mêmes images multi-stage que la production, Nginx frontal, `.env.preprod`,
+# base dédiée alimentée par le seed de recette (données réalistes anonymisées).
+# C'est ici que le cahier de recette est exécuté avant chaque mise en prod.
+#
+# Usage :
+#   cp .env.preprod.example .env.preprod   # puis adapter les secrets
+#   docker compose -f docker-compose.preprod.yml --env-file .env.preprod up -d --build
+#   npm run seed:recette -w apps/api      # une fois la stack démarrée
+name: equime-preprod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - postgres-preprod-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: prod
+    restart: unless-stopped
+    env_file: .env.preprod
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads-preprod-data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: prod
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '${NGINX_HTTP_PORT:-8080}:80'
+    volumes:
+      - ./docker/nginx/preprod.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - api
+
+volumes:
+  postgres-preprod-data:
+  uploads-preprod-data:

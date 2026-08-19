@@ -1,0 +1,45 @@
+{
+  "name": "equime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Equestrian center management web application (React + Express, full JavaScript)",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker compose up --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "migrate": "npm run migrate -w apps/api",
+    "seed": "npm run seed -w apps/api",
+    "seed:recette": "npm run seed:recette -w apps/api",
+    "prisma:generate": "npm run prisma:generate -w apps/api",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "e2e:stack": "docker compose up -d postgres redis api web",
+    "e2e:prepare": "npm run prisma:generate -w apps/api && npm run migrate -w apps/api && npm run seed -w apps/api && node playwright/clear-rate-limits.mjs",
+    "e2e": "node playwright/start-stack.mjs",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
+    "e2e:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.61.1",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.4"
+  }
+}

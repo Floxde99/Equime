@@ -1,15 +1,21 @@
 # Dependencies
 node_modules/
 
+# Client Prisma généré (recréé par `npm run prisma:generate`)
+apps/api/generated/
+
 # Builds
 dist/
 build/
 coverage/
+playwright-report/
+test-results/
 
 # Environment — never commit secrets
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Logs
 *.log
@@ -22,3 +28,9 @@ Thumbs.db
 
 # Uploads (dev volume)
 uploads/
+
+# Playwright auth/session cache
+playwright/.auth/
+
+# Audit reports (generated, not source)
+audit-*.json

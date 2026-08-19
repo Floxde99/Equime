@@ -1,0 +1,259 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens du design system Equime (Stitch — vert forêt) — voir docs/design-system.md
+ * et ADR 006. Aucune couleur, police ou espacement hors de ces tokens.
+ */
+@theme {
+  --color-ink: #0c1210;
+  --color-background: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-surface-raised: #eeeae1;
+  --color-border: #e4e0d6;
+  --color-text: #1a1a1a;
+  --color-muted: #5c6b63;
+
+  --color-card: #ffffff;
+  /* `on-card` (pas `text-on-card`) : Tailwind génère alors la classe `text-on-card`. */
+  --color-on-card: #1a1a1a;
+  --color-muted-on-card: #5c6b63;
+  --color-border-on-card: #e4e0d6;
+
+  --color-paper: #f6f4ef;
+  --color-gold: #c4a35a;
+
+  --color-primary: #1b4332;
+  --color-primary-light: #2d6a4f;
+  --color-primary-fg: #ffffff;
+
+  --color-accent: #2d6a4f;
+  --color-success: #3d9a6b;
+  --color-warning: #d4a017;
+  --color-danger: #c94c4c;
+  --color-danger-fg: #ffffff;
+  --color-info: #4a8fd4;
+
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+@utility font-display-semi {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+@utility font-serif {
+  font-family: var(--font-serif);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+  }
+
+  body {
+    @apply bg-background font-sans text-text antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/60;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .fc {
+    --fc-border-color: var(--color-border-on-card);
+    --fc-page-bg-color: var(--color-card);
+    --fc-neutral-bg-color: var(--color-surface-raised);
+    --fc-neutral-text-color: var(--color-muted-on-card);
+    --fc-list-event-hover-bg-color: var(--color-surface-raised);
+    --fc-today-bg-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    --fc-now-indicator-color: var(--color-primary);
+    --fc-event-text-color: var(--color-on-card);
+    --fc-event-border-color: var(--color-border-on-card);
+    --fc-button-text-color: var(--color-on-card);
+    --fc-button-bg-color: var(--color-card);
+    --fc-button-border-color: var(--color-border-on-card);
+    --fc-button-hover-bg-color: var(--color-surface-raised);
+    --fc-button-hover-border-color: var(--color-border-on-card);
+    --fc-button-active-bg-color: color-mix(in srgb, var(--color-accent) 15%, var(--color-card));
+    --fc-button-active-border-color: var(--color-accent);
+  }
+}
+
+@layer components {
+  .fc {
+    font-family: var(--font-sans);
+  }
+
+  .fc .fc-header-toolbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .fc .fc-toolbar-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-on-card);
+    font-size: 1.5rem;
+  }
+
+  .fc .fc-button {
+    min-height: 2.5rem;
+    border-radius: 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding-inline: 0.75rem;
+    text-transform: none;
+    box-shadow: none;
+  }
+
+  .fc .fc-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 60%, transparent);
+  }
+
+  .fc .fc-col-header-cell-cushion,
+  .fc .fc-timegrid-slot-label-cushion,
+  .fc .fc-daygrid-day-number {
+    color: var(--color-muted-on-card);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    text-decoration: none;
+  }
+
+  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    background-color: var(--color-primary);
+    color: var(--color-primary-fg);
+    border-radius: 9999px;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fc .fc-timegrid-event,
+  .fc .fc-daygrid-event {
+    border-radius: 0.5rem;
+    border-width: 0;
+    border-inline-start-width: 4px;
+    border-inline-start-style: solid;
+    box-shadow: none;
+    overflow: hidden;
+  }
+
+  .fc .fc-timegrid-event-harness {
+    overflow: hidden;
+  }
+
+  .fc .fc-event .fc-event-main {
+    box-sizing: border-box;
+    block-size: 100%;
+    overflow: hidden;
+    padding: 0.125rem 0.25rem;
+    color: inherit;
+  }
+
+  .equime-fc-wrap .fc-scroller {
+    overflow-y: hidden !important;
+  }
+
+  .equime-fc-wrap .fc-scroller-liquid-absolute {
+    position: relative !important;
+    inset: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .equime-fc-wrap .fc-timegrid-slot {
+    height: 2rem;
+  }
+
+  .equime-fc-event__inner {
+    display: flex;
+    block-size: 100%;
+    min-block-size: 0;
+    max-block-size: 100%;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .equime-fc-event__title,
+  .equime-fc-event__time,
+  .equime-fc-event__space {
+    margin: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+
+  .equime-fc-event__title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-on-card);
+  }
+
+  .equime-fc-event__time,
+  .equime-fc-event__space {
+    font-size: 0.75rem;
+    color: var(--color-muted-on-card);
+  }
+
+  .equime-fc-event--scheduled {
+    border-inline-start-color: var(--color-info);
+  }
+
+  .equime-fc-event--ongoing {
+    border-inline-start-color: var(--color-accent);
+  }
+
+  .equime-fc-event--completed {
+    border-inline-start-color: var(--color-success);
+  }
+
+  .equime-fc-event--cancelled,
+  .equime-fc-event--draft {
+    border-inline-start-color: var(--color-muted);
+  }
+
+  .equime-fc-event--cancelled .equime-fc-event__title {
+    text-decoration: line-through;
+    color: var(--color-muted-on-card);
+  }
+
+  .equime-fc-swatch--scheduled {
+    background-color: var(--color-info);
+  }
+
+  .equime-fc-swatch--ongoing {
+    background-color: var(--color-accent);
+  }
+
+  .equime-fc-swatch--completed {
+    background-color: var(--color-success);
+  }
+}
