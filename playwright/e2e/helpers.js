@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 /**
  * Ouvre la page de login puis authentifie un utilisateur seedé.
  * @param {import('@playwright/test').Page} page
- * @param {{ email: string, password: string, landingHeading: string }} user
+ * @param {{ email: string, password: string, landingHeading: string | RegExp }} user
  */
 export async function loginAs(page, user) {
   await page.goto('/login');
@@ -17,6 +17,15 @@ export async function loginAs(page, user) {
 }
 
 /**
+ * Clic dans la sidebar (évite un rechargement complet qui dépend du cookie).
+ * @param {import('@playwright/test').Page} page
+ * @param {string | RegExp} name
+ */
+export async function clickSidebarLink(page, name) {
+  await page.getByRole('navigation').getByRole('link', { name, exact: true }).click();
+}
+
+/**
  * Sélectionne la première option dont le label matche.
  * @param {import('@playwright/test').Page | import('@playwright/test').Locator} scope
  * @param {string} label
@@ -24,10 +33,17 @@ export async function loginAs(page, user) {
  */
 export async function selectOptionByLabel(scope, label, optionName) {
   const select = scope.getByLabel(label);
-  const options = await select.locator('option').allTextContents();
-  const match = options.find((text) =>
-    typeof optionName === 'string' ? text === optionName : optionName.test(text)
-  );
+  await expect(select).toBeVisible({ timeout: 15_000 });
+  const matcher = (text) =>
+    typeof optionName === "string" ? text === optionName : optionName.test(text);
+  await expect
+    .poll(async () => {
+      const options = await select.locator("option").allTextContents();
+      return options.find(matcher) ?? null;
+    }, { timeout: 15_000 })
+    .not.toBeNull();
+  const options = await select.locator("option").allTextContents();
+  const match = options.find(matcher);
   if (!match) {
     throw new Error(`Option introuvable pour ${label}`);
   }

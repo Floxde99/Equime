@@ -50,6 +50,20 @@ function stopChild(child) {
   }
 }
 
+async function migrateDatabase() {
+  await new Promise((resolve, reject) => {
+    const migrator = spawn('npm', ['run', 'migrate', '-w', 'apps/api'], {
+      cwd: root,
+      env: apiEnv,
+      stdio: 'inherit',
+      shell: true,
+    });
+    migrator.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error('Échec des migrations avant les tests E2E'))
+    );
+  });
+}
+
 async function prepareDatabase() {
   await new Promise((resolve, reject) => {
     const seeder = spawn('npm', ['run', 'seed', '-w', 'apps/api'], {
@@ -85,6 +99,7 @@ async function main() {
   const useExternalStack = process.env.PLAYWRIGHT_EXTERNAL_STACK === '1';
 
   await clearRateLimits();
+  await migrateDatabase();
   if (!useExternalStack) {
     await prepareDatabase();
   }
