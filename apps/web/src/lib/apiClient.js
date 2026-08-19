@@ -17,7 +17,7 @@ const API_BASE = '/api/v1';
 /** @type {string | null} Access token courant (mémoire uniquement) */
 let accessToken = null;
 
-/** @type {Promise<boolean> | null} Refresh en cours (single-flight) */
+/** @type {Promise<{ user: object, accessToken: string } | null> | null} */
 let refreshInFlight = null;
 
 /** @type {(() => void) | null} Callback branché par AuthProvider (session expirée) */
@@ -55,9 +55,20 @@ export class ApiError extends Error {
 
 /**
  * Appelle POST /auth/refresh et met à jour le token en mémoire.
+ * Single-flight : React StrictMode (dev) monte AuthProvider deux fois ; deux
+ * POST concurrents présenteraient le même refresh, et la rotation côté API
+ * révoquerait toute la famille (détection de réutilisation).
  * @returns {Promise<{ user: object, accessToken: string } | null>} null si la session est morte
  */
-export async function refreshSession() {
+export function refreshSession() {
+  refreshInFlight ??= performRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+/** @returns {Promise<{ user: object, accessToken: string } | null>} */
+async function performRefresh() {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -71,15 +82,11 @@ export async function refreshSession() {
   return data;
 }
 
-/** Refresh silencieux partagé entre appels concurrents. */
+/** Refresh silencieux partagé entre appels concurrents (boolean pour le rejeu). */
 function refreshOnce() {
-  refreshInFlight ??= refreshSession()
+  return refreshSession()
     .then((data) => data !== null)
-    .catch(() => false)
-    .finally(() => {
-      refreshInFlight = null;
-    });
-  return refreshInFlight;
+    .catch(() => false);
 }
 
 /**

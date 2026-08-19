@@ -5,6 +5,7 @@ import {
   apiFetch,
   apiFetchBlob,
   getAccessToken,
+  refreshSession,
   setAccessToken,
   setOnSessionExpired,
 } from './apiClient.js';
@@ -55,6 +56,30 @@ describe('apiFetch', () => {
       )
     );
     await expect(apiFetch('/bad')).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('refreshSession', () => {
+  it('ne lance qu’un seul POST /auth/refresh pour des appels concurrents', async () => {
+    const fetchMock = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(
+              new Response(JSON.stringify({ accessToken: 'fresh', user: { id: '1' } }), {
+                status: 200,
+              })
+            );
+          }, 20);
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const [first, second] = await Promise.all([refreshSession(), refreshSession()]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first).toEqual(second);
+    expect(getAccessToken()).toBe('fresh');
   });
 });
 
