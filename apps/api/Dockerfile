@@ -16,10 +16,9 @@ FROM base AS dev
 ENV NODE_ENV=development
 COPY . .
 # Génère le client Prisma (TS → JS, voir apps/api/scripts/build-prisma-client.js).
-# prisma.config.js résout env('DATABASE_URL') au chargement : Prisma 7 échoue si
-# la variable est absente, même pour `generate` qui ne se connecte à rien.
-# Valeur factice, jamais utilisée au runtime (la vraie vient de l'environnement).
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npm run prisma:generate --workspace apps/api
+# Aucune DATABASE_URL n'est nécessaire ici : prisma.config.js lit
+# process.env['DATABASE_URL'] sans lever si la variable est absente.
+RUN npm run prisma:generate --workspace apps/api
 EXPOSE 3000
 CMD ["node", "--watch", "apps/api/src/index.js"]
 
@@ -30,8 +29,7 @@ CMD ["node", "--watch", "apps/api/src/index.js"]
 # compose préprod/prod (`prisma migrate deploy`).
 FROM base AS api-build
 COPY . .
-# Voir le stage dev : DATABASE_URL factice requise par prisma.config.js.
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npm run prisma:generate --workspace apps/api
+RUN npm run prisma:generate --workspace apps/api
 
 # ---------- Prod : runtime minimal, non-root ----------
 FROM node:22-alpine AS prod

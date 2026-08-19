@@ -44,9 +44,23 @@ export default [
 
   // Backend + package partagé + fichiers de config racine : environnement Node
   {
-    files: ['apps/api/**/*.js', 'packages/**/*.js', '*.js', 'playwright/**/*.mjs'],
+    files: [
+      'apps/api/**/*.js',
+      'packages/**/*.js',
+      '*.js',
+      'playwright/**/*.mjs',
+      'scripts/**/*.mjs',
+    ],
     languageOptions: {
       globals: { ...globals.node },
+    },
+  },
+
+  // Scripts d'outillage exécutés en CI : leur sortie console est le livrable
+  {
+    files: ['scripts/**/*.mjs'],
+    rules: {
+      'no-console': 'off',
     },
   },
 

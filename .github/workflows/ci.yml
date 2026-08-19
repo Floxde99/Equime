@@ -19,7 +19,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
-      - run: npm audit --omit=dev --audit-level=high
+      # Audit des dépendances de production. Le script permet de documenter
+      # des exceptions nominatives et datées (scripts/audit-ci.mjs) au lieu
+      # d'abaisser le seuil global, qui masquerait les vulnérabilités futures.
+      - name: Audit des dépendances
+        run: node scripts/audit-ci.mjs
 
   test:
     name: Tests
