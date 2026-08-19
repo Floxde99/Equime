@@ -97,6 +97,12 @@ export async function me(req, res) {
   res.json({ user: await authService.getMe(user.id) });
 }
 
+/** PATCH /api/v1/auth/me — édition prénom / nom / téléphone */
+export async function updateMe(req, res) {
+  const user = /** @type {{ id: string }} */ (req.user);
+  res.json({ user: await authService.updateMe(user.id, req.body) });
+}
+
 /** POST /api/v1/auth/forgot-password — réponse identique dans tous les cas */
 export async function forgotPassword(req, res) {
   await authService.forgotPassword(req.body.email);

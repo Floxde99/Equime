@@ -2,6 +2,8 @@
 /**
  * Service espaces — CRUD admin et détection de conflits planning (EPIC 3).
  */
+import { SPACE_TYPES } from '@equime/shared';
+
 import { AppError } from '../lib/appError.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -33,6 +35,20 @@ export async function createSpace(input) {
 export async function getSpace(spaceId) {
   const space = await prisma.space.findUnique({ where: { id: spaceId }, select: SPACE_SELECT });
   if (!space) throw AppError.notFound('Espace introuvable');
+  return space;
+}
+
+/**
+ * Un box n’est pas un lieu de cours (manège / carrière / paddock uniquement).
+ * @param {string} spaceId
+ */
+export async function assertRidingSpace(spaceId) {
+  const space = await getSpace(spaceId);
+  if (space.type === SPACE_TYPES.STALL) {
+    throw AppError.badRequest(
+      'Un box ne peut pas accueillir un cours — choisissez un manège, une carrière ou un paddock'
+    );
+  }
   return space;
 }
 

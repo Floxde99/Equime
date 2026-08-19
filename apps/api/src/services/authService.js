@@ -31,8 +31,26 @@ const PUBLIC_USER_SELECT = {
 
 /**
  * @typedef {{ id: string, email: string, firstName: string, lastName: string,
- *   phone: string | null, role: string, createdAt: Date }} PublicUser
+ *   phone: string | null, role: string, createdAt: Date, sessionQuota: number | null }} PublicUser
  */
+
+/**
+ * Profil public + quota de séances famille (clients uniquement).
+ * @param {string} userId
+ * @returns {Promise<PublicUser>}
+ */
+async function loadPublicUser(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      ...PUBLIC_USER_SELECT,
+      family: { select: { sessionQuota: true } },
+    },
+  });
+  if (!user) throw AppError.unauthorized();
+  const { family, ...safe } = user;
+  return { ...safe, sessionQuota: family?.sessionQuota ?? null };
+}
 
 /**
  * Inscription d'un client : crée le compte ET sa famille dans une transaction
@@ -65,7 +83,92 @@ export async function register(input, context) {
   });
 
   const { accessToken, refreshToken } = await issueTokenPair(user, context);
-  return { user, accessToken, refreshToken };
+  return { user: await loadPublicUser(user.id), accessToken, refreshToken };
+}
+
+/**
+ * Création d'un compte membre par un administrateur (Excel 7.1).
+ * - `instructor` : pas de famille (seuls les clients en ont une).
+ * - `client` : famille sans formule, quota 0.
+ * Un admin ne peut pas créer un autre admin par cet endpoint.
+ *
+ * @param {{ email: string, password: string, firstName: string, lastName: string, phone?: string, role?: string }} input
+ * @returns {Promise<PublicUser>}
+ */
+export async function createMember(input) {
+  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  if (existing) throw AppError.conflict('Un compte existe déjà avec cette adresse email');
+
+  const role = input.role === ROLES.CLIENT ? ROLES.CLIENT : ROLES.INSTRUCTOR;
+  const passwordHash = await hashPassword(input.password);
+
+  if (role === ROLES.CLIENT) {
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: input.email,
+          passwordHash,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          phone: input.phone ?? null,
+          role: ROLES.CLIENT,
+        },
+        select: PUBLIC_USER_SELECT,
+      });
+      await tx.family.create({ data: { userId: created.id, sessionQuota: 0 } });
+      return created;
+    });
+    return loadPublicUser(user.id);
+  }
+
+  return prisma.user.create({
+    data: {
+      email: input.email,
+      passwordHash,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone ?? null,
+      role: ROLES.INSTRUCTOR,
+    },
+    select: PUBLIC_USER_SELECT,
+  });
+}
+
+/**
+ * Alias historique : création d'un moniteur (Excel 7.1).
+ * @param {{ email: string, password: string, firstName: string, lastName: string, phone?: string }} input
+ * @returns {Promise<PublicUser>}
+ */
+export async function createInstructor(input) {
+  return createMember({ ...input, role: ROLES.INSTRUCTOR });
+}
+
+/**
+ * Mise à jour de la fiche d'un membre (prénom, nom, téléphone) — pas le rôle.
+ * @param {string} memberId
+ * @param {{ firstName: string, lastName: string, phone?: string | null }} input
+ * @returns {Promise<PublicUser>}
+ */
+export async function updateMemberProfile(memberId, input) {
+  const user = await prisma.user.findUnique({
+    where: { id: memberId },
+    select: { id: true, role: true, anonymizedAt: true },
+  });
+  if (!user) throw AppError.notFound('Utilisateur introuvable');
+  if (user.role === ROLES.ADMIN) {
+    throw AppError.forbidden('Impossible de modifier un administrateur');
+  }
+  if (user.anonymizedAt) throw AppError.conflict('Compte anonymisé — action impossible');
+
+  await prisma.user.update({
+    where: { id: memberId },
+    data: {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+    },
+  });
+  return loadPublicUser(user.id);
 }
 
 /**
@@ -91,20 +194,7 @@ export async function login(input, context) {
   }
 
   const { accessToken, refreshToken } = await issueTokenPair(user, context);
-  const { passwordHash: _hash, ...safe } = user;
-  return {
-    user: /** @type {PublicUser} */ ({
-      id: safe.id,
-      email: safe.email,
-      firstName: safe.firstName,
-      lastName: safe.lastName,
-      phone: safe.phone,
-      role: safe.role,
-      createdAt: safe.createdAt,
-    }),
-    accessToken,
-    refreshToken,
-  };
+  return { user: await loadPublicUser(user.id), accessToken, refreshToken };
 }
 
 /**
@@ -113,12 +203,30 @@ export async function login(input, context) {
  * @returns {Promise<PublicUser>}
  */
 export async function getMe(userId) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: PUBLIC_USER_SELECT,
-  });
+  return loadPublicUser(userId);
+}
+
+/**
+ * Mise à jour du profil (prénom, nom, téléphone) — Excel 3.1.
+ * L'email n'est pas modifiable ici.
+ * @param {string} userId
+ * @param {{ firstName: string, lastName: string, phone?: string | null }} input
+ * @returns {Promise<PublicUser>}
+ */
+export async function updateMe(userId, input) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, anonymizedAt: true } });
   if (!user) throw AppError.unauthorized();
-  return user;
+  if (user.anonymizedAt) throw AppError.forbidden('Ce compte a été supprimé');
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+    },
+  });
+  return loadPublicUser(userId);
 }
 
 /**
@@ -171,8 +279,16 @@ export async function resetPassword(input) {
  * Bannissement d'un compte (US-9.2, exposé en Phase 6 côté admin ; le service
  * vit ici car l'effet est purement « sécurité des sessions »).
  * @param {string} userId
+ * @param {string} [actorId] Identifiant de l'admin qui bannit
  */
-export async function banUser(userId) {
+export async function banUser(userId, actorId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw AppError.notFound('Utilisateur introuvable');
+  if (user.role === 'admin') throw AppError.forbidden('Impossible de bannir un administrateur');
+  if (actorId && userId === actorId) {
+    throw AppError.forbidden('Impossible de vous bannir vous-même');
+  }
+
   await prisma.user.update({
     where: { id: userId },
     data: { banned: true, bannedAt: new Date() },
@@ -236,6 +352,8 @@ export async function anonymizeAccount(userId, accessJti) {
             medicalConsentAt: null,
             medicalCertificateRejectionReason: null,
             licenseRejectionReason: null,
+            medicalCertificateExpiresAt: null,
+            licenseExpiresAt: null,
           },
         });
       }

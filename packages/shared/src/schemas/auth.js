@@ -17,17 +17,26 @@ export const passwordSchema = z
 
 export const emailSchema = z.string().trim().toLowerCase().pipe(z.email('Adresse email invalide'));
 
+const firstNameSchema = z.string().trim().min(1, 'Le prénom est requis').max(80);
+const lastNameSchema = z.string().trim().min(1, 'Le nom est requis').max(80);
+const phoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+?[0-9 .-]{6,20}$/, 'Numéro de téléphone invalide');
+
 export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  firstName: z.string().trim().min(1, 'Le prénom est requis').max(80),
-  lastName: z.string().trim().min(1, 'Le nom est requis').max(80),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^\+?[0-9 .-]{6,20}$/, 'Numéro de téléphone invalide')
-    .optional()
-    .or(z.literal('').transform(() => undefined)),
+  firstName: firstNameSchema,
+  lastName: lastNameSchema,
+  phone: phoneSchema.optional().or(z.literal('').transform(() => undefined)),
+});
+
+/** Édition du profil connecté (Excel 3.1) — prénom, nom, téléphone. */
+export const updateMeSchema = z.object({
+  firstName: firstNameSchema,
+  lastName: lastNameSchema,
+  phone: phoneSchema.optional().or(z.literal('').transform(() => null)),
 });
 
 export const loginSchema = z.object({
@@ -47,8 +56,7 @@ export const resetPasswordSchema = z.object({
 /** Confirmation explicite pour la suppression de compte (US-1.6). */
 export const deleteAccountSchema = z.object({
   confirmation: z.literal('SUPPRIMER MON COMPTE', {
-    errorMap: () => ({
-      message: 'Saisissez exactement « SUPPRIMER MON COMPTE » pour confirmer',
-    }),
+    // Zod 4 : paramètre unifié `error` (remplace l'ancien `errorMap` de Zod 3)
+    error: 'Saisissez exactement « SUPPRIMER MON COMPTE » pour confirmer',
   }),
 });

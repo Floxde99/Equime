@@ -51,3 +51,15 @@ export const createInvoiceSchema = z.object({
 export const updateInvoiceStatusSchema = z.object({
   status: z.enum(INVOICE_STATUS_VALUES),
 });
+
+/** Première souscription client (Excel 8.2) — uniquement si la famille n'a pas encore de formule. */
+export const subscribeFamilyPlanSchema = z.object({
+  subscriptionPlanId: z.string().min(1, 'La formule est requise'),
+});
+
+export const familyIdParamSchema = z.object({
+  id: z.string().min(1),
+});
+
+/** Changement de formule par l'admin (Excel 8.2) — réinitialise le quota. */
+export const adminChangeFamilySubscriptionSchema = subscribeFamilyPlanSchema;

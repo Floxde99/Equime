@@ -13,3 +13,4 @@ export * from './schemas/incidents.js';
 export * from './schemas/messages.js';
 export * from './schemas/notifications.js';
 export * from './schemas/volunteer.js';
+export * from './schemas/newsletter.js';

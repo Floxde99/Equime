@@ -37,6 +37,12 @@ const envSchema = z.object({
 
   /** Répertoire de stockage des fichiers téléversés (documents cavaliers) */
   UPLOAD_DIR: z.string().default('./uploads'),
+
+  // --- Émetteur des PDF de facture (coordonnées publiques, pas de secrets) ---
+  CLUB_NAME: z.string().default('Equime'),
+  CLUB_ADDRESS: z.string().default('12 chemin des Écuries, 31000 Toulouse'),
+  CLUB_PHONE: z.string().default('05 61 00 00 00'),
+  CLUB_EMAIL: z.string().default('contact@equime.local'),
 });
 
 const parsed = envSchema.safeParse(process.env);

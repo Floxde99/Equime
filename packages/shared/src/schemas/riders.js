@@ -11,6 +11,11 @@ import {
 
 const riderLevelSchema = z.enum(RIDER_LEVEL_VALUES);
 
+/** Date de fin de validité d'un document (certificat / licence) — jour UTC. */
+export const documentExpiresAtSchema = z
+  .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ'), z.coerce.date()])
+  .transform((value) => (value instanceof Date ? value : new Date(`${value}T00:00:00.000Z`)));
+
 export const riderIdParamSchema = z.object({
   id: z.string().min(1),
 });
@@ -39,6 +44,7 @@ export const documentUploadFieldsSchema = z.object({
     .union([z.literal('true'), z.literal('false'), z.boolean()])
     .optional()
     .transform((value) => value === true || value === 'true'),
+  expiresAt: documentExpiresAtSchema,
 });
 
 export const upsertAffinitySchema = z.object({
@@ -59,8 +65,10 @@ export const riderPublicSchema = z.object({
   level: riderLevelSchema,
   medicalCertificateStatus: z.enum(DOCUMENT_STATUS_VALUES),
   medicalCertificateRejectionReason: z.string().nullable().optional(),
+  medicalCertificateExpiresAt: z.coerce.date().nullable().optional(),
   licenseStatus: z.enum(DOCUMENT_STATUS_VALUES),
   licenseRejectionReason: z.string().nullable().optional(),
+  licenseExpiresAt: z.coerce.date().nullable().optional(),
   medicalConsentAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

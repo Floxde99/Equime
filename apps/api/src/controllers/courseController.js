@@ -1,5 +1,13 @@
 // @ts-check
+import { ROLES } from '@equime/shared';
+
 import * as courseService from '../services/courseService.js';
+
+/** @param {import('express').Request} _req @param {import('express').Response} res */
+export async function listPublicCourses(_req, res) {
+  const courses = await courseService.listPublicCourses();
+  res.json({ courses });
+}
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function createCourse(req, res) {
@@ -44,8 +52,18 @@ export async function listEnrollable(req, res) {
 }
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
+export async function listMyEnrollments(req, res) {
+  const enrollments = await courseService.listFamilyUpcomingEnrollments(req.user.id);
+  res.json({ enrollments });
+}
+
+/** @param {import('express').Request} req @param {import('express').Response} res */
 export async function enroll(req, res) {
-  const enrollment = await courseService.enrollRider(req.user.id, req.params.id, req.body.riderId);
+  const force = req.user.role === ROLES.ADMIN && (req.body.force === true || req.query.force === true);
+  const enrollment = await courseService.enrollRider(req.user.id, req.params.id, req.body.riderId, {
+    role: req.user.role,
+    force,
+  });
   res.status(201).json({ enrollment });
 }
 
@@ -60,7 +78,8 @@ export async function updateAttendance(req, res) {
   const enrollment = await courseService.updateAttendance(
     req.params.id,
     req.params.enrollmentId,
-    req.body.attendance
+    req.body.attendance,
+    { id: req.user.id, role: req.user.role }
   );
   res.json({ enrollment });
 }

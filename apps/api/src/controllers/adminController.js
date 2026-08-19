@@ -15,9 +15,21 @@ export async function listMembers(_req, res) {
   res.json({ members });
 }
 
+/** POST /api/v1/admin/members */
+export async function createMember(req, res) {
+  const member = await authService.createMember(req.body);
+  res.status(201).json({ member });
+}
+
+/** PATCH /api/v1/admin/members/:id */
+export async function updateMember(req, res) {
+  const member = await authService.updateMemberProfile(req.params.id, req.body);
+  res.json({ member });
+}
+
 /** POST /api/v1/admin/members/:id/ban */
 export async function banMember(req, res) {
-  await authService.banUser(req.params.id);
+  await authService.banUser(req.params.id, req.user.id);
   res.status(204).end();
 }
 
@@ -40,23 +52,21 @@ export async function reviewDocument(req, res) {
     req.body.docType,
     req.body.decision,
     req.body.rejectionReason,
-    req.user.id
+    req.user.id,
+    req.body.expiresAt
   );
   res.json({ rider });
 }
 
 /** GET /api/v1/admin/riders/:riderId/documents/:docType */
-export async function downloadRiderDocument(req, res) {
-  const { createReadStream } = await import('node:fs');
+export async function downloadRiderDocument(req, res, next) {
   const path = await riderService.getAdminRiderDocumentPath(
     req.user.id,
     req.params.riderId,
     req.params.docType
   );
-  const { resolveStoredFilePath } = await import('../lib/uploads.js');
-  const absolutePath = resolveStoredFilePath(path);
-  res.setHeader('Content-Disposition', 'inline');
-  createReadStream(absolutePath).pipe(res);
+  const { streamStoredFile } = await import('../lib/uploads.js');
+  streamStoredFile(path, res, next);
 }
 
 /** GET /api/v1/admin/instructors */

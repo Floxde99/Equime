@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  durationHoursFromRange,
   rankCandidateHorses,
   scoreRiderHorse,
   simulateHorseAssignments,
@@ -177,5 +178,16 @@ describe('simulateHorseAssignments', () => {
         reason: 'Aucun cheval eligible disponible',
       }),
     ]);
+  });
+});
+
+describe('durationHoursFromRange', () => {
+  it('calcule la durée d’un stage comme un cours', () => {
+    expect(
+      durationHoursFromRange(
+        new Date('2026-10-10T09:00:00.000Z'),
+        new Date('2026-10-10T17:00:00.000Z')
+      )
+    ).toBe(8);
   });
 });

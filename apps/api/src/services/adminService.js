@@ -9,11 +9,20 @@ const MEMBER_SELECT = {
   email: true,
   firstName: true,
   lastName: true,
+  phone: true,
   role: true,
   banned: true,
   bannedAt: true,
   anonymizedAt: true,
   createdAt: true,
+  family: {
+    select: {
+      id: true,
+      sessionQuota: true,
+      subscriptionPlanId: true,
+      subscriptionPlan: { select: { id: true, name: true, sessionsPerWeek: true } },
+    },
+  },
 };
 
 /**

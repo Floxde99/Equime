@@ -123,6 +123,29 @@ describe('Espaces et conflits', () => {
 
     expect(conflict.status).toBe(409);
   });
+
+  it('accepte un box (stall) et refuse d’y placer un cours', async () => {
+    const spaceRes = await request(app)
+      .post('/api/v1/spaces')
+      .set(authHeader(adminToken))
+      .send({ name: 'Écurie test', type: 'stall', capacity: 8 });
+    expect(spaceRes.status).toBe(201);
+    expect(spaceRes.body.space.type).toBe('stall');
+
+    const courseRes = await request(app)
+      .post('/api/v1/courses')
+      .set(authHeader(adminToken))
+      .send({
+        title: 'Cours en box',
+        instructorId,
+        spaceId: spaceRes.body.space.id,
+        startAt: new Date(Date.now() + 86400000).toISOString(),
+        endAt: new Date(Date.now() + 90000000).toISOString(),
+        capacity: 4,
+        status: 'scheduled',
+      });
+    expect(courseRes.status).toBe(400);
+  });
 });
 
 describe('Cours récurrents et inscriptions', () => {
@@ -138,6 +161,8 @@ describe('Cours récurrents et inscriptions', () => {
         lastName: 'Durand',
         birthdate: new Date('2010-01-01'),
         level: 'galop_2',
+        medicalCertificateStatus: 'approved',
+        licenseStatus: 'approved',
       },
     });
 
@@ -319,10 +344,12 @@ describe('Upload documents cavaliers (T-2.3 à T-2.5)', () => {
       .post(`/api/v1/riders/${rider.id}/documents/medical_certificate`)
       .set(authHeader(clientToken))
       .field('medicalConsent', 'true')
+      .field('expiresAt', '2027-12-31')
       .attach('file', pdfBuffer, { filename: 'certificat.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(200);
     expect(res.body.rider.medicalCertificateStatus).toBe('pending');
+    expect(res.body.rider.medicalCertificateExpiresAt).toBe('2027-12-31T00:00:00.000Z');
   });
 
   it('refuse un upload sans consentement médical (T-2.5)', async () => {
@@ -341,6 +368,7 @@ describe('Upload documents cavaliers (T-2.3 à T-2.5)', () => {
     const res = await request(app)
       .post(`/api/v1/riders/${rider.id}/documents/medical_certificate`)
       .set(authHeader(clientToken))
+      .field('expiresAt', '2027-12-31')
       .attach('file', pdfBuffer, { filename: 'certificat.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(400);
@@ -362,8 +390,234 @@ describe('Upload documents cavaliers (T-2.3 à T-2.5)', () => {
     const res = await request(app)
       .post(`/api/v1/riders/${rider.id}/documents/license`)
       .set(authHeader(clientToken))
+      .field('expiresAt', '2027-06-01')
       .attach('file', exeBuffer, { filename: 'licence.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(400);
+  });
+});
+
+async function createScheduledCourse() {
+  const space = await prisma.space.create({
+    data: { name: `Manège ${crypto.randomUUID().slice(0, 8)}`, type: 'indoor', capacity: 12 },
+  });
+  return prisma.course.create({
+    data: {
+      title: 'Galop 2 soir',
+      instructorId,
+      spaceId: space.id,
+      startAt: new Date('2026-09-20T16:00:00.000Z'),
+      endAt: new Date('2026-09-20T17:00:00.000Z'),
+      capacity: 6,
+      minLevel: 'galop_1',
+      maxLevel: 'galop_3',
+      status: 'scheduled',
+    },
+  });
+}
+
+describe('Documents bloquants à l’inscription (Excel 7.2 / 10.4)', () => {
+  it('refuse l’inscription client si certificat ou licence n’est pas approuvé', async () => {
+    const course = await createScheduledCourse();
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Léa',
+        lastName: 'Docs',
+        birthdate: new Date('2012-04-01'),
+        level: 'galop_2',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/certificat médical et la licence/i);
+
+    const withForce = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id, force: true });
+
+    expect(withForce.status).toBe(400);
+    expect(await prisma.courseEnrollment.count({ where: { courseId: course.id } })).toBe(0);
+  });
+
+  it('autorise l’admin à forcer l’inscription malgré des documents manquants', async () => {
+    const course = await createScheduledCourse();
+    await prisma.family.update({ where: { id: familyId }, data: { sessionQuota: 0 } });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Tom',
+        lastName: 'Force',
+        birthdate: new Date('2011-02-02'),
+        level: 'galop_2',
+        medicalCertificateStatus: 'pending',
+        licenseStatus: 'missing',
+      },
+    });
+
+    const blocked = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(adminToken))
+      .send({ riderId: rider.id });
+    expect(blocked.status).toBe(400);
+
+    const forced = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .query({ force: 'true' })
+      .set(authHeader(adminToken))
+      .send({ riderId: rider.id, force: true });
+
+    expect(forced.status).toBe(201);
+    expect(forced.body.enrollment.rider.firstName).toBe('Tom');
+
+    const family = await prisma.family.findUnique({ where: { id: familyId } });
+    expect(family?.sessionQuota).toBe(0);
+  });
+
+  it('refuse l’inscription si un document approuvé est expiré (Excel 7.2)', async () => {
+    const course = await createScheduledCourse();
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Léa',
+        lastName: 'Expiré',
+        birthdate: new Date('2012-03-03'),
+        level: 'galop_2',
+        medicalCertificateStatus: 'approved',
+        licenseStatus: 'approved',
+        medicalCertificateExpiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        licenseExpiresAt: new Date('2028-01-01T00:00:00.000Z'),
+      },
+    });
+
+    const blocked = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.error.message).toMatch(/validité/i);
+
+    const forced = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .query({ force: 'true' })
+      .set(authHeader(adminToken))
+      .send({ riderId: rider.id, force: true });
+    expect(forced.status).toBe(201);
+  });
+});
+
+describe('Absence famille (Excel 3.7)', () => {
+  it('permet au client d’excuser une séance à venir et notifie rider_absence', async () => {
+    const course = await createScheduledCourse();
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Nina',
+        lastName: 'Martin',
+        birthdate: new Date('2012-06-01'),
+        level: 'galop_2',
+        medicalCertificateStatus: 'approved',
+        licenseStatus: 'approved',
+      },
+    });
+    const enrollment = await prisma.courseEnrollment.create({
+      data: { courseId: course.id, riderId: rider.id },
+    });
+
+    const listRes = await request(app)
+      .get('/api/v1/courses/my-enrollments')
+      .set(authHeader(clientToken));
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.enrollments).toHaveLength(1);
+    expect(listRes.body.enrollments[0].id).toBe(enrollment.id);
+
+    const presentRes = await request(app)
+      .patch(`/api/v1/courses/${course.id}/enrollments/${enrollment.id}/attendance`)
+      .set(authHeader(clientToken))
+      .send({ attendance: 'present' });
+    expect(presentRes.status).toBe(403);
+
+    const excuseRes = await request(app)
+      .patch(`/api/v1/courses/${course.id}/enrollments/${enrollment.id}/attendance`)
+      .set(authHeader(clientToken))
+      .send({ attendance: 'excused' });
+
+    expect(excuseRes.status).toBe(200);
+    expect(excuseRes.body.enrollment.attendance).toBe('excused');
+
+    const notification = await prisma.notification.findFirst({
+      where: { userId: clientId, type: 'rider_absence' },
+    });
+    expect(notification).not.toBeNull();
+    expect(notification?.body).toContain('Nina');
+  });
+
+  it('refuse d’excuser une séance passée ou une inscription d’une autre famille', async () => {
+    const space = await prisma.space.create({
+      data: { name: 'Carrière passée', type: 'outdoor', capacity: 8 },
+    });
+    const pastCourse = await prisma.course.create({
+      data: {
+        title: 'Cours passé',
+        instructorId,
+        spaceId: space.id,
+        startAt: new Date('2026-01-10T10:00:00.000Z'),
+        endAt: new Date('2026-01-10T11:00:00.000Z'),
+        capacity: 6,
+        status: 'scheduled',
+      },
+    });
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Léo',
+        lastName: 'Past',
+        birthdate: new Date('2013-01-01'),
+        level: 'galop_1',
+      },
+    });
+    const pastEnrollment = await prisma.courseEnrollment.create({
+      data: { courseId: pastCourse.id, riderId: rider.id },
+    });
+
+    const pastRes = await request(app)
+      .patch(`/api/v1/courses/${pastCourse.id}/enrollments/${pastEnrollment.id}/attendance`)
+      .set(authHeader(clientToken))
+      .send({ attendance: 'excused' });
+    expect(pastRes.status).toBe(400);
+
+    const otherClient = await createUser({ email: 'other-absence@test.fr', role: 'client' });
+    const otherToken = await accessTokenFor(otherClient);
+    const otherFamilyId = await familyIdOf(otherClient.id);
+    const otherRider = await prisma.rider.create({
+      data: {
+        familyId: otherFamilyId,
+        firstName: 'Ada',
+        lastName: 'Autre',
+        birthdate: new Date('2012-08-08'),
+        level: 'galop_2',
+      },
+    });
+    const futureCourse = await createScheduledCourse();
+    const otherEnrollment = await prisma.courseEnrollment.create({
+      data: { courseId: futureCourse.id, riderId: otherRider.id },
+    });
+
+    const foreignRes = await request(app)
+      .patch(`/api/v1/courses/${futureCourse.id}/enrollments/${otherEnrollment.id}/attendance`)
+      .set(authHeader(clientToken))
+      .send({ attendance: 'excused' });
+    expect(foreignRes.status).toBe(404);
+
+    const otherList = await request(app)
+      .get('/api/v1/courses/my-enrollments')
+      .set(authHeader(otherToken));
+    expect(otherList.body.enrollments).toHaveLength(1);
   });
 });

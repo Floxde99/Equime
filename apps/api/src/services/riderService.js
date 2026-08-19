@@ -15,8 +15,10 @@ const RIDER_SELECT = {
   level: true,
   medicalCertificateStatus: true,
   medicalCertificateRejectionReason: true,
+  medicalCertificateExpiresAt: true,
   licenseStatus: true,
   licenseRejectionReason: true,
+  licenseExpiresAt: true,
   medicalConsentAt: true,
   createdAt: true,
   updatedAt: true,
@@ -80,7 +82,7 @@ export async function deleteRider(userId, riderId) {
  * @param {string} riderId
  * @param {'medical_certificate' | 'license'} docType
  * @param {Express.Multer.File} file
- * @param {{ medicalConsent?: boolean }} fields
+ * @param {{ medicalConsent?: boolean, expiresAt: Date }} fields
  */
 export async function uploadRiderDocument(userId, riderId, docType, file, fields) {
   const familyId = await getFamilyIdForUser(userId);
@@ -94,6 +96,8 @@ export async function uploadRiderDocument(userId, riderId, docType, file, fields
   const urlField = docType === 'medical_certificate' ? 'medicalCertificateUrl' : 'licenseUrl';
   const statusField =
     docType === 'medical_certificate' ? 'medicalCertificateStatus' : 'licenseStatus';
+  const expiresField =
+    docType === 'medical_certificate' ? 'medicalCertificateExpiresAt' : 'licenseExpiresAt';
   const previousPath = rider[urlField];
 
   const updated = await prisma.rider.update({
@@ -101,6 +105,7 @@ export async function uploadRiderDocument(userId, riderId, docType, file, fields
     data: {
       [urlField]: relativePath,
       [statusField]: 'pending',
+      [expiresField]: fields.expiresAt,
       ...(docType === 'medical_certificate' ? { medicalConsentAt: new Date() } : {}),
     },
     select: RIDER_SELECT,
@@ -143,7 +148,7 @@ export async function listRiderAffinities(userId, riderId) {
   await assertRiderInFamily(riderId, familyId);
   return prisma.horseAffinity.findMany({
     where: { riderId },
-    include: { horse: { select: { id: true, name: true, status: true } } },
+    include: { horse: { select: { id: true, name: true, status: true, photoUrl: true } } },
     orderBy: { updatedAt: 'desc' },
   });
 }
@@ -165,7 +170,7 @@ export async function upsertRiderAffinity(userId, riderId, horseId, affinity) {
     where: { riderId_horseId: { riderId, horseId } },
     create: { riderId, horseId, affinity },
     update: { affinity },
-    include: { horse: { select: { id: true, name: true, status: true } } },
+    include: { horse: { select: { id: true, name: true, status: true, photoUrl: true } } },
   });
 }
 
@@ -174,7 +179,9 @@ const PENDING_DOC_SELECT = {
   firstName: true,
   lastName: true,
   medicalCertificateStatus: true,
+  medicalCertificateExpiresAt: true,
   licenseStatus: true,
+  licenseExpiresAt: true,
   family: {
     select: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -204,8 +211,9 @@ export async function listPendingDocuments() {
  * @param {'approved' | 'rejected'} decision
  * @param {string | undefined} rejectionReason
  * @param {string} [adminId] Pour journal d'audit RGPD
+ * @param {Date} [expiresAt] Correction de la date de validité (Excel 7.2)
  */
-export async function reviewRiderDocument(riderId, docType, decision, rejectionReason, adminId) {
+export async function reviewRiderDocument(riderId, docType, decision, rejectionReason, adminId, expiresAt) {
   const rider = await prisma.rider.findUnique({ where: { id: riderId } });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
 
@@ -215,6 +223,8 @@ export async function reviewRiderDocument(riderId, docType, decision, rejectionR
     docType === 'medical_certificate'
       ? 'medicalCertificateRejectionReason'
       : 'licenseRejectionReason';
+  const expiresField =
+    docType === 'medical_certificate' ? 'medicalCertificateExpiresAt' : 'licenseExpiresAt';
 
   if (rider[statusField] !== 'pending') {
     throw AppError.conflict('Ce document n\'est pas en attente de validation');
@@ -229,6 +239,7 @@ export async function reviewRiderDocument(riderId, docType, decision, rejectionR
     data: {
       [statusField]: decision,
       [reasonField]: decision === 'rejected' ? rejectionReason.trim() : null,
+      ...(expiresAt ? { [expiresField]: expiresAt } : {}),
     },
     select: RIDER_SELECT,
   });

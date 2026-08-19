@@ -7,6 +7,7 @@ import pinoHttp from 'pino-http';
 
 import { env, isTest } from './config/env.js';
 import { logger } from './lib/logger.js';
+import { handleMulterError } from './lib/uploads.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { notFound } from './middlewares/notFound.js';
 import adminRouter from './routes/admin.routes.js';
@@ -19,6 +20,7 @@ import horsesRouter from './routes/horses.routes.js';
 import incidentsRouter from './routes/incidents.routes.js';
 import messagesRouter from './routes/messages.routes.js';
 import notificationsRouter from './routes/notifications.routes.js';
+import publicRouter from './routes/public.routes.js';
 import ridersRouter from './routes/riders.routes.js';
 import spacesRouter from './routes/spaces.routes.js';
 import volunteerRouter from './routes/volunteer.routes.js';
@@ -52,6 +54,7 @@ export function createApp() {
   // --- Routes ---
   app.use('/health', healthRouter);
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/public', publicRouter);
   app.use('/api/v1/riders', ridersRouter);
   app.use('/api/v1/horses', horsesRouter);
   app.use('/api/v1/spaces', spacesRouter);
@@ -66,6 +69,7 @@ export function createApp() {
 
   // --- 404 & erreurs (toujours en dernier) ---
   app.use(notFound);
+  app.use(handleMulterError);
   app.use(errorHandler);
 
   return app;

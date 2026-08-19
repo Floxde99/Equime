@@ -9,6 +9,7 @@ import {
 import { Router } from 'express';
 
 import * as horseController from '../controllers/horseController.js';
+import { horsePhotoUpload } from '../lib/uploads.js';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
 
@@ -33,6 +34,25 @@ router.delete(
   requireRole(ROLES.ADMIN),
   validate(horseIdParamSchema, 'params'),
   horseController.deleteHorse
+);
+
+router.post(
+  '/:id/photo',
+  requireRole(ROLES.ADMIN),
+  validate(horseIdParamSchema, 'params'),
+  horsePhotoUpload.single('file'),
+  horseController.uploadPhoto
+);
+router.get(
+  '/:id/photo',
+  validate(horseIdParamSchema, 'params'),
+  horseController.downloadPhoto
+);
+router.delete(
+  '/:id/photo',
+  requireRole(ROLES.ADMIN),
+  validate(horseIdParamSchema, 'params'),
+  horseController.deletePhoto
 );
 
 router.get(

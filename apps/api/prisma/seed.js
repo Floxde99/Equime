@@ -154,6 +154,7 @@ async function main() {
       { name: 'Manège principal', type: 'indoor', capacity: 12 },
       { name: 'Carrière de dressage', type: 'outdoor', capacity: 16 },
       { name: 'Paddock des poneys', type: 'paddock', capacity: 8 },
+      { name: 'Écurie principale', type: 'stall', capacity: 16 },
     ].map((data) => prisma.space.create({ data: /** @type {any} */ (data) }))
   );
 

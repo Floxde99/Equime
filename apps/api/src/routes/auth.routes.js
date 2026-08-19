@@ -9,6 +9,7 @@ import {
   loginSchema,
   registerSchema,
   resetPasswordSchema,
+  updateMeSchema,
 } from '@equime/shared';
 import { Router } from 'express';
 
@@ -42,6 +43,8 @@ router.post(
 router.post('/logout', requireAuth, authController.logout);
 
 router.get('/me', requireAuth, authController.me);
+
+router.patch('/me', requireAuth, validate(updateMeSchema), authController.updateMe);
 
 router.get('/me/export', requireAuth, authController.exportData);
 

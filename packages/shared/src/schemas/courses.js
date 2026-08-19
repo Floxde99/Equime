@@ -83,6 +83,15 @@ export const cancelCourseSchema = z.object({
 
 export const enrollRiderSchema = z.object({
   riderId: z.string().min(1),
+  force: z.boolean().optional(),
+});
+
+/** Query `force=true` — réservé admin (Excel 10.4), ignoré pour les autres rôles. */
+export const forceQuerySchema = z.object({
+  force: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .optional()
+    .transform((value) => value === true || value === 'true'),
 });
 
 export const updateAttendanceSchema = z.object({

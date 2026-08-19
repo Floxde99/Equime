@@ -2,7 +2,10 @@
 import {
   createEventSchema,
   eventIdParamSchema,
+  eventRegistrationIdParamSchema,
   eventRegistrationSchema,
+  forceQuerySchema,
+  overrideHorseSchema,
   ROLES,
   updateEventSchema,
 } from '@equime/shared';
@@ -41,10 +44,36 @@ router.get(
 );
 router.post(
   '/:id/registrations',
-  requireRole(ROLES.CLIENT),
+  requireRole(ROLES.CLIENT, ROLES.ADMIN),
   validate(eventIdParamSchema, 'params'),
   validate(eventRegistrationSchema),
+  validate(forceQuerySchema, 'query'),
   eventController.registerRider
+);
+router.post(
+  '/:id/assign-horses',
+  requireRole(ROLES.ADMIN),
+  validate(eventIdParamSchema, 'params'),
+  eventController.assignHorses
+);
+router.post(
+  '/:id/registrations/:registrationId/cancel',
+  requireRole(ROLES.CLIENT, ROLES.ADMIN),
+  validate(eventRegistrationIdParamSchema, 'params'),
+  eventController.cancelRegistration
+);
+router.get(
+  '/:id/registrations/:registrationId/horse-options',
+  requireRole(ROLES.ADMIN),
+  validate(eventRegistrationIdParamSchema, 'params'),
+  eventController.listHorseOptions
+);
+router.patch(
+  '/:id/registrations/:registrationId/horse',
+  requireRole(ROLES.ADMIN),
+  validate(eventRegistrationIdParamSchema, 'params'),
+  validate(overrideHorseSchema),
+  eventController.overrideHorse
 );
 
 export default router;

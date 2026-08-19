@@ -132,6 +132,88 @@ describe('Gestion membres (T-9.2)', () => {
       .send({ email: 'client@test.fr', password: 'MotDePasse123' });
     expect(login.status).toBe(200);
   });
+
+  it('refuse de bannir un administrateur', async () => {
+    const otherAdmin = await createUser({ email: 'admin2@test.fr', role: 'admin' });
+    const res = await request(app)
+      .post(`/api/v1/admin/members/${otherAdmin.id}/ban`)
+      .set(authHeader(adminToken));
+    expect(res.status).toBe(403);
+  });
+
+  it('crée un compte moniteur avec mot de passe temporaire', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/members')
+      .set(authHeader(adminToken))
+      .send({
+        email: 'nouveau-moniteur@test.fr',
+        password: 'MotDePasse123',
+        firstName: 'Camille',
+        lastName: 'Coach',
+        phone: '0612345678',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.member).toMatchObject({
+      email: 'nouveau-moniteur@test.fr',
+      firstName: 'Camille',
+      lastName: 'Coach',
+      role: 'instructor',
+    });
+    expect(res.body.member.passwordHash).toBeUndefined();
+    expect(res.body.accessToken).toBeUndefined();
+
+    const stored = await prisma.user.findUnique({ where: { id: res.body.member.id } });
+    expect(stored.passwordHash).toMatch(/^\$argon2id\$/);
+    expect(stored.role).toBe('instructor');
+
+    const family = await prisma.family.findUnique({ where: { userId: res.body.member.id } });
+    expect(family).toBeNull();
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'nouveau-moniteur@test.fr', password: 'MotDePasse123' });
+    expect(login.status).toBe(200);
+    expect(login.body.user.role).toBe('instructor');
+  });
+
+  it('refuse un mot de passe trop court et un email déjà utilisé', async () => {
+    const weak = await request(app)
+      .post('/api/v1/admin/members')
+      .set(authHeader(adminToken))
+      .send({
+        email: 'faible@test.fr',
+        password: 'court',
+        firstName: 'Camille',
+        lastName: 'Coach',
+      });
+    expect(weak.status).toBe(400);
+
+    const duplicate = await request(app)
+      .post('/api/v1/admin/members')
+      .set(authHeader(adminToken))
+      .send({
+        email: 'client@test.fr',
+        password: 'MotDePasse123',
+        firstName: 'Camille',
+        lastName: 'Coach',
+      });
+    expect(duplicate.status).toBe(409);
+  });
+
+  it('interdit à un client de créer un moniteur', async () => {
+    const { accessToken } = await issueTokenPair({ id: clientId, role: 'client' });
+    const res = await request(app)
+      .post('/api/v1/admin/members')
+      .set(authHeader(accessToken))
+      .send({
+        email: 'intrus@test.fr',
+        password: 'MotDePasse123',
+        firstName: 'Intrus',
+        lastName: 'Client',
+      });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('Validation documents (T-9.3)', () => {
@@ -159,6 +241,33 @@ describe('Validation documents (T-9.3)', () => {
       where: { riderId: rider.id, action: 'medical_document_reviewed' },
     });
     expect(audit).not.toBeNull();
+  });
+
+  it('permet à l’admin de corriger la date d’expiration à la validation', async () => {
+    const rider = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Inès',
+        lastName: 'Test',
+        birthdate: new Date('2014-06-01'),
+        level: 'initiation',
+        medicalCertificateStatus: 'pending',
+        medicalCertificateExpiresAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/admin/riders/${rider.id}/review-document`)
+      .set(authHeader(adminToken))
+      .send({
+        docType: 'medical_certificate',
+        decision: 'approved',
+        expiresAt: '2028-06-30',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rider.medicalCertificateStatus).toBe('approved');
+    expect(res.body.rider.medicalCertificateExpiresAt).toBe('2028-06-30T00:00:00.000Z');
   });
 
   it('refuse une licence avec motif obligatoire', async () => {

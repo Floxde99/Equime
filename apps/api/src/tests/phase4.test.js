@@ -21,6 +21,19 @@ import {
 
 const app = createApp();
 
+/**
+ * Accumulateur binaire pour SuperTest (PDF).
+ * @param {import('http').IncomingMessage} res
+ * @param {(err: Error | null, body?: Buffer) => void} callback
+ */
+function collectBuffer(res, callback) {
+  /** @type {Buffer[]} */
+  const chunks = [];
+  res.on('data', (chunk) => chunks.push(chunk));
+  res.on('end', () => callback(null, Buffer.concat(chunks)));
+  res.on('error', callback);
+}
+
 let adminToken;
 let clientToken;
 let instructorToken;
@@ -113,6 +126,31 @@ async function createCourseSetup() {
 
   return { space, course };
 }
+
+describe('EPIC 3 — fiches chevaux', () => {
+  it('permet à l’admin de changer le statut d’un cheval', async () => {
+    const created = await request(app)
+      .post('/api/v1/horses')
+      .set(authHeader(adminToken))
+      .send({ name: 'Ouragan' });
+    expect(created.status).toBe(201);
+    expect(created.body.horse.status).toBe('fit');
+
+    const patched = await request(app)
+      .patch(`/api/v1/horses/${created.body.horse.id}`)
+      .set(authHeader(adminToken))
+      .send({ status: 'injured' });
+    expect(patched.status).toBe(200);
+    expect(patched.body.horse.status).toBe('injured');
+    expect(patched.body.horse.name).toBe('Ouragan');
+
+    const forbidden = await request(app)
+      .patch(`/api/v1/horses/${created.body.horse.id}`)
+      .set(authHeader(instructorToken))
+      .send({ status: 'rest' });
+    expect(forbidden.status).toBe(403);
+  });
+});
 
 describe('EPIC 5 — attribution des chevaux', () => {
   it('rollback complètement si une erreur survient pendant une attribution', async () => {
@@ -358,5 +396,215 @@ describe('EPIC 6 — facturation & abonnements', () => {
       .set(authHeader(otherClientToken))
       .send({})
       .expect(404);
+  });
+
+  it('refuse de payer une facture encore en brouillon', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-8888',
+        status: 'draft',
+        dueAt: new Date('2026-09-15T00:00:00.000Z'),
+        totalCents: 4900,
+        items: {
+          create: [{ label: 'Abonnement', quantity: 1, unitCents: 4900, totalCents: 4900 }],
+        },
+      },
+    });
+
+    const payRes = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/pay`)
+      .set(authHeader(clientToken))
+      .send({});
+    expect(payRes.status).toBe(400);
+  });
+
+  it("génère les factures d'abonnement du mois sans doublon", async () => {
+    const plan = await prisma.subscriptionPlan.findFirstOrThrow({ where: { name: 'Découverte' } });
+    await prisma.family.update({
+      where: { id: clientFamilyId },
+      data: { subscriptionPlanId: plan.id },
+    });
+
+    const first = await request(app)
+      .post('/api/v1/admin/invoices/generate-subscriptions')
+      .set(authHeader(adminToken))
+      .send({});
+
+    expect(first.status).toBe(200);
+    expect(first.body.createdCount).toBe(1);
+    expect(first.body.skippedCount).toBe(0);
+    expect(first.body.invoices).toHaveLength(1);
+    expect(first.body.invoices[0].family.id).toBe(clientFamilyId);
+    expect(first.body.invoices[0].status).toBe('draft');
+    expect(first.body.invoices[0].totalCents).toBe(4900);
+
+    await prisma.family.update({
+      where: { id: _otherFamilyId },
+      data: { subscriptionPlanId: plan.id },
+    });
+
+    const second = await request(app)
+      .post('/api/v1/admin/invoices/generate-subscriptions')
+      .set(authHeader(adminToken))
+      .send({});
+
+    expect(second.status).toBe(200);
+    expect(second.body.createdCount).toBe(1);
+    expect(second.body.skippedCount).toBe(1);
+    expect(second.body.invoices[0].family.id).toBe(_otherFamilyId);
+
+    const third = await request(app)
+      .post('/api/v1/admin/invoices/generate-subscriptions')
+      .set(authHeader(adminToken))
+      .send({});
+
+    expect(third.status).toBe(200);
+    expect(third.body.createdCount).toBe(0);
+    expect(third.body.skippedCount).toBe(2);
+
+    const invoices = await prisma.invoice.findMany();
+    expect(invoices).toHaveLength(2);
+  });
+
+  it('liste les brouillons côté admin et les masque au client', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-DRAFT',
+        status: 'draft',
+        dueAt: new Date('2026-09-15T00:00:00.000Z'),
+        totalCents: 4900,
+        items: {
+          create: [{ label: 'Abonnement', quantity: 1, unitCents: 4900, totalCents: 4900 }],
+        },
+      },
+    });
+
+    const adminList = await request(app).get('/api/v1/admin/invoices').set(authHeader(adminToken));
+    expect(adminList.status).toBe(200);
+    expect(adminList.body.invoices.some((item) => item.id === invoice.id && item.status === 'draft')).toBe(
+      true
+    );
+
+    const clientList = await request(app).get('/api/v1/client/invoices').set(authHeader(clientToken));
+    expect(clientList.status).toBe(200);
+    expect(clientList.body.invoices.some((item) => item.id === invoice.id)).toBe(false);
+  });
+
+  it('retourne une facture admin par id avec ses lignes', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-DETAIL',
+        status: 'draft',
+        dueAt: new Date('2026-09-15T00:00:00.000Z'),
+        totalCents: 4900,
+        items: {
+          create: [{ label: 'Abonnement', quantity: 1, unitCents: 4900, totalCents: 4900 }],
+        },
+      },
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/admin/invoices/${invoice.id}`)
+      .set(authHeader(adminToken));
+    expect(res.status).toBe(200);
+    expect(res.body.invoice.id).toBe(invoice.id);
+    expect(res.body.invoice.number).toBe('FAC-2026-DETAIL');
+    expect(res.body.invoice.status).toBe('draft');
+    expect(res.body.invoice.totalCents).toBe(4900);
+    expect(res.body.invoice.family.id).toBe(clientFamilyId);
+    expect(res.body.invoice.family.user.firstName).toBe('Lina');
+    expect(res.body.invoice.items).toHaveLength(1);
+    expect(res.body.invoice.items[0]).toMatchObject({
+      label: 'Abonnement',
+      quantity: 1,
+      unitCents: 4900,
+      totalCents: 4900,
+    });
+
+    const missing = await request(app)
+      .get('/api/v1/admin/invoices/does-not-exist')
+      .set(authHeader(adminToken));
+    expect(missing.status).toBe(404);
+
+    const forbidden = await request(app)
+      .get(`/api/v1/admin/invoices/${invoice.id}`)
+      .set(authHeader(clientToken));
+    expect(forbidden.status).toBe(403);
+  });
+
+  it('génère un PDF admin (y compris brouillon) et le refuse au client', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-PDF-DRAFT',
+        status: 'draft',
+        dueAt: new Date('2026-09-15T00:00:00.000Z'),
+        totalCents: 4900,
+        items: {
+          create: [{ label: 'Abonnement', quantity: 1, unitCents: 4900, totalCents: 4900 }],
+        },
+      },
+    });
+
+    const adminPdf = await request(app)
+      .get(`/api/v1/admin/invoices/${invoice.id}/pdf`)
+      .set(authHeader(adminToken))
+      .buffer(true)
+      .parse(collectBuffer);
+    expect(adminPdf.status).toBe(200);
+    expect(adminPdf.headers['content-type']).toMatch(/application\/pdf/);
+    expect(adminPdf.headers['content-disposition']).toMatch(/facture-FAC-2026-PDF-DRAFT\.pdf/);
+    expect(adminPdf.body.subarray(0, 4).toString('latin1')).toBe('%PDF');
+
+    const clientDraft = await request(app)
+      .get(`/api/v1/client/invoices/${invoice.id}/pdf`)
+      .set(authHeader(clientToken));
+    expect(clientDraft.status).toBe(404);
+
+    const instructorForbidden = await request(app)
+      .get(`/api/v1/admin/invoices/${invoice.id}/pdf`)
+      .set(authHeader(instructorToken));
+    expect(instructorForbidden.status).toBe(403);
+  });
+
+  it('sert le PDF client après envoi et isole les familles', async () => {
+    const created = await request(app)
+      .post('/api/v1/admin/invoices')
+      .set(authHeader(adminToken))
+      .send({
+        familyId: clientFamilyId,
+        dueAt: '2026-09-15T00:00:00.000Z',
+        items: [{ label: 'Cours', quantity: 1, unitCents: 2500 }],
+      });
+    expect(created.status).toBe(201);
+    const invoiceId = created.body.invoice.id;
+
+    await request(app)
+      .post(`/api/v1/admin/invoices/${invoiceId}/send`)
+      .set(authHeader(adminToken));
+
+    const clientPdf = await request(app)
+      .get(`/api/v1/client/invoices/${invoiceId}/pdf`)
+      .set(authHeader(clientToken))
+      .buffer(true)
+      .parse(collectBuffer);
+    expect(clientPdf.status).toBe(200);
+    expect(clientPdf.body.subarray(0, 4).toString('latin1')).toBe('%PDF');
+
+    const otherPdf = await request(app)
+      .get(`/api/v1/client/invoices/${invoiceId}/pdf`)
+      .set(authHeader(otherClientToken));
+    expect(otherPdf.status).toBe(404);
+  });
+
+  it('interdit la génération batch aux non-admins', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/invoices/generate-subscriptions')
+      .set(authHeader(clientToken))
+      .send({});
+    expect(res.status).toBe(403);
   });
 });

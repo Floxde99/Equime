@@ -42,4 +42,5 @@ export const updateEventSchema = eventBodySchema.partial().superRefine((data, ct
 
 export const eventRegistrationSchema = z.object({
   riderId: z.string().min(1),
+  force: z.boolean().optional(),
 });

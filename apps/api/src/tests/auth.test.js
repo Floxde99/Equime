@@ -162,6 +162,7 @@ describe('Routes protégées', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.user.email).toBe('client@test.fr');
+    expect(res.body.user.sessionQuota).toBe(0);
   });
 
   it('un utilisateur banni est rejeté immédiatement, même avec un access token encore valide', async () => {
@@ -403,6 +404,81 @@ describe('POST /api/v1/auth/forgot-password + reset-password', () => {
       .post('/api/v1/auth/reset-password')
       .send({ token: knownToken, password: 'NouveauMotDePasse1' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/v1/auth/me — édition du profil (Excel 3.1)
+// ---------------------------------------------------------------------------
+describe('PATCH /api/v1/auth/me', () => {
+  it('refuse une requête sans token (401)', async () => {
+    const res = await request(app)
+      .patch('/api/v1/auth/me')
+      .send({ firstName: 'Marie', lastName: 'Dupont', phone: '0612345678' });
+    expect(res.status).toBe(401);
+  });
+
+  it('met à jour prénom, nom et téléphone et renvoie le profil public', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+
+    const res = await request(app)
+      .patch('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ firstName: 'Marie', lastName: 'Dupont', phone: '06 12 34 56 78' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({
+      id: reg.body.user.id,
+      email: 'client@test.fr',
+      firstName: 'Marie',
+      lastName: 'Dupont',
+      phone: '06 12 34 56 78',
+      role: 'client',
+      sessionQuota: 0,
+    });
+    expect(res.body.user.passwordHash).toBeUndefined();
+
+    const stored = await prisma.user.findUnique({ where: { id: reg.body.user.id } });
+    expect(stored.firstName).toBe('Marie');
+    expect(stored.lastName).toBe('Dupont');
+    expect(stored.phone).toBe('06 12 34 56 78');
+    expect(stored.email).toBe('client@test.fr');
+  });
+
+  it('permet de vider le téléphone', async () => {
+    const reg = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ ...registerPayload(), phone: '0611111111' });
+
+    const res = await request(app)
+      .patch('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ firstName: 'Jean', lastName: 'Test', phone: '' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.phone).toBeNull();
+  });
+
+  it('refuse un prénom vide (400)', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const res = await request(app)
+      .patch('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ firstName: '  ', lastName: 'Dupont', phone: '0612345678' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('BAD_REQUEST');
+  });
+
+  it('refuse un téléphone invalide (400)', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const res = await request(app)
+      .patch('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reg.body.accessToken}`)
+      .send({ firstName: 'Marie', lastName: 'Dupont', phone: 'abc' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.some((d) => d.field === 'phone')).toBe(true);
   });
 });
 
