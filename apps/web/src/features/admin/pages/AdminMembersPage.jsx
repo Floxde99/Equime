@@ -137,7 +137,7 @@ export function AdminMembersPage() {
           {members.map((member) => (
             <li
               key={member.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-white p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-card p-4"
             >
               <div className="flex items-center gap-3">
                 <span

@@ -66,7 +66,7 @@ const primaryClass =
 const outlinePhotoClass =
   'inline-flex h-12 items-center justify-center rounded-md border border-white px-8 font-sans text-sm font-semibold text-white hover:bg-white/10';
 const outlineLightClass =
-  'inline-flex h-11 items-center justify-center rounded-md border border-border-on-card bg-white px-6 font-sans text-sm font-semibold text-on-card hover:bg-paper';
+  'inline-flex h-11 items-center justify-center rounded-md border border-border-on-card bg-card px-6 font-sans text-sm font-semibold text-on-card hover:bg-paper';
 
 /**
  * Ancre interne : défilement fluide vers la section (sans saut brutal).
@@ -105,9 +105,9 @@ export function HomePage() {
   const events = apiEvents.length > 0 ? apiEvents.slice(0, 2) : SHOWCASE_EVENTS;
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-on-card">
+    <div className="flex min-h-screen flex-col bg-card text-on-card">
       <SkipLink />
-      <header className="sticky top-0 z-40 border-b border-border-on-card bg-white">
+      <header className="sticky top-0 z-40 border-b border-border-on-card bg-card">
         <nav
           aria-label="Navigation principale"
           className="mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-8 py-5"
@@ -193,7 +193,7 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="programmes" className="scroll-mt-24 bg-white px-8 py-24">
+        <section id="programmes" className="scroll-mt-24 bg-card px-8 py-24">
           <div className="mx-auto max-w-7xl">
             <p className="font-sans text-xs font-semibold uppercase tracking-[0.22em] text-muted-on-card">
               Notre savoir-faire
@@ -234,7 +234,7 @@ export function HomePage() {
               ) : (
                 <ul className="mt-14 grid gap-8 md:grid-cols-3">
                   {(plansQuery.data ?? []).map((plan) => (
-                    <li key={plan.id} className="border border-border-on-card bg-white p-8">
+                    <li key={plan.id} className="border border-border-on-card bg-card p-8">
                       <h3 className="font-display text-2xl text-on-card">{plan.name}</h3>
                       <p className="mt-3 font-sans text-3xl font-semibold text-on-card">
                         {formatMonthlyPlanPrice(plan.priceCents)}
@@ -271,7 +271,7 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="cours" className="scroll-mt-24 bg-white px-8 py-24">
+        <section id="cours" className="scroll-mt-24 bg-card px-8 py-24">
           <div className="mx-auto max-w-7xl">
             <div className="mb-12 flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -394,7 +394,7 @@ export function HomePage() {
           </blockquote>
         </section>
 
-        <section id="evenements" className="scroll-mt-24 bg-white px-8 py-24">
+        <section id="evenements" className="scroll-mt-24 bg-card px-8 py-24">
           <div className="mx-auto max-w-7xl">
             <div className="mb-12 flex flex-wrap items-end justify-between gap-4">
               <h2 className="font-display text-4xl text-on-card md:text-5xl">Événements à venir</h2>
@@ -447,10 +447,12 @@ export function HomePage() {
         <section className="relative overflow-hidden bg-ink px-8 py-28">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 size-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10"
+            className="pointer-events-none absolute left-1/2 top-1/2 size-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary-fg/10"
           />
           <div className="relative mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-4xl text-white md:text-6xl">Commencez votre saison</h2>
+            <h2 className="font-display text-4xl text-primary-fg md:text-6xl">
+              Commencez votre saison
+            </h2>
             <p className="mt-5 font-sans text-sm text-muted md:text-base">
               Créez un compte famille pour inscrire vos cavaliers, réserver les cours et suivre la
               facturation.
@@ -603,7 +605,7 @@ function NewsletterForm() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="Votre email"
-          className="h-11 min-w-0 flex-1 border border-border-on-card bg-white px-3 font-sans text-sm text-on-card"
+          className="h-11 min-w-0 flex-1 border border-border-on-card bg-card px-3 font-sans text-sm text-on-card"
         />
         <button
           type="submit"

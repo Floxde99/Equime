@@ -1,9 +1,33 @@
-import { useEffect } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 import { cn } from '@/lib/utils.js';
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]:not([disabled])',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
 /**
- * Modale accessible (design system §5) : overlay, Échap, actions à droite.
+ * Éléments tabulables visibles dans un conteneur (piège de focus).
+ *
+ * @param {ParentNode | null} root
+ * @returns {HTMLElement[]}
+ */
+function getFocusableElements(root) {
+  if (!root) return [];
+  return [...root.querySelectorAll(FOCUSABLE_SELECTOR)].filter((node) => {
+    if (!(node instanceof HTMLElement)) return false;
+    if (node.getAttribute('aria-hidden') === 'true') return false;
+    return node.getClientRects().length > 0;
+  });
+}
+
+/**
+ * Modale accessible (design system §5) : overlay, Échap, piège de focus, actions à droite.
  *
  * @param {{
  *   open: boolean,
@@ -15,13 +39,55 @@ import { cn } from '@/lib/utils.js';
  * }} props
  */
 export function Dialog({ open, onClose, title, children, footer, className }) {
+  const titleId = useId();
+  const dialogRef = useRef(null);
+
   useEffect(() => {
     if (!open) return undefined;
+
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const initialFocus = getFocusableElements(dialog)[0] ?? dialog;
+    initialFocus?.focus();
+
+    /**
+     * @param {KeyboardEvent} event
+     */
     function onKey(event) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements(dialogRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey) {
+        if (active === first || (dialogRef.current && !dialogRef.current.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || (dialogRef.current && !dialogRef.current.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     }
+
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -30,20 +96,23 @@ export function Dialog({ open, onClose, title, children, footer, className }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
+        tabIndex={-1}
         className="absolute inset-0 bg-ink/80"
         aria-label="Fermer la fenêtre"
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={cn(
           'relative z-10 w-full max-h-[80vh] overflow-y-auto rounded-xl border border-border-on-card bg-card p-5 text-on-card shadow-2xl',
           className ?? 'max-w-md'
         )}
       >
-        <h2 id="dialog-title" className="font-sans text-lg font-semibold">
+        <h2 id={titleId} className="font-sans text-lg font-semibold">
           {title}
         </h2>
         {children ? (
@@ -91,7 +160,7 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
-            className="inline-flex h-11 items-center rounded-lg bg-danger px-6 font-sans text-sm font-semibold text-white disabled:opacity-50"
+            className="inline-flex h-11 items-center rounded-lg bg-danger px-6 font-sans text-sm font-semibold text-danger-fg disabled:opacity-50"
             onClick={onConfirm}
             disabled={loading}
             aria-busy={loading || undefined}

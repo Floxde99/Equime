@@ -38,7 +38,7 @@ export function AuthLayout() {
         </Link>
         <main
           id="auth"
-          className="w-full max-w-md bg-white p-10 text-on-card shadow-sm [&_.text-text]:text-on-card [&_.text-muted]:text-muted-on-card"
+          className="w-full max-w-md bg-card p-10 text-on-card shadow-sm [&_.text-text]:text-on-card [&_.text-muted]:text-muted-on-card"
         >
           <Outlet />
         </main>

@@ -14,7 +14,7 @@ export function Button({ variant = 'primary', loading = false, className, childr
     primary: 'bg-primary text-primary-fg hover:bg-primary-light',
     secondary: 'border border-border-on-card bg-card text-on-card hover:bg-border-on-card/40',
     ghost: 'text-muted hover:bg-paper hover:text-on-card',
-    danger: 'bg-danger text-white hover:opacity-90',
+    danger: 'bg-danger text-danger-fg hover:opacity-90',
   };
 
   return (
@@ -24,9 +24,9 @@ export function Button({ variant = 'primary', loading = false, className, childr
         variants[variant],
         className
       )}
+      {...rest}
       disabled={loading || rest.disabled}
       aria-busy={loading || undefined}
-      {...rest}
     >
       {loading && (
         <span

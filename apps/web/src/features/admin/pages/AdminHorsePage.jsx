@@ -6,6 +6,7 @@ import {
   RIDER_LEVEL_LABELS,
   RIDER_LEVEL_VALUES,
   createHealthLogSchema,
+  updateHorseSchema,
 } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -52,15 +53,26 @@ const LEVEL_OPTIONS = RIDER_LEVEL_VALUES.map((value) => ({
   label: RIDER_LEVEL_LABELS[value],
 }));
 
-const horseIdentitySchema = z
-  .object({
-    name: z.string().trim().min(1, 'Le nom est requis').max(80),
-    breed: z.string().trim().max(80).optional(),
+/** Identité cheval : champs du schéma partagé, année vide autorisée dans le formulaire. */
+const horseIdentitySchema = updateHorseSchema
+  .pick({
+    name: true,
+    breed: true,
+    birthYear: true,
+    minLevel: true,
+    maxLevel: true,
+    maxWeeklyLoadHours: true,
+    alertThresholdHours: true,
+  })
+  .required({
+    name: true,
+    minLevel: true,
+    maxLevel: true,
+    maxWeeklyLoadHours: true,
+    alertThresholdHours: true,
+  })
+  .extend({
     birthYear: z.union([z.literal(''), z.coerce.number().int().min(1980).max(2100)]).optional(),
-    minLevel: z.enum(RIDER_LEVEL_VALUES),
-    maxLevel: z.enum(RIDER_LEVEL_VALUES),
-    maxWeeklyLoadHours: z.coerce.number().positive().max(40),
-    alertThresholdHours: z.coerce.number().positive().max(40),
   })
   .superRefine((data, ctx) => {
     if (RIDER_LEVEL_VALUES.indexOf(data.minLevel) > RIDER_LEVEL_VALUES.indexOf(data.maxLevel)) {

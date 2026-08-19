@@ -80,7 +80,7 @@ export function ConnectedShell({ eyebrow, items, cta, notificationsTo, navLabel 
             <div className="flex items-center gap-3">
               <Link
                 to={notificationsTo}
-                className="inline-flex size-11 items-center justify-center rounded-full text-muted hover:bg-white hover:text-on-card"
+                className="inline-flex size-11 items-center justify-center rounded-full text-muted hover:bg-card hover:text-on-card"
                 aria-label="Notifications"
               >
                 <Bell className="size-5" />
@@ -151,8 +151,8 @@ function SidebarItem({ item, onNavigate }) {
         cn(
           'flex items-center gap-3 py-3 font-sans text-sm transition-colors',
           isActive
-            ? 'border-l-4 border-primary bg-white/60 pl-4 font-semibold text-primary'
-            : 'border-l-4 border-transparent pl-5 text-muted hover:bg-white/50 hover:text-on-card'
+            ? 'border-l-4 border-primary bg-card/60 pl-4 font-semibold text-primary'
+            : 'border-l-4 border-transparent pl-5 text-muted hover:bg-card/50 hover:text-on-card'
         )
       }
     >
