@@ -1,0 +1,160 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+
+import { Alert } from '@/components/ui/alert.jsx';
+import { Button } from '@/components/ui/button.jsx';
+import { Card } from '@/components/ui/card.jsx';
+import { Field } from '@/components/ui/field.jsx';
+import { Input } from '@/components/ui/input.jsx';
+import { Select } from '@/components/ui/select.jsx';
+import { createEvent, deleteEvent, fetchAdminEvents } from '@/features/engagement/api.js';
+
+const EVENT_TYPES = [
+  { value: 'stage', label: 'Stage' },
+  { value: 'competition_internal', label: 'Compétition interne' },
+  { value: 'competition_external', label: 'Compétition externe' },
+];
+
+const initialForm = {
+  title: '',
+  description: '',
+  type: 'stage',
+  startAt: '',
+  endAt: '',
+  capacity: 12,
+  priceCents: 0,
+  location: '',
+};
+
+export function AdminEventsPage() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState(initialForm);
+  const [status, setStatus] = useState('');
+  const { data: events = [] } = useQuery({
+    queryKey: ['admin-events'],
+    queryFn: fetchAdminEvents,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createEvent,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      setForm(initialForm);
+      setStatus('Événement créé.');
+    },
+    onError: (err) => setStatus(err.message),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteEvent,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-events'] }),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-3xl text-text">Événements</h1>
+        <p className="mt-1 font-sans text-sm text-muted">CRUD admin des stages et compétitions.</p>
+      </div>
+
+      {status ? <Alert variant={status.includes('créé') ? 'success' : 'error'}>{status}</Alert> : null}
+
+      <Card title="Créer un événement">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Titre" htmlFor="event-title">
+            <Input
+              id="event-title"
+              value={form.title}
+              onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))}
+            />
+          </Field>
+          <Select
+            label="Type"
+            value={form.type}
+            onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))}
+            options={EVENT_TYPES}
+          />
+          <Field label="Début" htmlFor="event-start">
+            <Input
+              id="event-start"
+              type="datetime-local"
+              value={form.startAt}
+              onChange={(e) => setForm((current) => ({ ...current, startAt: e.target.value }))}
+            />
+          </Field>
+          <Field label="Fin" htmlFor="event-end">
+            <Input
+              id="event-end"
+              type="datetime-local"
+              value={form.endAt}
+              onChange={(e) => setForm((current) => ({ ...current, endAt: e.target.value }))}
+            />
+          </Field>
+          <Field label="Capacité" htmlFor="event-capacity">
+            <Input
+              id="event-capacity"
+              type="number"
+              min="1"
+              value={form.capacity}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, capacity: Number(e.target.value || 0) }))
+              }
+            />
+          </Field>
+          <Field label="Prix (centimes)" htmlFor="event-price">
+            <Input
+              id="event-price"
+              type="number"
+              min="0"
+              value={form.priceCents}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, priceCents: Number(e.target.value || 0) }))
+              }
+            />
+          </Field>
+          <Field label="Lieu" htmlFor="event-location">
+            <Input
+              id="event-location"
+              value={form.location}
+              onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))}
+            />
+          </Field>
+          <Field label="Description" htmlFor="event-description" className="md:col-span-2">
+            <textarea
+              id="event-description"
+              rows={4}
+              value={form.description}
+              onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+              className="w-full rounded-lg border border-border bg-surface px-4 py-3 font-sans text-sm text-text"
+            />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <Button type="button" loading={createMutation.isPending} onClick={() => createMutation.mutate(form)}>
+            Créer
+          </Button>
+        </div>
+      </Card>
+
+      <Card title="Événements planifiés">
+        <ul className="space-y-3">
+          {events.map((event) => (
+            <li key={event.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3">
+              <div>
+                <p className="font-sans text-sm font-semibold text-text">{event.title}</p>
+                <p className="font-sans text-sm text-muted">
+                  {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/{event.capacity}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" onClick={() => deleteMutation.mutate(event.id)}>
+                Supprimer
+              </Button>
+            </li>
+          ))}
+          {events.length === 0 ? (
+            <p className="font-sans text-sm text-muted">Aucun événement enregistré.</p>
+          ) : null}
+        </ul>
+      </Card>
+    </div>
+  );
+}

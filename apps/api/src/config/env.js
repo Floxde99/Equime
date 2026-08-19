@@ -34,6 +34,9 @@ const envSchema = z.object({
   /** Optionnelle en dev : sans clé, les emails sont loggés au lieu d'être envoyés */
   SENDGRID_API_KEY: z.string().optional(),
   MAIL_FROM: z.email().default('no-reply@equime.local'),
+
+  /** Répertoire de stockage des fichiers téléversés (documents cavaliers) */
+  UPLOAD_DIR: z.string().default('./uploads'),
 });
 
 const parsed = envSchema.safeParse(process.env);
