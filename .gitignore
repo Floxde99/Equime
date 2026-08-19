@@ -16,6 +16,7 @@ test-results/
 .env.*
 !.env.example
 !.env.prod.example
+!.env.preprod.example
 
 # Logs
 *.log
