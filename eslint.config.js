@@ -83,6 +83,17 @@ export default [
       'react/prop-types': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      // Règles issues du React Compiler (eslint-plugin-react-hooks v7).
+      // Elles gardent statiquement les correctifs du refactor :
+      //   refs                        -> interdit d'ecrire ref.current au render
+      //   set-state-in-render         -> interdit setState pendant le rendu
+      //   no-deriving-state-in-effects-> impose de deriver au render, pas via un effet
+      'react-hooks/refs': 'error',
+      'react-hooks/set-state-in-render': 'error',
+      'react-hooks/no-deriving-state-in-effects': 'error',
+      // En warn : une occurrence connue dans horse-portrait.jsx (cycle de vie
+      // des object URLs), a traiter separement.
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 

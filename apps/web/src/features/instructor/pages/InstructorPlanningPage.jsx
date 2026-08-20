@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button.jsx';
@@ -43,6 +43,15 @@ export function InstructorPlanningPage() {
     queryKey: ['instructor-enrollments', courseId],
     queryFn: () => fetchEnrollments(courseId),
     enabled: Boolean(courseId),
+  });
+  const horseOptionQueries = useQueries({
+    queries:
+      courseId && enrollments.length
+        ? enrollments.map((enrollment) => ({
+            queryKey: ['horse-options', courseId, enrollment.id],
+            queryFn: () => fetchHorseOptions(courseId, enrollment.id),
+          }))
+        : [],
   });
 
   const assignMutation = useMutation({
@@ -123,11 +132,11 @@ export function InstructorPlanningPage() {
 
           {courseId ? (
             <ul className="space-y-3">
-              {enrollments.map((enrollment) => (
+              {enrollments.map((enrollment, index) => (
                 <OverrideRow
                   key={enrollment.id}
-                  courseId={courseId}
                   enrollment={enrollment}
+                  options={horseOptionQueries[index]?.data ?? []}
                   onOverride={(horseId) =>
                     overrideMutation.mutate({ enrollmentId: enrollment.id, horseId })
                   }
@@ -141,11 +150,7 @@ export function InstructorPlanningPage() {
   );
 }
 
-function OverrideRow({ courseId, enrollment, onOverride }) {
-  const { data: options = [] } = useQuery({
-    queryKey: ['horse-options', courseId, enrollment.id],
-    queryFn: () => fetchHorseOptions(courseId, enrollment.id),
-  });
+function OverrideRow({ enrollment, options, onOverride }) {
   const [selectedHorseId, setSelectedHorseId] = useState(enrollment.horse?.id ?? '');
 
   return (

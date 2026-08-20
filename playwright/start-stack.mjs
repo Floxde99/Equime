@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -41,11 +41,33 @@ async function waitFor(url, timeoutMs = 90_000) {
 }
 
 /**
+ * Arrête un enfant *et toute sa descendance*.
+ *
+ * Les enfants sont lancés avec `shell: true` : le processus direct est un shell
+ * (cmd.exe sous Windows), pas `node` ni `vite`. Un SIGTERM au shell laisse ses
+ * petits-enfants en vie — ils gardent les ports 3000/5173 ouverts et, comme ils
+ * héritent du stdout via `stdio: 'inherit'`, un appelant qui lit ce flux
+ * (`npm run e2e | tail`) n'atteint jamais EOF et semble bloqué indéfiniment.
+ *
  * @param {import('node:child_process').ChildProcess} child
  */
 function stopChild(child) {
-  if (!child.killed) {
-    child.kill('SIGTERM');
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.pid) return;
+
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    return;
+  }
+  child.kill('SIGTERM');
+}
+
+/**
+ * @param {import('node:child_process').ChildProcess[]} children
+ */
+function stopAll(children) {
+  for (const child of children) {
+    stopChild(child);
   }
 }
 
@@ -96,6 +118,15 @@ async function main() {
   const children = [];
   let exitCode = 1;
   const useExternalStack = process.env.PLAYWRIGHT_EXTERNAL_STACK === '1';
+
+  // Sans ces gardes, un Ctrl+C saute le bloc `finally` et laisse les
+  // processus API/front derrière lui.
+  for (const signal of /** @type {const} */ (['SIGINT', 'SIGTERM'])) {
+    process.on(signal, () => {
+      stopAll(children);
+      process.exit(130);
+    });
+  }
 
   await clearRateLimits();
   await migrateDatabase();
@@ -165,9 +196,7 @@ async function main() {
       runner.on('close', (code) => resolve(code ?? 1));
     });
   } finally {
-    for (const child of children) {
-      stopChild(child);
-    }
+    stopAll(children);
   }
 
   process.exit(exitCode);

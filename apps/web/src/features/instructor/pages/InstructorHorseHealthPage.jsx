@@ -6,7 +6,7 @@ import {
 } from '@equime/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { Badge } from '@/components/ui/badge.jsx';
@@ -48,10 +48,7 @@ export function InstructorHorseHealthPage() {
     enabled: Boolean(id),
   });
   const logs = logsQuery.data ?? [];
-  const visibleLogs = useMemo(
-    () => filterHealthLogs(logsQuery.data, logTypeFilter),
-    [logsQuery.data, logTypeFilter]
-  );
+  const visibleLogs = filterHealthLogs(logs, logTypeFilter);
   const load = horse ? horseLoadPercent(horse) : 0;
 
   return (

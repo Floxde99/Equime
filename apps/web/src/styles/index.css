@@ -100,160 +100,170 @@
   }
 }
 
-@layer components {
-  .fc {
-    font-family: var(--font-sans);
-  }
+/*
+ * Surcharges FullCalendar — volontairement HORS de `@layer components`.
+ *
+ * FullCalendar 6 n'expose pas de feuille de styles : il injecte ses règles
+ * dans un <style> à l'exécution, donc sans couche de cascade. Or une règle
+ * placée dans une couche perd toujours face à une règle sans couche, quelle
+ * que soit sa spécificité — ces surcharges seraient donc ignorées depuis
+ * `@layer components`. Sans couche, `.fc .fc-button` (0,2,0) l'emporte sur
+ * le `.fc-button` (0,1,0) de FullCalendar, indépendamment de l'ordre
+ * d'injection — ce qui compte depuis que le calendrier est chargé en
+ * différé (React.lazy) et que ses styles arrivent après cette feuille.
+ */
+.fc {
+  font-family: var(--font-sans);
+}
 
-  .fc .fc-header-toolbar {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
+.fc .fc-header-toolbar {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
 
-  .fc .fc-toolbar-title {
-    font-family: var(--font-display);
-    font-weight: 600;
-    color: var(--color-on-card);
-    font-size: 1.5rem;
-  }
+.fc .fc-toolbar-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-on-card);
+  font-size: 1.5rem;
+}
 
-  .fc .fc-button {
-    min-height: 2.5rem;
-    border-radius: 0.5rem;
-    font-family: var(--font-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
-    padding-inline: 0.75rem;
-    text-transform: none;
-    box-shadow: none;
-  }
+.fc .fc-button {
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding-inline: 0.75rem;
+  text-transform: none;
+  box-shadow: none;
+}
 
-  .fc .fc-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 60%, transparent);
-  }
+.fc .fc-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 60%, transparent);
+}
 
-  .fc .fc-col-header-cell-cushion,
-  .fc .fc-timegrid-slot-label-cushion,
-  .fc .fc-daygrid-day-number {
-    color: var(--color-muted-on-card);
-    font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    text-decoration: none;
-  }
+.fc .fc-col-header-cell-cushion,
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-daygrid-day-number {
+  color: var(--color-muted-on-card);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
 
-  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
-    background-color: var(--color-primary);
-    color: var(--color-primary-fg);
-    border-radius: 9999px;
-    inline-size: 1.75rem;
-    block-size: 1.75rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background-color: var(--color-primary);
+  color: var(--color-primary-fg);
+  border-radius: 9999px;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  .fc .fc-timegrid-event,
-  .fc .fc-daygrid-event {
-    border-radius: 0.5rem;
-    border-width: 0;
-    border-inline-start-width: 4px;
-    border-inline-start-style: solid;
-    box-shadow: none;
-    overflow: hidden;
-  }
+.fc .fc-timegrid-event,
+.fc .fc-daygrid-event {
+  border-radius: 0.5rem;
+  border-width: 0;
+  border-inline-start-width: 4px;
+  border-inline-start-style: solid;
+  box-shadow: none;
+  overflow: hidden;
+}
 
-  .fc .fc-timegrid-event-harness {
-    overflow: hidden;
-  }
+.fc .fc-timegrid-event-harness {
+  overflow: hidden;
+}
 
-  .fc .fc-event .fc-event-main {
-    box-sizing: border-box;
-    block-size: 100%;
-    overflow: hidden;
-    padding: 0.125rem 0.25rem;
-    color: inherit;
-  }
+.fc .fc-event .fc-event-main {
+  box-sizing: border-box;
+  block-size: 100%;
+  overflow: hidden;
+  padding: 0.125rem 0.25rem;
+  color: inherit;
+}
 
-  .equime-fc-wrap .fc-scroller {
-    overflow-y: hidden !important;
-  }
+.equime-fc-wrap .fc-scroller {
+  overflow-y: hidden !important;
+}
 
-  .equime-fc-wrap .fc-scroller-liquid-absolute {
-    position: relative !important;
-    inset: auto !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
+.equime-fc-wrap .fc-scroller-liquid-absolute {
+  position: relative !important;
+  inset: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
 
-  .equime-fc-wrap .fc-timegrid-slot {
-    height: 2rem;
-  }
+.equime-fc-wrap .fc-timegrid-slot {
+  height: 2rem;
+}
 
-  .equime-fc-event__inner {
-    display: flex;
-    block-size: 100%;
-    min-block-size: 0;
-    max-block-size: 100%;
-    flex-direction: column;
-    gap: 0;
-    overflow: hidden;
-  }
+.equime-fc-event__inner {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  max-block-size: 100%;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
 
-  .equime-fc-event__title,
-  .equime-fc-event__time,
-  .equime-fc-event__space {
-    margin: 0;
-    min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.2;
-  }
+.equime-fc-event__title,
+.equime-fc-event__time,
+.equime-fc-event__space {
+  margin: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
 
-  .equime-fc-event__title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-on-card);
-  }
+.equime-fc-event__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-on-card);
+}
 
-  .equime-fc-event__time,
-  .equime-fc-event__space {
-    font-size: 0.75rem;
-    color: var(--color-muted-on-card);
-  }
+.equime-fc-event__time,
+.equime-fc-event__space {
+  font-size: 0.75rem;
+  color: var(--color-muted-on-card);
+}
 
-  .equime-fc-event--scheduled {
-    border-inline-start-color: var(--color-info);
-  }
+.equime-fc-event--scheduled {
+  border-inline-start-color: var(--color-info);
+}
 
-  .equime-fc-event--ongoing {
-    border-inline-start-color: var(--color-accent);
-  }
+.equime-fc-event--ongoing {
+  border-inline-start-color: var(--color-accent);
+}
 
-  .equime-fc-event--completed {
-    border-inline-start-color: var(--color-success);
-  }
+.equime-fc-event--completed {
+  border-inline-start-color: var(--color-success);
+}
 
-  .equime-fc-event--cancelled,
-  .equime-fc-event--draft {
-    border-inline-start-color: var(--color-muted);
-  }
+.equime-fc-event--cancelled,
+.equime-fc-event--draft {
+  border-inline-start-color: var(--color-muted);
+}
 
-  .equime-fc-event--cancelled .equime-fc-event__title {
-    text-decoration: line-through;
-    color: var(--color-muted-on-card);
-  }
+.equime-fc-event--cancelled .equime-fc-event__title {
+  text-decoration: line-through;
+  color: var(--color-muted-on-card);
+}
 
-  .equime-fc-swatch--scheduled {
-    background-color: var(--color-info);
-  }
+.equime-fc-swatch--scheduled {
+  background-color: var(--color-info);
+}
 
-  .equime-fc-swatch--ongoing {
-    background-color: var(--color-accent);
-  }
+.equime-fc-swatch--ongoing {
+  background-color: var(--color-accent);
+}
 
-  .equime-fc-swatch--completed {
-    background-color: var(--color-success);
-  }
+.equime-fc-swatch--completed {
+  background-color: var(--color-success);
 }

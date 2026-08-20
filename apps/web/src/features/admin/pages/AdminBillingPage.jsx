@@ -1,6 +1,13 @@
-import { INVOICE_STATUS_LABELS } from '@equime/shared';
+import {
+  createDiscountRuleSchema,
+  createInvoiceSchema,
+  createSubscriptionPlanSchema,
+  INVOICE_STATUS_LABELS,
+} from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
@@ -24,6 +31,7 @@ import {
   sendInvoice,
 } from '@/features/billing/api.js';
 import { InvoiceDetailDialog } from '@/features/billing/components/InvoiceDetailDialog.jsx';
+import { blankToUndefined } from '@/lib/formValues.js';
 
 const currency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const STATUS_VARIANT = {
@@ -34,22 +42,35 @@ const STATUS_VARIANT = {
   cancelled: 'danger',
 };
 
+const PLAN_DEFAULTS = {
+  name: '',
+  priceCents: 4900,
+  sessionsPerWeek: 1,
+};
+
+const RULE_DEFAULTS = {
+  label: '',
+  percentage: 10,
+  minRiders: 2,
+};
+
+const INVOICE_DEFAULTS = { familyId: '', dueAt: '' };
+
 export function AdminBillingPage() {
   const qc = useQueryClient();
-  const [planForm, setPlanForm] = useState({
-    name: '',
-    priceCents: 4900,
-    sessionsPerWeek: 1,
-    description: '',
-  });
-  const [ruleForm, setRuleForm] = useState({
-    label: '',
-    percentage: 10,
-    minRiders: 2,
-    description: '',
-  });
-  const [invoiceForm, setInvoiceForm] = useState({ familyId: '', dueAt: '' });
   const [openInvoiceId, setOpenInvoiceId] = useState(null);
+  const planForm = useForm({
+    resolver: zodResolver(createSubscriptionPlanSchema),
+    defaultValues: PLAN_DEFAULTS,
+  });
+  const ruleForm = useForm({
+    resolver: zodResolver(createDiscountRuleSchema),
+    defaultValues: RULE_DEFAULTS,
+  });
+  const invoiceForm = useForm({
+    resolver: zodResolver(createInvoiceSchema),
+    defaultValues: INVOICE_DEFAULTS,
+  });
 
   const { data: plans = [] } = useQuery({
     queryKey: ['subscription-plans'],
@@ -91,21 +112,21 @@ export function AdminBillingPage() {
   const planMutation = useMutation({
     mutationFn: createSubscriptionPlan,
     onSuccess: () => {
-      setPlanForm({ name: '', priceCents: 4900, sessionsPerWeek: 1, description: '' });
+      planForm.reset(PLAN_DEFAULTS);
       refreshBilling();
     },
   });
   const ruleMutation = useMutation({
     mutationFn: createDiscountRule,
     onSuccess: () => {
-      setRuleForm({ label: '', percentage: 10, minRiders: 2, description: '' });
+      ruleForm.reset(RULE_DEFAULTS);
       refreshBilling();
     },
   });
   const invoiceMutation = useMutation({
     mutationFn: createInvoice,
     onSuccess: () => {
-      setInvoiceForm({ familyId: '', dueAt: '' });
+      invoiceForm.reset(INVOICE_DEFAULTS);
       refreshBilling();
     },
   });
@@ -126,107 +147,132 @@ export function AdminBillingPage() {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <Card title="Nouvelle formule">
-          <div className="space-y-3">
-            <Field label="Nom" htmlFor="plan-name">
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={planForm.handleSubmit((values) => planMutation.mutate(values))}
+          >
+            {planMutation.isError ? <Alert>{planMutation.error.message}</Alert> : null}
+            <Field label="Nom" htmlFor="plan-name" error={planForm.formState.errors.name?.message}>
               <Input
                 id="plan-name"
-                value={planForm.name}
-                onChange={(e) => setPlanForm((v) => ({ ...v, name: e.target.value }))}
+                invalid={!!planForm.formState.errors.name}
+                {...planForm.register('name')}
               />
             </Field>
-            <Field label="Prix (centimes)" htmlFor="plan-price">
+            <Field
+              label="Prix (centimes)"
+              htmlFor="plan-price"
+              error={planForm.formState.errors.priceCents?.message}
+            >
               <Input
                 id="plan-price"
                 type="number"
-                value={planForm.priceCents}
-                onChange={(e) => setPlanForm((v) => ({ ...v, priceCents: Number(e.target.value) }))}
+                invalid={!!planForm.formState.errors.priceCents}
+                {...planForm.register('priceCents')}
               />
             </Field>
-            <Field label="Séances / semaine" htmlFor="plan-sessions">
+            <Field
+              label="Séances / semaine"
+              htmlFor="plan-sessions"
+              error={planForm.formState.errors.sessionsPerWeek?.message}
+            >
               <Input
                 id="plan-sessions"
                 type="number"
-                value={planForm.sessionsPerWeek}
-                onChange={(e) =>
-                  setPlanForm((v) => ({ ...v, sessionsPerWeek: Number(e.target.value) }))
-                }
+                invalid={!!planForm.formState.errors.sessionsPerWeek}
+                {...planForm.register('sessionsPerWeek')}
               />
             </Field>
-            <Button
-              type="button"
-              loading={planMutation.isPending}
-              onClick={() => planMutation.mutate(planForm)}
-            >
+            <Button type="submit" loading={planMutation.isPending}>
               Enregistrer
             </Button>
-          </div>
+          </form>
         </Card>
 
         <Card title="Nouvelle réduction">
-          <div className="space-y-3">
-            <Field label="Libellé" htmlFor="rule-label">
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={ruleForm.handleSubmit((values) => ruleMutation.mutate(values))}
+          >
+            {ruleMutation.isError ? <Alert>{ruleMutation.error.message}</Alert> : null}
+            <Field
+              label="Libellé"
+              htmlFor="rule-label"
+              error={ruleForm.formState.errors.label?.message}
+            >
               <Input
                 id="rule-label"
-                value={ruleForm.label}
-                onChange={(e) => setRuleForm((v) => ({ ...v, label: e.target.value }))}
+                invalid={!!ruleForm.formState.errors.label}
+                {...ruleForm.register('label')}
               />
             </Field>
-            <Field label="Pourcentage" htmlFor="rule-percentage">
+            <Field
+              label="Pourcentage"
+              htmlFor="rule-percentage"
+              error={ruleForm.formState.errors.percentage?.message}
+            >
               <Input
                 id="rule-percentage"
                 type="number"
-                value={ruleForm.percentage}
-                onChange={(e) => setRuleForm((v) => ({ ...v, percentage: Number(e.target.value) }))}
+                invalid={!!ruleForm.formState.errors.percentage}
+                {...ruleForm.register('percentage')}
               />
             </Field>
-            <Field label="Min. cavaliers" htmlFor="rule-min-riders">
+            <Field
+              label="Min. cavaliers"
+              htmlFor="rule-min-riders"
+              error={ruleForm.formState.errors.minRiders?.message}
+            >
               <Input
                 id="rule-min-riders"
                 type="number"
-                value={ruleForm.minRiders}
-                onChange={(e) => setRuleForm((v) => ({ ...v, minRiders: Number(e.target.value) }))}
+                invalid={!!ruleForm.formState.errors.minRiders}
+                {...ruleForm.register('minRiders')}
               />
             </Field>
-            <Button
-              type="button"
-              loading={ruleMutation.isPending}
-              onClick={() => ruleMutation.mutate(ruleForm)}
-            >
+            <Button type="submit" loading={ruleMutation.isPending}>
               Enregistrer
             </Button>
-          </div>
+          </form>
         </Card>
 
         <Card title="Générer une facture">
-          <div className="space-y-3">
-            <Field label="Family ID" htmlFor="invoice-family-id" hint="ID de la famille cible.">
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={invoiceForm.handleSubmit((values) => invoiceMutation.mutate(values))}
+          >
+            {invoiceMutation.isError ? <Alert>{invoiceMutation.error.message}</Alert> : null}
+            <Field
+              label="Family ID"
+              htmlFor="invoice-family-id"
+              hint="ID de la famille cible."
+              error={invoiceForm.formState.errors.familyId?.message}
+            >
               <Input
                 id="invoice-family-id"
-                value={invoiceForm.familyId}
-                onChange={(e) => setInvoiceForm((v) => ({ ...v, familyId: e.target.value }))}
+                invalid={!!invoiceForm.formState.errors.familyId}
+                {...invoiceForm.register('familyId')}
               />
             </Field>
-            <Field label="Échéance" htmlFor="invoice-due-at">
+            <Field
+              label="Échéance"
+              htmlFor="invoice-due-at"
+              error={invoiceForm.formState.errors.dueAt?.message}
+            >
               <Input
                 id="invoice-due-at"
                 type="date"
-                value={invoiceForm.dueAt}
-                onChange={(e) => setInvoiceForm((v) => ({ ...v, dueAt: e.target.value }))}
+                invalid={!!invoiceForm.formState.errors.dueAt}
+                {...invoiceForm.register('dueAt', { setValueAs: blankToUndefined })}
               />
             </Field>
-            <Button
-              type="button"
-              loading={invoiceMutation.isPending}
-              onClick={() =>
-                invoiceMutation.mutate({
-                  familyId: invoiceForm.familyId,
-                  dueAt: invoiceForm.dueAt || undefined,
-                })
-              }
-            >
+            <Button type="submit" loading={invoiceMutation.isPending}>
               Générer
             </Button>
-          </div>
+          </form>
         </Card>
       </div>
 

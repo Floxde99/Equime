@@ -3,7 +3,7 @@ import frLocale from '@fullcalendar/core/locales/fr';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   formatEventAriaLabel,
@@ -18,6 +18,23 @@ const SCOPE_OPTIONS = [
 ];
 
 const TIME_FORMAT = { hour: '2-digit', minute: '2-digit', hour12: false };
+
+const DAY_HEADER_FORMAT = { weekday: 'short', day: 'numeric', month: 'numeric' };
+
+const PLUGINS = [dayGridPlugin, timeGridPlugin];
+
+const HEADER_TOOLBAR = {
+  left: 'prev,next today',
+  center: 'title',
+  right: 'dayGridMonth,timeGridWeek,timeGridDay',
+};
+
+const BUTTON_TEXT = {
+  today: "Aujourd'hui",
+  month: 'Mois',
+  week: 'Semaine',
+  day: 'Jour',
+};
 
 /**
  * Calendrier planning partagé (US-4.2).
@@ -35,6 +52,20 @@ export function PlanningCalendar({
 }) {
   const coloredEvents = useMemo(() => events.map(toCalendarEvent), [events]);
   const slotWindow = useMemo(() => planningSlotWindow(events), [events]);
+  const onDatesChangeRef = useRef(onDatesChange);
+  // Assignation dans un effet, pas au render (cf. dialog.jsx).
+  useEffect(() => {
+    onDatesChangeRef.current = onDatesChange;
+  }, [onDatesChange]);
+  const lastRangeRef = useRef({ from: '', to: '' });
+
+  const handleDatesSet = useCallback(({ start, end }) => {
+    const from = start.toISOString();
+    const to = end.toISOString();
+    if (lastRangeRef.current.from === from && lastRangeRef.current.to === to) return;
+    lastRangeRef.current = { from, to };
+    onDatesChangeRef.current?.({ from, to });
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -63,21 +94,12 @@ export function PlanningCalendar({
 
       <div className="equime-fc-wrap overflow-x-auto rounded-xl border border-border-on-card bg-card p-3 md:p-4">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin]}
+          plugins={PLUGINS}
           locale={frLocale}
           firstDay={1}
           initialView="timeGridWeek"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay',
-          }}
-          buttonText={{
-            today: "Aujourd'hui",
-            month: 'Mois',
-            week: 'Semaine',
-            day: 'Jour',
-          }}
+          headerToolbar={HEADER_TOOLBAR}
+          buttonText={BUTTON_TEXT}
           height="auto"
           contentHeight="auto"
           stickyHeaderDates
@@ -91,13 +113,11 @@ export function PlanningCalendar({
           displayEventEnd
           eventTimeFormat={TIME_FORMAT}
           slotLabelFormat={TIME_FORMAT}
-          dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric' }}
+          dayHeaderFormat={DAY_HEADER_FORMAT}
           events={coloredEvents}
           eventContent={renderEventContent}
           eventDidMount={annotateEventEl}
-          datesSet={({ start, end }) => {
-            onDatesChange?.({ from: start.toISOString(), to: end.toISOString() });
-          }}
+          datesSet={handleDatesSet}
         />
       </div>
 

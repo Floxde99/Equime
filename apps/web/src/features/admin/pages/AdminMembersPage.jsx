@@ -1,4 +1,5 @@
 import {
+  adminChangeFamilySubscriptionSchema,
   createMemberSchema,
   DOCUMENT_STATUS_LABELS,
   PASSWORD_POLICY,
@@ -56,7 +57,7 @@ export function AdminMembersPage() {
     queryFn: fetchPendingDocuments,
   });
   const { data: plans = [] } = useQuery({
-    queryKey: ['admin-subscription-plans'],
+    queryKey: ['subscription-plans'],
     queryFn: fetchSubscriptionPlans,
   });
 
@@ -456,6 +457,7 @@ function EditMemberDialog({ member, onClose, onSaved }) {
 function ChangePlanDialog({ member, plans, onClose, onSaved }) {
   const currentId = member?.family?.subscriptionPlanId ?? plans[0]?.id ?? '';
   const form = useForm({
+    resolver: zodResolver(adminChangeFamilySubscriptionSchema),
     values: { subscriptionPlanId: currentId },
   });
   const mutation = useMutation({
@@ -491,7 +493,11 @@ function ChangePlanDialog({ member, plans, onClose, onSaved }) {
       {member ? (
         <form className="space-y-4" noValidate>
           <p>Le quota est réinitialisé à quatre semaines de séances du nouveau plan.</p>
-          <Field label="Formule" htmlFor="admin-family-plan">
+          <Field
+            label="Formule"
+            htmlFor="admin-family-plan"
+            error={form.formState.errors.subscriptionPlanId?.message}
+          >
             <Select
               id="admin-family-plan"
               options={options}

@@ -41,6 +41,12 @@ function getFocusableElements(root) {
 export function Dialog({ open, onClose, title, children, footer, className }) {
   const titleId = useId();
   const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  // Assignation dans un effet, pas au render : React interdit d'ecrire
+  // ref.current pendant le rendu (un rendu abandonne muterait quand meme la ref).
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -56,7 +62,7 @@ export function Dialog({ open, onClose, title, children, footer, className }) {
      */
     function onKey(event) {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -88,7 +94,7 @@ export function Dialog({ open, onClose, title, children, footer, className }) {
       document.removeEventListener('keydown', onKey);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
