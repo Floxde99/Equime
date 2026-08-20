@@ -473,3 +473,91 @@ sudo systemctl restart ssh   # vérifier la reconnexion dans un second terminal 
   `**/.env` sont indispensables.
 - **`environment:` prime sur `env_file:`** dans Compose : `DATABASE_URL`
   reconstruite dans le compose l'emporte toujours sur celle d'un `.env`.
+
+---
+
+## 10. Déploiement continu (GitHub Actions)
+
+Une fois configuré, `develop` déploie automatiquement en préproduction, et
+`main` déclenche un déploiement de production **en attente d'approbation**.
+
+Les deux jobs (`.github/workflows/ci.yml`) dépendent de `lint`, `test`,
+`build-web` et `e2e` : rien ne part sur le VPS sans que la chaîne complète
+soit verte. Ils se connectent en SSH et exécutent `scripts/deploy-vps.sh`,
+qui reconstruit les images, attend le health check de l'API **et** du front,
+et échoue en affichant les logs si le service ne répond pas.
+
+La production est sauvegardée avant toute reconstruction ; le script refuse
+de déployer si `~/backups/equime-backup.sh` est absent.
+
+### 10.1 Clé de déploiement (sur le VPS)
+
+Une clé dédiée, distincte de celle qui sert à cloner depuis GitHub :
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N "" -C "github-actions"
+```
+
+Autoriser cette clé, en la restreignant au strict nécessaire :
+
+```bash
+printf 'restrict,pty %s\n' "$(cat ~/.ssh/github_deploy.pub)" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+`restrict` désactive port forwarding, agent forwarding et X11 ; `pty` reste
+nécessaire pour que `docker compose` produise une sortie exploitable.
+
+Récupérer la clé privée (à coller dans GitHub) et l'empreinte de l'hôte :
+
+```bash
+cat ~/.ssh/github_deploy
+ssh-keyscan -t ed25519 <IP_VPS>
+```
+
+### 10.2 Secrets GitHub
+
+*Settings → Secrets and variables → Actions → New repository secret* :
+
+| Secret | Valeur |
+|---|---|
+| `VPS_HOST` | l'IP ou le FQDN du VPS |
+| `VPS_USER` | l'utilisateur de déploiement (ex. `debian`) |
+| `VPS_SSH_KEY` | contenu **complet** de `~/.ssh/github_deploy`, lignes `BEGIN`/`END` comprises |
+| `VPS_KNOWN_HOSTS` | sortie de `ssh-keyscan -t ed25519 <IP_VPS>` |
+
+`VPS_KNOWN_HOSTS` n'est pas optionnel : sans lui, la CI accepterait n'importe
+quelle clé d'hôte et un détournement DNS suffirait à rediriger le
+déploiement — clé privée comprise — vers une machine tierce.
+
+### 10.3 Environnements GitHub
+
+*Settings → Environments* :
+
+- **`preproduction`** — aucune protection, déploiement automatique.
+- **`production`** — cocher *Required reviewers* et s'y ajouter. Le job reste
+  en attente jusqu'à validation explicite, et GitHub conserve la trace de qui
+  a approuvé quelle mise en production.
+
+### 10.4 Vérification
+
+Pousser sur `develop` : le job *Déploiement préproduction* doit passer au vert
+après les E2E. Pousser sur `main` : le job *Déploiement production* attend une
+approbation avant de démarrer.
+
+En cas d'échec, les logs du job contiennent les 60 dernières lignes du service
+`api` et 30 de `migrate` — dans la plupart des cas, l'erreur y est visible sans
+avoir à se connecter au VPS.
+
+### 10.5 Limites connues
+
+- Les images sont **construites sur le VPS**. Le build consomme CPU et RAM
+  pendant deux à quatre minutes ; sur une machine partagée avec d'autres
+  applications, c'est perceptible. Construire les images dans la CI et les
+  pousser vers un registre supprimerait cette charge, au prix d'un registre à
+  héberger.
+- La synchronisation utilise `git pull --ff-only` : un déploiement échoue —
+  volontairement — si le checkout du VPS a divergé. Ces deux dossiers ne
+  doivent jamais être modifiés à la main, `.env.*` excepté.
+- Il n'y a pas de rollback automatique. En cas d'échec après bascule :
+  `git reset --hard <sha précédent>` puis relancer `scripts/deploy-vps.sh`.
