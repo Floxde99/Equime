@@ -262,7 +262,11 @@ equime.fr, www.equime.fr {
 preprod.equime.fr {
 	encode zstd gzip
 
-	basic_auth {
+	# Seuls les documents HTML sont proteges. Les exclusions ne sont pas
+	# facultatives (voir 5.1) : la liste couvre l'API, le build Vite et
+	# apps/web/public/, qui ne contient que images/.
+	@ui not path /api/* /health /assets/* /images/*
+	basic_auth @ui {
 		recette <hash bcrypt>
 	}
 
@@ -298,8 +302,29 @@ Notes :
 - CSP, X-Frame-Options et Referrer-Policy ne sont **pas** redéfinis ici :
   `web.conf` les pose sur le statique et Helmet sur l'API. Les redéclarer
   dans Caddy les écraserait.
-- Le `basic_auth` couvre aussi `/api/*` ; le navigateur renvoie l'en-tête sur
-  les requêtes XHR de même origine, le front fonctionne normalement.
+### 5.1 Pourquoi le `basic_auth` ne protège que les documents
+
+Trois raisons distinctes imposent les exclusions du matcher `@ui` — sans
+elles, la fenêtre d'authentification resurgit en boucle :
+
+| Chemin | Raison |
+|---|---|
+| `/api/*`, `/health` | Basic Auth et le Bearer JWT se disputent le **même en-tête `Authorization`** ; il n'y en a qu'un par requête. Dès que l'utilisateur est connecté, le `Bearer` écrase le `Basic` et Caddy renvoie un 401. |
+| `/assets/*` | Vite émet ses modules avec l'attribut `crossorigin` (donc `anonymous`) : le navigateur les charge **sans transmettre les identifiants**. Le code-splitting aggrave le cas — une vingtaine de chunks au lieu d'un seul. |
+| `/images/*` | Le navigateur n'envoie pas non plus les identifiants au premier appel de ces sous-ressources : chaque image produit un 401 avant reprise. |
+
+Ce qui reste protégé : les documents HTML. Sans eux, l'application est
+inutilisable, donc la préproduction reste fermée aux visiteurs de passage et
+`X-Robots-Tag: noindex, nofollow` la garde hors des moteurs de recherche.
+
+Ce qui devient accessible : les bundles JS/CSS (code client identique à la
+production, sans secret), les images de la vitrine, et l'API — laquelle
+conserve son authentification JWT et son rate limiting, au même niveau
+d'exposition que la production. Le Basic Auth masque l'interface ; ce sont
+l'authentification applicative et le rate limiting qui protègent les données.
+
+Si un fichier est ajouté à `apps/web/public/`, penser à étendre le matcher :
+il ne couvre aujourd'hui que `images/`, seul contenu de ce dossier.
 
 Validation **avant** rechargement — c'est ce qui protège les autres sites :
 
