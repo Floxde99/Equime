@@ -53,7 +53,7 @@ export function AdminDashboardPage() {
     queryKey: ['load-alerts'],
     queryFn: fetchLoadAlerts,
   });
-  const { data: horses = [] } = useQuery({ queryKey: ['admin-horses'], queryFn: fetchHorses });
+  const { data: horses = [] } = useQuery({ queryKey: ['horses'], queryFn: fetchHorses });
   const { data: criticalIncidents = 0 } = useQuery({
     queryKey: ['critical-incidents-count'],
     queryFn: fetchCriticalIncidentCount,

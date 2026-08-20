@@ -1,7 +1,9 @@
-import { RIDER_LEVEL_LABELS, RIDER_LEVEL_VALUES } from '@equime/shared';
+import { createCourseSchema, RIDER_LEVEL_LABELS, RIDER_LEVEL_VALUES } from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -20,6 +22,7 @@ import {
   runCompatibilityAudit,
 } from '@/features/admin/api.js';
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
+import { blankToUndefined } from '@/lib/formValues.js';
 import { isRidingSpaceType } from '@/lib/spaceOccupancy.js';
 
 const DEFAULT_RANGE = {
@@ -44,9 +47,12 @@ export function AdminPlanningPage() {
   const qc = useQueryClient();
   const [scope, setScope] = useState('all');
   const [range, setRange] = useState(DEFAULT_RANGE);
-  const [form, setForm] = useState(initialCourseForm);
   const [status, setStatus] = useState('');
   const [createOpen, setCreateOpen] = useState(true);
+  const courseForm = useForm({
+    resolver: zodResolver(createCourseSchema),
+    defaultValues: initialCourseForm,
+  });
 
   const {
     data: events = [],
@@ -72,7 +78,7 @@ export function AdminPlanningPage() {
     mutationFn: createCourse,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planning'] });
-      setForm(initialCourseForm);
+      courseForm.reset(initialCourseForm);
       setStatus('Cours récurrent créé.');
     },
     onError: (err) => setStatus(err.message),
@@ -83,27 +89,8 @@ export function AdminPlanningPage() {
     label: RIDER_LEVEL_LABELS[value],
   }));
 
-  const handleCreate = (event) => {
-    event.preventDefault();
-    const body = {
-      title: form.title,
-      instructorId: form.instructorId,
-      spaceId: form.spaceId,
-      startAt: form.startAt,
-      endAt: form.endAt,
-      capacity: form.capacity,
-      minLevel: form.minLevel,
-      maxLevel: form.maxLevel,
-      status: 'scheduled',
-    };
-    if (form.recurrenceEndDate) {
-      body.recurrenceRule = 'weekly';
-      body.recurrenceEndDate = form.recurrenceEndDate;
-    }
-    createMutation.mutate(body);
-  };
-
   const busy = createMutation.isPending;
+  const errors = courseForm.formState.errors;
 
   return (
     <div className="space-y-6">
@@ -163,28 +150,33 @@ export function AdminPlanningPage() {
           id="admin-create-course"
           hidden={!createOpen}
           className="border-t border-border-on-card p-5"
-          onSubmit={handleCreate}
+          noValidate
+          onSubmit={courseForm.handleSubmit((values) => {
+            const body = { ...values, status: 'scheduled' };
+            if (values.recurrenceEndDate) {
+              body.recurrenceRule = 'weekly';
+            }
+            createMutation.mutate(body);
+          })}
         >
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Field label="Titre" htmlFor="course-title">
+            <Field label="Titre" htmlFor="course-title" error={errors.title?.message}>
               <Input
                 id="course-title"
-                name="title"
-                required
                 autoComplete="off"
                 disabled={busy}
-                value={form.title}
-                onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
+                invalid={!!errors.title}
+                {...courseForm.register('title')}
               />
             </Field>
-            <Field label="Moniteur" htmlFor="course-instructor">
+            <Field
+              label="Moniteur"
+              htmlFor="course-instructor"
+              error={errors.instructorId?.message}
+            >
               <Select
                 id="course-instructor"
-                name="instructorId"
-                required
                 disabled={busy}
-                value={form.instructorId}
-                onChange={(e) => setForm((c) => ({ ...c, instructorId: e.target.value }))}
                 options={[
                   { value: '', label: 'Choisir un moniteur' },
                   ...instructors.map((i) => ({
@@ -192,84 +184,76 @@ export function AdminPlanningPage() {
                     label: `${i.firstName} ${i.lastName}`,
                   })),
                 ]}
+                {...courseForm.register('instructorId')}
               />
             </Field>
-            <Field label="Lieu de cours" htmlFor="course-space">
+            <Field label="Lieu de cours" htmlFor="course-space" error={errors.spaceId?.message}>
               <Select
                 id="course-space"
-                name="spaceId"
-                required
                 disabled={busy}
-                value={form.spaceId}
-                onChange={(e) => setForm((c) => ({ ...c, spaceId: e.target.value }))}
                 options={[
                   { value: '', label: 'Choisir un espace' },
                   ...spaces
                     .filter((s) => isRidingSpaceType(s.type))
                     .map((s) => ({ value: s.id, label: s.name })),
                 ]}
+                {...courseForm.register('spaceId')}
               />
             </Field>
-            <Field label="Capacité" htmlFor="course-capacity">
+            <Field label="Capacité" htmlFor="course-capacity" error={errors.capacity?.message}>
               <Input
                 id="course-capacity"
-                name="capacity"
                 type="number"
                 min="1"
-                required
                 disabled={busy}
-                value={form.capacity}
-                onChange={(e) => setForm((c) => ({ ...c, capacity: Number(e.target.value || 0) }))}
+                invalid={!!errors.capacity}
+                {...courseForm.register('capacity')}
               />
             </Field>
-            <Field label="Début" htmlFor="course-start" hint="Date et heure de la première séance">
+            <Field
+              label="Début"
+              htmlFor="course-start"
+              hint="Date et heure de la première séance"
+              error={errors.startAt?.message}
+            >
               <Input
                 id="course-start"
-                name="startAt"
                 type="datetime-local"
-                required
                 disabled={busy}
                 lang="fr"
-                value={form.startAt}
-                onChange={(e) => setForm((c) => ({ ...c, startAt: e.target.value }))}
+                invalid={!!errors.startAt}
+                {...courseForm.register('startAt')}
               />
             </Field>
             <Field
               label="Fin"
               htmlFor="course-end"
               hint="Date et heure de fin de la première séance"
+              error={errors.endAt?.message}
             >
               <Input
                 id="course-end"
-                name="endAt"
                 type="datetime-local"
-                required
                 disabled={busy}
                 lang="fr"
-                value={form.endAt}
-                onChange={(e) => setForm((c) => ({ ...c, endAt: e.target.value }))}
+                invalid={!!errors.endAt}
+                {...courseForm.register('endAt')}
               />
             </Field>
-            <Field label="Niveau min" htmlFor="course-min-level">
+            <Field label="Niveau min" htmlFor="course-min-level" error={errors.minLevel?.message}>
               <Select
                 id="course-min-level"
-                name="minLevel"
-                required
                 disabled={busy}
-                value={form.minLevel}
-                onChange={(e) => setForm((c) => ({ ...c, minLevel: e.target.value }))}
                 options={levelOptions}
+                {...courseForm.register('minLevel')}
               />
             </Field>
-            <Field label="Niveau max" htmlFor="course-max-level">
+            <Field label="Niveau max" htmlFor="course-max-level" error={errors.maxLevel?.message}>
               <Select
                 id="course-max-level"
-                name="maxLevel"
-                required
                 disabled={busy}
-                value={form.maxLevel}
-                onChange={(e) => setForm((c) => ({ ...c, maxLevel: e.target.value }))}
                 options={levelOptions}
+                {...courseForm.register('maxLevel')}
               />
             </Field>
             <Field
@@ -277,15 +261,15 @@ export function AdminPlanningPage() {
               htmlFor="course-recurrence-end"
               hint="Optionnel. Si renseigné, le cours est répété chaque semaine jusqu’à cette date."
               className="sm:col-span-2 xl:col-span-3"
+              error={errors.recurrenceEndDate?.message}
             >
               <Input
                 id="course-recurrence-end"
-                name="recurrenceEndDate"
                 type="datetime-local"
                 disabled={busy}
                 lang="fr"
-                value={form.recurrenceEndDate}
-                onChange={(e) => setForm((c) => ({ ...c, recurrenceEndDate: e.target.value }))}
+                invalid={!!errors.recurrenceEndDate}
+                {...courseForm.register('recurrenceEndDate', { setValueAs: blankToUndefined })}
               />
             </Field>
           </div>

@@ -1,5 +1,12 @@
+import {
+  createIncidentSchema,
+  INCIDENT_SEVERITY_LABELS,
+  INCIDENT_SEVERITY_VALUES,
+} from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -10,13 +17,12 @@ import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { createIncident, fetchIncidents, resolveIncident } from '@/features/engagement/api.js';
+import { blankToUndefined } from '@/lib/formValues.js';
 
-const SEVERITY_OPTIONS = [
-  { value: 'low', label: 'Faible' },
-  { value: 'medium', label: 'Moyenne' },
-  { value: 'high', label: 'Élevée' },
-  { value: 'critical', label: 'Critique' },
-];
+const SEVERITY_OPTIONS = INCIDENT_SEVERITY_VALUES.map((value) => ({
+  value,
+  label: INCIDENT_SEVERITY_LABELS[value],
+}));
 
 const initialForm = {
   riderId: '',
@@ -29,8 +35,11 @@ const initialForm = {
 
 export function InstructorIncidentsPage({ admin = false }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState('');
+  const incidentForm = useForm({
+    resolver: zodResolver(createIncidentSchema),
+    defaultValues: initialForm,
+  });
 
   const { data: incidents = [] } = useQuery({
     queryKey: ['incidents', admin ? 'admin' : 'instructor'],
@@ -42,7 +51,7 @@ export function InstructorIncidentsPage({ admin = false }) {
     mutationFn: createIncident,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incidents'] });
-      setForm(initialForm);
+      incidentForm.reset(initialForm);
       setStatus('Incident déclaré.');
     },
     onError: (err) => setStatus(err.message),
@@ -71,62 +80,82 @@ export function InstructorIncidentsPage({ admin = false }) {
 
       {!admin ? (
         <Card title="Nouvelle déclaration">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Identifiant cavalier (optionnel)" htmlFor="incident-rider">
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            noValidate
+            onSubmit={incidentForm.handleSubmit((values) => createMutation.mutate(values))}
+          >
+            <Field
+              label="Identifiant cavalier (optionnel)"
+              htmlFor="incident-rider"
+              error={incidentForm.formState.errors.riderId?.message}
+            >
               <Input
                 id="incident-rider"
-                value={form.riderId}
-                onChange={(e) => setForm((current) => ({ ...current, riderId: e.target.value }))}
+                invalid={!!incidentForm.formState.errors.riderId}
+                {...incidentForm.register('riderId', { setValueAs: blankToUndefined })}
               />
             </Field>
-            <Field label="Identifiant cheval (optionnel)" htmlFor="incident-horse">
+            <Field
+              label="Identifiant cheval (optionnel)"
+              htmlFor="incident-horse"
+              error={incidentForm.formState.errors.horseId?.message}
+            >
               <Input
                 id="incident-horse"
-                value={form.horseId}
-                onChange={(e) => setForm((current) => ({ ...current, horseId: e.target.value }))}
+                invalid={!!incidentForm.formState.errors.horseId}
+                {...incidentForm.register('horseId', { setValueAs: blankToUndefined })}
               />
             </Field>
-            <Field label="Identifiant cours (optionnel)" htmlFor="incident-course">
+            <Field
+              label="Identifiant cours (optionnel)"
+              htmlFor="incident-course"
+              error={incidentForm.formState.errors.courseId?.message}
+            >
               <Input
                 id="incident-course"
-                value={form.courseId}
-                onChange={(e) => setForm((current) => ({ ...current, courseId: e.target.value }))}
+                invalid={!!incidentForm.formState.errors.courseId}
+                {...incidentForm.register('courseId', { setValueAs: blankToUndefined })}
               />
             </Field>
             <Select
+              id="incident-severity"
               label="Gravité"
-              value={form.severity}
-              onChange={(e) => setForm((current) => ({ ...current, severity: e.target.value }))}
+              error={incidentForm.formState.errors.severity?.message}
               options={SEVERITY_OPTIONS}
+              {...incidentForm.register('severity')}
             />
-            <Field label="Date / heure" htmlFor="incident-occurred">
+            <Field
+              label="Date / heure"
+              htmlFor="incident-occurred"
+              error={incidentForm.formState.errors.occurredAt?.message}
+            >
               <Input
                 id="incident-occurred"
                 type="datetime-local"
-                value={form.occurredAt}
-                onChange={(e) => setForm((current) => ({ ...current, occurredAt: e.target.value }))}
+                invalid={!!incidentForm.formState.errors.occurredAt}
+                {...incidentForm.register('occurredAt')}
               />
             </Field>
-            <Field label="Description" htmlFor="incident-description" className="md:col-span-2">
+            <Field
+              label="Description"
+              htmlFor="incident-description"
+              className="md:col-span-2"
+              error={incidentForm.formState.errors.description?.message}
+            >
               <Textarea
                 id="incident-description"
                 rows={5}
-                value={form.description}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, description: e.target.value }))
-                }
+                invalid={!!incidentForm.formState.errors.description}
+                {...incidentForm.register('description')}
               />
             </Field>
-          </div>
-          <div className="mt-4">
-            <Button
-              type="button"
-              loading={createMutation.isPending}
-              onClick={() => createMutation.mutate(form)}
-            >
-              Déclarer
-            </Button>
-          </div>
+            <div className="md:col-span-2">
+              <Button type="submit" loading={createMutation.isPending}>
+                Déclarer
+              </Button>
+            </div>
+          </form>
         </Card>
       ) : (
         <Card title="Incidents ouverts">

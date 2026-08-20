@@ -11,7 +11,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
@@ -105,10 +105,7 @@ export function AdminHorsePage() {
     enabled: Boolean(id),
   });
   const logs = logsQuery.data ?? [];
-  const visibleLogs = useMemo(
-    () => filterHealthLogs(logsQuery.data, logTypeFilter),
-    [logsQuery.data, logTypeFilter]
-  );
+  const visibleLogs = filterHealthLogs(logs, logTypeFilter);
 
   const identityForm = useForm({
     resolver: zodResolver(horseIdentitySchema),
@@ -141,7 +138,7 @@ export function AdminHorsePage() {
     },
     onSuccess: (updated) => {
       qc.setQueryData(['admin-horse', id], updated);
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
     },
   });
 
@@ -149,7 +146,7 @@ export function AdminHorsePage() {
     mutationFn: (status) => updateHorse(id, { status }),
     onSuccess: (updated) => {
       qc.setQueryData(['admin-horse', id], updated);
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
     },
   });
 
@@ -157,7 +154,7 @@ export function AdminHorsePage() {
     mutationFn: (file) => uploadHorsePhoto(id, file),
     onSuccess: (updated) => {
       qc.setQueryData(['admin-horse', id], updated);
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
       qc.invalidateQueries({ queryKey: ['horse-photo-blob', id] });
     },
   });
@@ -166,7 +163,7 @@ export function AdminHorsePage() {
     mutationFn: () => deleteHorsePhoto(id),
     onSuccess: (updated) => {
       qc.setQueryData(['admin-horse', id], updated);
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
       qc.invalidateQueries({ queryKey: ['horse-photo-blob', id] });
     },
   });
@@ -174,7 +171,7 @@ export function AdminHorsePage() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteHorse(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
       navigate('/admin/cavalerie');
     },
   });

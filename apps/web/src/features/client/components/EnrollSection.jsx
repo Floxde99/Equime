@@ -1,6 +1,6 @@
 import { RIDER_LEVEL_LABELS } from '@equime/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -40,11 +40,8 @@ export function EnrollSection() {
     queryFn: fetchEnrollableCourses,
   });
 
-  useEffect(() => {
-    if (!riderId && riders[0]?.id) setRiderId(riders[0].id);
-  }, [riderId, riders]);
-
-  const selectedRider = riders.find((rider) => rider.id === riderId);
+  const effectiveRiderId = riderId || riders[0]?.id || '';
+  const selectedRider = riders.find((rider) => rider.id === effectiveRiderId);
   const docsOk = riderDocumentsApproved(selectedRider);
 
   const mutation = useMutation({
@@ -64,7 +61,7 @@ export function EnrollSection() {
       <Select
         id="enroll-rider"
         label="Cavalier"
-        value={riderId}
+        value={effectiveRiderId}
         onChange={(e) => setRiderId(e.target.value)}
         options={riders.map((r) => ({
           value: r.id,
@@ -97,7 +94,7 @@ export function EnrollSection() {
                 type="button"
                 variant="secondary"
                 disabled={!docsOk}
-                onClick={() => mutation.mutate({ courseId: course.id, rider: riderId })}
+                onClick={() => mutation.mutate({ courseId: course.id, rider: effectiveRiderId })}
                 loading={mutation.isPending && mutation.variables?.courseId === course.id}
               >
                 Réserver

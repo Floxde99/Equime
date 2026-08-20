@@ -1,5 +1,8 @@
+import { createEventSchema, EVENT_TYPE_LABELS, EVENT_TYPE_VALUES } from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -18,12 +21,12 @@ import {
   assignEventHorses,
   cancelEventRegistration,
 } from '@/features/engagement/api.js';
+import { toDatetimeLocalValue } from '@/lib/formValues.js';
 
-const EVENT_TYPES = [
-  { value: 'stage', label: 'Stage' },
-  { value: 'competition_internal', label: 'Compétition interne' },
-  { value: 'competition_external', label: 'Compétition externe' },
-];
+const EVENT_TYPE_OPTIONS = EVENT_TYPE_VALUES.map((value) => ({
+  value,
+  label: EVENT_TYPE_LABELS[value],
+}));
 
 const initialForm = {
   title: '',
@@ -38,17 +41,12 @@ const initialForm = {
 
 /** @param {object} event */
 function eventToForm(event) {
-  const toLocal = (iso) => {
-    const d = new Date(iso);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
   return {
     title: event.title,
     description: event.description ?? '',
     type: event.type,
-    startAt: toLocal(event.startAt),
-    endAt: toLocal(event.endAt),
+    startAt: toDatetimeLocalValue(event.startAt),
+    endAt: toDatetimeLocalValue(event.endAt),
     capacity: event.capacity,
     priceCents: event.priceCents,
     location: event.location ?? '',
@@ -57,10 +55,13 @@ function eventToForm(event) {
 
 export function AdminEventsPage() {
   const qc = useQueryClient();
-  const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const eventForm = useForm({
+    resolver: zodResolver(createEventSchema),
+    defaultValues: initialForm,
+  });
   const { data: events = [] } = useQuery({
     queryKey: ['admin-events'],
     queryFn: fetchAdminEvents,
@@ -70,7 +71,7 @@ export function AdminEventsPage() {
     mutationFn: createEvent,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
-      setForm(initialForm);
+      eventForm.reset(initialForm);
       setStatus('Événement créé.');
     },
     onError: (err) => setStatus(err.message),
@@ -80,7 +81,7 @@ export function AdminEventsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
       setEditingId(null);
-      setForm(initialForm);
+      eventForm.reset(initialForm);
       setStatus('Événement mis à jour.');
     },
     onError: (err) => setStatus(err.message),
@@ -112,14 +113,6 @@ export function AdminEventsPage() {
     onError: (err) => setStatus(err.message),
   });
 
-  const handleSubmit = () => {
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, body: form });
-    } else {
-      createMutation.mutate(form);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -144,95 +137,123 @@ export function AdminEventsPage() {
       ) : null}
 
       <Card title={editingId ? "Modifier l'événement" : 'Créer un événement'}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Titre" htmlFor="event-title">
+        <form
+          className="grid gap-4 md:grid-cols-2"
+          noValidate
+          onSubmit={eventForm.handleSubmit((values) => {
+            if (editingId) {
+              updateMutation.mutate({ id: editingId, body: values });
+            } else {
+              createMutation.mutate(values);
+            }
+          })}
+        >
+          <Field
+            label="Titre"
+            htmlFor="event-title"
+            error={eventForm.formState.errors.title?.message}
+          >
             <Input
               id="event-title"
-              value={form.title}
-              onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))}
+              invalid={!!eventForm.formState.errors.title}
+              {...eventForm.register('title')}
             />
           </Field>
           <Select
+            id="event-type"
             label="Type"
-            value={form.type}
-            onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))}
-            options={EVENT_TYPES}
+            error={eventForm.formState.errors.type?.message}
+            options={EVENT_TYPE_OPTIONS}
+            {...eventForm.register('type')}
           />
-          <Field label="Début" htmlFor="event-start">
+          <Field
+            label="Début"
+            htmlFor="event-start"
+            error={eventForm.formState.errors.startAt?.message}
+          >
             <Input
               id="event-start"
               type="datetime-local"
-              value={form.startAt}
-              onChange={(e) => setForm((current) => ({ ...current, startAt: e.target.value }))}
+              invalid={!!eventForm.formState.errors.startAt}
+              {...eventForm.register('startAt')}
             />
           </Field>
-          <Field label="Fin" htmlFor="event-end">
+          <Field label="Fin" htmlFor="event-end" error={eventForm.formState.errors.endAt?.message}>
             <Input
               id="event-end"
               type="datetime-local"
-              value={form.endAt}
-              onChange={(e) => setForm((current) => ({ ...current, endAt: e.target.value }))}
+              invalid={!!eventForm.formState.errors.endAt}
+              {...eventForm.register('endAt')}
             />
           </Field>
-          <Field label="Capacité" htmlFor="event-capacity">
+          <Field
+            label="Capacité"
+            htmlFor="event-capacity"
+            error={eventForm.formState.errors.capacity?.message}
+          >
             <Input
               id="event-capacity"
               type="number"
               min="1"
-              value={form.capacity}
-              onChange={(e) =>
-                setForm((current) => ({ ...current, capacity: Number(e.target.value || 0) }))
-              }
+              invalid={!!eventForm.formState.errors.capacity}
+              {...eventForm.register('capacity')}
             />
           </Field>
-          <Field label="Prix (centimes)" htmlFor="event-price">
+          <Field
+            label="Prix (centimes)"
+            htmlFor="event-price"
+            error={eventForm.formState.errors.priceCents?.message}
+          >
             <Input
               id="event-price"
               type="number"
               min="0"
-              value={form.priceCents}
-              onChange={(e) =>
-                setForm((current) => ({ ...current, priceCents: Number(e.target.value || 0) }))
-              }
+              invalid={!!eventForm.formState.errors.priceCents}
+              {...eventForm.register('priceCents')}
             />
           </Field>
-          <Field label="Lieu" htmlFor="event-location">
+          <Field
+            label="Lieu"
+            htmlFor="event-location"
+            error={eventForm.formState.errors.location?.message}
+          >
             <Input
               id="event-location"
-              value={form.location}
-              onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))}
+              invalid={!!eventForm.formState.errors.location}
+              {...eventForm.register('location')}
             />
           </Field>
-          <Field label="Description" htmlFor="event-description" className="md:col-span-2">
+          <Field
+            label="Description"
+            htmlFor="event-description"
+            className="md:col-span-2"
+            error={eventForm.formState.errors.description?.message}
+          >
             <Textarea
               id="event-description"
               rows={4}
-              value={form.description}
-              onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))}
+              invalid={!!eventForm.formState.errors.description}
+              {...eventForm.register('description')}
             />
           </Field>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            loading={createMutation.isPending || updateMutation.isPending}
-            onClick={handleSubmit}
-          >
-            {editingId ? 'Enregistrer' : 'Créer'}
-          </Button>
-          {editingId ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setEditingId(null);
-                setForm(initialForm);
-              }}
-            >
-              Annuler
+          <div className="md:col-span-2 flex flex-wrap gap-2">
+            <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
+              {editingId ? 'Enregistrer' : 'Créer'}
             </Button>
-          ) : null}
-        </div>
+            {editingId ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(null);
+                  eventForm.reset(initialForm);
+                }}
+              >
+                Annuler
+              </Button>
+            ) : null}
+          </div>
+        </form>
       </Card>
 
       <Card title="Événements planifiés">
@@ -264,7 +285,7 @@ export function AdminEventsPage() {
                     variant="secondary"
                     onClick={() => {
                       setEditingId(event.id);
-                      setForm(eventToForm(event));
+                      eventForm.reset(eventToForm(event));
                       setStatus('');
                     }}
                   >

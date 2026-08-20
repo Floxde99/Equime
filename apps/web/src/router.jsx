@@ -1,47 +1,152 @@
 import { ROLES } from '@equime/shared';
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Outlet } from 'react-router';
 
 import { AdminLayout } from '@/components/layouts/AdminLayout.jsx';
 import { ClientLayout } from '@/components/layouts/ClientLayout.jsx';
 import { InstructorLayout } from '@/components/layouts/InstructorLayout.jsx';
-import { AdminBillingPage } from '@/features/admin/pages/AdminBillingPage.jsx';
-import { AdminCavalryPage } from '@/features/admin/pages/AdminCavalryPage.jsx';
-import { AdminDashboardPage } from '@/features/admin/pages/AdminDashboardPage.jsx';
-import { AdminHorsePage } from '@/features/admin/pages/AdminHorsePage.jsx';
-import { AdminMembersPage } from '@/features/admin/pages/AdminMembersPage.jsx';
-import { AdminPlanningPage } from '@/features/admin/pages/AdminPlanningPage.jsx';
+import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { AuthProvider } from '@/features/auth/AuthProvider.jsx';
 import { RedirectIfAuthenticated, RequireAuth } from '@/features/auth/guards.jsx';
 import { AuthLayout } from '@/features/auth/pages/AuthLayout.jsx';
-import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage.jsx';
-import { LoginPage } from '@/features/auth/pages/LoginPage.jsx';
-import { RegisterPage } from '@/features/auth/pages/RegisterPage.jsx';
-import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage.jsx';
-import { ClientAccountPage } from '@/features/client/pages/ClientAccountPage.jsx';
-import { ClientDashboardPage } from '@/features/client/pages/ClientDashboardPage.jsx';
-import { ClientInvoicesPage } from '@/features/client/pages/ClientInvoicesPage.jsx';
-import { ClientPlanningPage } from '@/features/client/pages/ClientPlanningPage.jsx';
-import { AdminEventsPage } from '@/features/engagement/pages/AdminEventsPage.jsx';
-import { ClientEventsPage } from '@/features/engagement/pages/ClientEventsPage.jsx';
-import { InstructorIncidentsPage } from '@/features/engagement/pages/InstructorIncidentsPage.jsx';
-import { MessagesPage } from '@/features/engagement/pages/MessagesPage.jsx';
-import { NotificationsPage } from '@/features/engagement/pages/NotificationsPage.jsx';
-import { VolunteerPage } from '@/features/engagement/pages/VolunteerPage.jsx';
-import { HomePage } from '@/features/home/pages/HomePage.jsx';
-import { NotFoundPage } from '@/features/home/pages/NotFoundPage.jsx';
 import { RouteErrorPage } from '@/features/home/pages/RouteErrorPage.jsx';
-import { AttendancePage } from '@/features/instructor/pages/AttendancePage.jsx';
-import { InstructorDashboardPage } from '@/features/instructor/pages/InstructorDashboardPage.jsx';
-import { InstructorHealthPage } from '@/features/instructor/pages/InstructorHealthPage.jsx';
-import { InstructorHorseHealthPage } from '@/features/instructor/pages/InstructorHorseHealthPage.jsx';
-import { InstructorPlanningPage } from '@/features/instructor/pages/InstructorPlanningPage.jsx';
-import { RidersPage } from '@/features/riders/pages/RidersPage.jsx';
+
+/**
+ * Code-split une page exportée nommée (pas de default export).
+ * @param {() => Promise<Record<string, import('react').ComponentType>>} importer
+ * @param {string} exportName
+ */
+function lazyNamed(importer, exportName) {
+  return lazy(() => importer().then((mod) => ({ default: mod[exportName] })));
+}
+
+const HomePage = lazyNamed(() => import('@/features/home/pages/HomePage.jsx'), 'HomePage');
+const NotFoundPage = lazyNamed(
+  () => import('@/features/home/pages/NotFoundPage.jsx'),
+  'NotFoundPage'
+);
+const LoginPage = lazyNamed(() => import('@/features/auth/pages/LoginPage.jsx'), 'LoginPage');
+const RegisterPage = lazyNamed(
+  () => import('@/features/auth/pages/RegisterPage.jsx'),
+  'RegisterPage'
+);
+const ForgotPasswordPage = lazyNamed(
+  () => import('@/features/auth/pages/ForgotPasswordPage.jsx'),
+  'ForgotPasswordPage'
+);
+const ResetPasswordPage = lazyNamed(
+  () => import('@/features/auth/pages/ResetPasswordPage.jsx'),
+  'ResetPasswordPage'
+);
+const ClientDashboardPage = lazyNamed(
+  () => import('@/features/client/pages/ClientDashboardPage.jsx'),
+  'ClientDashboardPage'
+);
+const ClientPlanningPage = lazyNamed(
+  () => import('@/features/client/pages/ClientPlanningPage.jsx'),
+  'ClientPlanningPage'
+);
+const ClientEventsPage = lazyNamed(
+  () => import('@/features/engagement/pages/ClientEventsPage.jsx'),
+  'ClientEventsPage'
+);
+const VolunteerPage = lazyNamed(
+  () => import('@/features/engagement/pages/VolunteerPage.jsx'),
+  'VolunteerPage'
+);
+const MessagesPage = lazyNamed(
+  () => import('@/features/engagement/pages/MessagesPage.jsx'),
+  'MessagesPage'
+);
+const NotificationsPage = lazyNamed(
+  () => import('@/features/engagement/pages/NotificationsPage.jsx'),
+  'NotificationsPage'
+);
+const ClientInvoicesPage = lazyNamed(
+  () => import('@/features/client/pages/ClientInvoicesPage.jsx'),
+  'ClientInvoicesPage'
+);
+const ClientAccountPage = lazyNamed(
+  () => import('@/features/client/pages/ClientAccountPage.jsx'),
+  'ClientAccountPage'
+);
+const RidersPage = lazyNamed(() => import('@/features/riders/pages/RidersPage.jsx'), 'RidersPage');
+const InstructorDashboardPage = lazyNamed(
+  () => import('@/features/instructor/pages/InstructorDashboardPage.jsx'),
+  'InstructorDashboardPage'
+);
+const InstructorPlanningPage = lazyNamed(
+  () => import('@/features/instructor/pages/InstructorPlanningPage.jsx'),
+  'InstructorPlanningPage'
+);
+const AttendancePage = lazyNamed(
+  () => import('@/features/instructor/pages/AttendancePage.jsx'),
+  'AttendancePage'
+);
+const InstructorIncidentsPage = lazyNamed(
+  () => import('@/features/engagement/pages/InstructorIncidentsPage.jsx'),
+  'InstructorIncidentsPage'
+);
+const InstructorHealthPage = lazyNamed(
+  () => import('@/features/instructor/pages/InstructorHealthPage.jsx'),
+  'InstructorHealthPage'
+);
+const InstructorHorseHealthPage = lazyNamed(
+  () => import('@/features/instructor/pages/InstructorHorseHealthPage.jsx'),
+  'InstructorHorseHealthPage'
+);
+const AdminDashboardPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminDashboardPage.jsx'),
+  'AdminDashboardPage'
+);
+const AdminPlanningPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminPlanningPage.jsx'),
+  'AdminPlanningPage'
+);
+const AdminCavalryPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminCavalryPage.jsx'),
+  'AdminCavalryPage'
+);
+const AdminHorsePage = lazyNamed(
+  () => import('@/features/admin/pages/AdminHorsePage.jsx'),
+  'AdminHorsePage'
+);
+const AdminEventsPage = lazyNamed(
+  () => import('@/features/engagement/pages/AdminEventsPage.jsx'),
+  'AdminEventsPage'
+);
+const AdminBillingPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminBillingPage.jsx'),
+  'AdminBillingPage'
+);
+const AdminMembersPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminMembersPage.jsx'),
+  'AdminMembersPage'
+);
+
+/** Fallback accessible pendant le chargement d’un chunk de page. */
+function RouteFallback() {
+  return (
+    <div className="space-y-4 py-8" role="status" aria-live="polite" aria-busy="true">
+      <p className="font-sans text-sm text-muted">Chargement…</p>
+      <Skeleton lines={6} />
+    </div>
+  );
+}
+
+function SuspenseOutlet() {
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Outlet />
+    </Suspense>
+  );
+}
 
 /** Shell racine : amorce la session (refresh silencieux) pour toute l'application. */
 function AppShell() {
   return (
     <AuthProvider>
-      <Outlet />
+      <SuspenseOutlet />
     </AuthProvider>
   );
 }
@@ -64,10 +169,15 @@ export const router = createBrowserRouter([
           {
             element: <AuthLayout />,
             children: [
-              { path: '/login', element: <LoginPage /> },
-              { path: '/register', element: <RegisterPage /> },
-              { path: '/mot-de-passe-oublie', element: <ForgotPasswordPage /> },
-              { path: '/reinitialisation', element: <ResetPasswordPage /> },
+              {
+                element: <SuspenseOutlet />,
+                children: [
+                  { path: '/login', element: <LoginPage /> },
+                  { path: '/register', element: <RegisterPage /> },
+                  { path: '/mot-de-passe-oublie', element: <ForgotPasswordPage /> },
+                  { path: '/reinitialisation', element: <ResetPasswordPage /> },
+                ],
+              },
             ],
           },
         ],
@@ -81,6 +191,7 @@ export const router = createBrowserRouter([
             element: <ClientLayout />,
             children: [
               {
+                element: <SuspenseOutlet />,
                 errorElement: <RouteErrorPage embedded />,
                 children: [
                   { path: '/app', element: <ClientDashboardPage /> },
@@ -107,6 +218,7 @@ export const router = createBrowserRouter([
             element: <InstructorLayout />,
             children: [
               {
+                element: <SuspenseOutlet />,
                 errorElement: <RouteErrorPage embedded />,
                 children: [
                   { path: '/moniteur', element: <InstructorDashboardPage /> },
@@ -131,6 +243,7 @@ export const router = createBrowserRouter([
             element: <AdminLayout />,
             children: [
               {
+                element: <SuspenseOutlet />,
                 errorElement: <RouteErrorPage embedded />,
                 children: [
                   { path: '/admin', element: <AdminDashboardPage /> },

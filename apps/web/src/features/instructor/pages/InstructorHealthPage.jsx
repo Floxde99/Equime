@@ -1,6 +1,6 @@
 import { HORSE_STATUS_LABELS } from '@equime/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { Badge } from '@/components/ui/badge.jsx';
@@ -26,12 +26,9 @@ const HORSE_VARIANT = {
 export function InstructorHealthPage() {
   const [search, setSearch] = useState('');
 
-  const horsesQuery = useQuery({ queryKey: ['instructor-horses'], queryFn: fetchHorses });
+  const horsesQuery = useQuery({ queryKey: ['horses'], queryFn: fetchHorses });
   const horses = horsesQuery.data ?? [];
-  const filtered = useMemo(
-    () => filterHorsesByQuery(horsesQuery.data, search),
-    [horsesQuery.data, search]
-  );
+  const filtered = filterHorsesByQuery(horses, search);
 
   return (
     <div className="space-y-6">

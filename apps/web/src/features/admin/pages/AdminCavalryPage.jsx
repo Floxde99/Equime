@@ -9,7 +9,7 @@ import {
 } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
 
@@ -86,13 +86,10 @@ function HorsesPanel() {
   const [search, setSearch] = useState('');
   const [photoFile, setPhotoFile] = useState(/** @type {File | null} */ (null));
 
-  const horsesQuery = useQuery({ queryKey: ['admin-horses'], queryFn: fetchHorses });
+  const horsesQuery = useQuery({ queryKey: ['horses'], queryFn: fetchHorses });
   const horses = horsesQuery.data ?? [];
   const { data: spaces = [] } = useQuery({ queryKey: ['spaces'], queryFn: fetchSpaces });
-  const filtered = useMemo(
-    () => filterHorsesByQuery(horsesQuery.data, search),
-    [horsesQuery.data, search]
-  );
+  const filtered = filterHorsesByQuery(horses, search);
 
   const form = useForm({
     resolver: zodResolver(createHorseSchema),
@@ -113,7 +110,7 @@ function HorsesPanel() {
       return horse;
     },
     onSuccess: (horse) => {
-      qc.invalidateQueries({ queryKey: ['admin-horses'] });
+      qc.invalidateQueries({ queryKey: ['horses'] });
       form.reset();
       setPhotoFile(null);
       setCreateOpen(false);

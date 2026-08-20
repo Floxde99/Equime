@@ -1,5 +1,8 @@
+import { createVolunteerMissionSchema } from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -17,6 +20,7 @@ import {
   updateVolunteerMission,
 } from '@/features/engagement/api.js';
 import { missionPhotoSrc } from '@/lib/demoPhotos.js';
+import { blankToUndefined, toDatetimeLocalValue } from '@/lib/formValues.js';
 import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 const initialForm = {
@@ -29,17 +33,11 @@ const initialForm = {
 
 /** @param {object} mission */
 function missionToForm(mission) {
-  const toLocal = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
   return {
     title: mission.title,
     description: mission.description ?? '',
-    startAt: toLocal(mission.startAt),
-    endAt: toLocal(mission.endAt),
+    startAt: toDatetimeLocalValue(mission.startAt),
+    endAt: toDatetimeLocalValue(mission.endAt),
     slots: mission.slots,
   };
 }
@@ -47,10 +45,13 @@ function missionToForm(mission) {
 export function VolunteerPage({ admin = false }) {
   const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
-  const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [status, setStatus] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const missionForm = useForm({
+    resolver: zodResolver(createVolunteerMissionSchema),
+    defaultValues: initialForm,
+  });
   const { data: missions = [] } = useQuery({
     queryKey: ['volunteer-missions'],
     queryFn: fetchVolunteerMissions,
@@ -60,7 +61,7 @@ export function VolunteerPage({ admin = false }) {
     mutationFn: createVolunteerMission,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
-      setForm(initialForm);
+      missionForm.reset(initialForm);
       setStatus('Mission créée.');
     },
     onError: (err) => setStatus(err.message),
@@ -70,7 +71,7 @@ export function VolunteerPage({ admin = false }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
       setEditingId(null);
-      setForm(initialForm);
+      missionForm.reset(initialForm);
       setStatus('Mission mise à jour.');
     },
     onError: (err) => setStatus(err.message),
@@ -87,16 +88,6 @@ export function VolunteerPage({ admin = false }) {
     },
     onError: (err) => setStatus(err.message),
   });
-
-  const handleSubmit = () => {
-    const body = { ...form };
-    if (!body.endAt) delete body.endAt;
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, body });
-    } else {
-      createMutation.mutate(body);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -126,73 +117,96 @@ export function VolunteerPage({ admin = false }) {
 
       {admin ? (
         <Card title={editingId ? 'Modifier la mission' : 'Créer une mission'}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Titre" htmlFor="mission-title">
+          <form
+            className="grid gap-4 md:grid-cols-2"
+            noValidate
+            onSubmit={missionForm.handleSubmit((values) => {
+              if (editingId) {
+                updateMutation.mutate({ id: editingId, body: values });
+              } else {
+                createMutation.mutate(values);
+              }
+            })}
+          >
+            <Field
+              label="Titre"
+              htmlFor="mission-title"
+              error={missionForm.formState.errors.title?.message}
+            >
               <Input
                 id="mission-title"
-                value={form.title}
-                onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))}
+                invalid={!!missionForm.formState.errors.title}
+                {...missionForm.register('title')}
               />
             </Field>
-            <Field label="Places" htmlFor="mission-slots">
+            <Field
+              label="Places"
+              htmlFor="mission-slots"
+              error={missionForm.formState.errors.slots?.message}
+            >
               <Input
                 id="mission-slots"
                 type="number"
                 min="1"
-                value={form.slots}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, slots: Number(e.target.value || 0) }))
-                }
+                invalid={!!missionForm.formState.errors.slots}
+                {...missionForm.register('slots')}
               />
             </Field>
-            <Field label="Début" htmlFor="mission-start">
+            <Field
+              label="Début"
+              htmlFor="mission-start"
+              error={missionForm.formState.errors.startAt?.message}
+            >
               <Input
                 id="mission-start"
                 type="datetime-local"
-                value={form.startAt}
-                onChange={(e) => setForm((current) => ({ ...current, startAt: e.target.value }))}
+                invalid={!!missionForm.formState.errors.startAt}
+                {...missionForm.register('startAt')}
               />
             </Field>
-            <Field label="Fin" htmlFor="mission-end">
+            <Field
+              label="Fin"
+              htmlFor="mission-end"
+              error={missionForm.formState.errors.endAt?.message}
+            >
               <Input
                 id="mission-end"
                 type="datetime-local"
-                value={form.endAt}
-                onChange={(e) => setForm((current) => ({ ...current, endAt: e.target.value }))}
+                invalid={!!missionForm.formState.errors.endAt}
+                {...missionForm.register('endAt', { setValueAs: blankToUndefined })}
               />
             </Field>
-            <Field label="Description" htmlFor="mission-description" className="md:col-span-2">
+            <Field
+              label="Description"
+              htmlFor="mission-description"
+              className="md:col-span-2"
+              error={missionForm.formState.errors.description?.message}
+            >
               <Textarea
                 id="mission-description"
                 rows={4}
-                value={form.description}
-                onChange={(e) =>
-                  setForm((current) => ({ ...current, description: e.target.value }))
-                }
+                invalid={!!missionForm.formState.errors.description}
+                {...missionForm.register('description')}
               />
             </Field>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              loading={createMutation.isPending || updateMutation.isPending}
-              onClick={handleSubmit}
-            >
-              {editingId ? 'Enregistrer' : 'Créer la mission'}
-            </Button>
-            {editingId ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(initialForm);
-                }}
-              >
-                Annuler
+            <div className="md:col-span-2 flex flex-wrap gap-2">
+              <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
+                {editingId ? 'Enregistrer' : 'Créer la mission'}
               </Button>
-            ) : null}
-          </div>
+              {editingId ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingId(null);
+                    missionForm.reset(initialForm);
+                  }}
+                >
+                  Annuler
+                </Button>
+              ) : null}
+            </div>
+          </form>
         </Card>
       ) : null}
 
@@ -218,7 +232,7 @@ export function VolunteerPage({ admin = false }) {
                     variant="secondary"
                     onClick={() => {
                       setEditingId(mission.id);
-                      setForm(missionToForm(mission));
+                      missionForm.reset(missionToForm(mission));
                       setStatus('');
                     }}
                   >

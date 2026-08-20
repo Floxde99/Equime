@@ -1,5 +1,8 @@
+import { createConversationSchema, createMessageSchema } from '@equime/shared';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -22,11 +25,17 @@ import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 export function MessagesPage() {
   const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
-  const [participantId, setParticipantId] = useState('');
-  const [subject, setSubject] = useState('');
   const [selectedConversationId, setSelectedConversationId] = useState('');
-  const [messageBody, setMessageBody] = useState('');
   const [error, setError] = useState('');
+
+  const createForm = useForm({
+    resolver: zodResolver(createConversationSchema),
+    defaultValues: { participantId: '', subject: '' },
+  });
+  const sendForm = useForm({
+    resolver: zodResolver(createMessageSchema),
+    defaultValues: { body: '' },
+  });
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['message-contacts'],
@@ -38,39 +47,37 @@ export function MessagesPage() {
     refetchInterval: 5_000,
   });
 
-  useEffect(() => {
-    if (!selectedConversationId && conversations[0]?.id) {
-      setSelectedConversationId(conversations[0].id);
-    }
-  }, [conversations, selectedConversationId]);
-
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? null,
-    [conversations, selectedConversationId]
-  );
+  const effectiveId = selectedConversationId || conversations[0]?.id;
+  const selectedConversation =
+    conversations.find((conversation) => conversation.id === effectiveId) ?? null;
+  const hasUnread = Boolean(selectedConversation?.hasUnread);
 
   const { data: messages = [] } = useQuery({
-    queryKey: ['conversation-messages', selectedConversationId],
-    queryFn: () => fetchConversationMessages(selectedConversationId),
-    enabled: Boolean(selectedConversationId),
-    refetchInterval: selectedConversationId ? 5_000 : false,
+    queryKey: ['conversation-messages', effectiveId],
+    queryFn: () => fetchConversationMessages(effectiveId),
+    enabled: Boolean(effectiveId),
+    refetchInterval: effectiveId ? 5_000 : false,
   });
 
+  const markReadMutation = useMutation({
+    mutationFn: markConversationRead,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+  const { mutate: markRead } = markReadMutation;
+
   useEffect(() => {
-    if (selectedConversation?.hasUnread) {
-      markConversationRead(selectedConversation.id).then(() => {
-        qc.invalidateQueries({ queryKey: ['conversations'] });
-      });
-    }
-  }, [qc, selectedConversation]);
+    if (!effectiveId || !hasUnread) return;
+    markRead(effectiveId);
+  }, [effectiveId, hasUnread, markRead]);
 
   const createMutation = useMutation({
     mutationFn: createConversation,
     onSuccess: (conversation) => {
       qc.invalidateQueries({ queryKey: ['conversations'] });
       setSelectedConversationId(conversation.id);
-      setParticipantId('');
-      setSubject('');
+      createForm.reset();
       setError('');
     },
     onError: (err) => setError(err.message),
@@ -80,12 +87,15 @@ export function MessagesPage() {
     mutationFn: ({ conversationId, body }) => sendMessage(conversationId, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['conversations'] });
-      qc.invalidateQueries({ queryKey: ['conversation-messages', selectedConversationId] });
-      setMessageBody('');
+      qc.invalidateQueries({ queryKey: ['conversation-messages', effectiveId] });
+      sendForm.reset();
       setError('');
     },
     onError: (err) => setError(err.message),
   });
+
+  const participantId = createForm.watch('participantId');
+  const messageBody = sendForm.watch('body');
 
   return (
     <div className="space-y-6">
@@ -99,11 +109,14 @@ export function MessagesPage() {
 
       <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <Card title="Nouvelle conversation">
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            noValidate
+            onSubmit={createForm.handleSubmit((values) => createMutation.mutate(values))}
+          >
             <Select
               label="Contact"
-              value={participantId}
-              onChange={(e) => setParticipantId(e.target.value)}
+              error={createForm.formState.errors.participantId?.message}
               options={[
                 { value: '', label: '— Sélectionner —' },
                 ...contacts.map((contact) => ({
@@ -111,24 +124,24 @@ export function MessagesPage() {
                   label: `${contact.firstName} ${contact.lastName} (${contact.role})`,
                 })),
               ]}
+              {...createForm.register('participantId')}
             />
-            <Field label="Sujet" htmlFor="message-subject">
+            <Field
+              label="Sujet"
+              htmlFor="message-subject"
+              error={createForm.formState.errors.subject?.message}
+            >
               <Input
                 id="message-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
                 placeholder="Question planning, suivi cavalier..."
+                invalid={!!createForm.formState.errors.subject}
+                {...createForm.register('subject')}
               />
             </Field>
-            <Button
-              type="button"
-              disabled={!participantId}
-              loading={createMutation.isPending}
-              onClick={() => createMutation.mutate({ participantId, subject })}
-            >
+            <Button type="submit" disabled={!participantId} loading={createMutation.isPending}>
               Ouvrir la conversation
             </Button>
-          </div>
+          </form>
 
           <div className="mt-6 space-y-3 border-t border-border pt-4">
             {conversations.map((conversation) => (
@@ -137,7 +150,7 @@ export function MessagesPage() {
                 type="button"
                 onClick={() => setSelectedConversationId(conversation.id)}
                 className={`w-full rounded-xl border p-3 text-left ${
-                  selectedConversationId === conversation.id
+                  effectiveId === conversation.id
                     ? 'border-primary bg-paper'
                     : 'border-border-on-card bg-paper'
                 }`}
@@ -197,27 +210,36 @@ export function MessagesPage() {
                 ))}
               </div>
 
-              <Field label="Votre message" htmlFor="new-message">
-                <Textarea
-                  id="new-message"
-                  value={messageBody}
-                  onChange={(e) => setMessageBody(e.target.value)}
-                  rows={4}
-                />
-              </Field>
-              <Button
-                type="button"
-                disabled={!messageBody.trim()}
-                loading={sendMutation.isPending}
-                onClick={() =>
+              <form
+                className="space-y-4"
+                noValidate
+                onSubmit={sendForm.handleSubmit((values) =>
                   sendMutation.mutate({
                     conversationId: selectedConversation.id,
-                    body: messageBody,
+                    body: values.body,
                   })
-                }
+                )}
               >
-                Envoyer
-              </Button>
+                <Field
+                  label="Votre message"
+                  htmlFor="new-message"
+                  error={sendForm.formState.errors.body?.message}
+                >
+                  <Textarea
+                    id="new-message"
+                    rows={4}
+                    invalid={!!sendForm.formState.errors.body}
+                    {...sendForm.register('body')}
+                  />
+                </Field>
+                <Button
+                  type="submit"
+                  disabled={!messageBody?.trim()}
+                  loading={sendMutation.isPending}
+                >
+                  Envoyer
+                </Button>
+              </form>
             </div>
           )}
         </Card>

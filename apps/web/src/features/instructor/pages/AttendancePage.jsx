@@ -10,15 +10,16 @@ import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { fetchEnrollments, fetchPlanning, updateAttendance } from '@/features/admin/api.js';
 
+const DEFAULT_RANGE = {
+  from: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+  to: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString(),
+};
+
 /** Appel d'une séance — cartes cavaliers (artboard Stitch `d_tail_de_s_ance_moniteur`). */
 export function AttendancePage() {
   const qc = useQueryClient();
   const [courseId, setCourseId] = useState('');
-
-  const range = {
-    from: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-    to: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString(),
-  };
+  const [range] = useState(DEFAULT_RANGE);
 
   const { data: events = [] } = useQuery({
     queryKey: ['planning', range, 'mine'],
