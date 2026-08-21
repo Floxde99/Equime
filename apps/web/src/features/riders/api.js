@@ -1,4 +1,4 @@
-import { api } from '@/lib/apiClient.js';
+import { api, apiFetchBlob } from '@/lib/apiClient.js';
 
 export function fetchRiders() {
   return api.get('/riders').then((r) => r.riders);
@@ -26,6 +26,15 @@ export function uploadRiderDocument(riderId, docType, file, medicalConsent, expi
   if (medicalConsent) form.append('medicalConsent', 'true');
   if (expiresAt) form.append('expiresAt', expiresAt);
   return api.upload(`/riders/${riderId}/documents/${docType}`, form).then((r) => r.rider);
+}
+
+/**
+ * Récupère un justificatif déjà téléversé (le sien), pour relecture.
+ * @param {string} riderId @param {'medical_certificate' | 'license'} docType
+ * @returns {Promise<Blob>}
+ */
+export function fetchRiderDocument(riderId, docType) {
+  return apiFetchBlob(`/riders/${riderId}/documents/${docType}`);
 }
 
 /** @param {string} riderId */

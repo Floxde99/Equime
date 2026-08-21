@@ -139,6 +139,7 @@ enum NotificationType {
 enum AdminAuditAction {
   medical_document_viewed
   medical_document_reviewed
+  license_uploaded_by_admin
 }
 
 // ============================================================
@@ -212,6 +213,10 @@ model Rider {
   licenseRejectionReason             String?
   /// Date de fin de validité de la licence FFE (Excel 7.2)
   licenseExpiresAt                   DateTime?
+  /// Numéro de licence FFE — saisi indépendamment du justificatif (le club
+  /// le fournit parfois avant le document, ou un adhérent arrive en cours
+  /// d'année avec une licence de son club précédent)
+  licenseNumber                      String?
   /// RGPD : consentement explicite au stockage du certificat médical
   medicalConsentAt         DateTime?
   createdAt                DateTime       @default(now())

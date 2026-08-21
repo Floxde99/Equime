@@ -11,6 +11,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { Alert } from '@/components/ui/alert.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
@@ -27,11 +28,13 @@ import {
   deleteRider,
   fetchHorses,
   fetchRiderAffinities,
+  fetchRiderDocument,
   fetchRiders,
   updateRider,
   uploadRiderDocument,
   upsertRiderAffinity,
 } from '@/features/riders/api.js';
+import { useDocumentViewer } from '@/lib/useDocumentViewer.js';
 
 const DOC_VARIANT = {
   missing: 'danger',
@@ -66,7 +69,13 @@ export function RidersPage() {
 
   const form = useForm({
     resolver: zodResolver(createRiderSchema),
-    defaultValues: { firstName: '', lastName: '', birthdate: '', level: 'initiation' },
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      birthdate: '',
+      level: 'initiation',
+      licenseNumber: '',
+    },
   });
 
   const saveMutation = useMutation({
@@ -120,6 +129,7 @@ export function RidersPage() {
                   lastName: rider.lastName,
                   birthdate: rider.birthdate.slice(0, 10),
                   level: rider.level,
+                  licenseNumber: rider.licenseNumber ?? '',
                 });
               }}
               onDelete={() => setPendingDelete(rider)}
@@ -157,6 +167,13 @@ export function RidersPage() {
             options={RIDER_LEVEL_VALUES.map((v) => ({ value: v, label: RIDER_LEVEL_LABELS[v] }))}
             {...form.register('level')}
           />
+          <Field
+            label="Numéro de licence FFE (facultatif)"
+            htmlFor="licenseNumber"
+            error={form.formState.errors.licenseNumber?.message}
+          >
+            <Input id="licenseNumber" {...form.register('licenseNumber')} />
+          </Field>
           <div className="flex gap-2">
             <Button type="submit" disabled={saveMutation.isPending}>
               <Plus className="size-4" aria-hidden="true" />
@@ -202,6 +219,7 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
   const [medicalConsent, setMedicalConsent] = useState(false);
   const [medicalExpiresAt, setMedicalExpiresAt] = useState('');
   const [licenseExpiresAt, setLicenseExpiresAt] = useState('');
+  const { open: openDocViewer, openingKey: openingDoc, error: docError } = useDocumentViewer();
 
   const { data: affinities = [] } = useQuery({
     queryKey: ['affinities', rider.id],
@@ -238,7 +256,7 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="font-sans text-xs text-muted">Certificat :</span>{' '}
         {docBadge(rider.medicalCertificateStatus)}
         {rider.medicalCertificateExpiresAt ? (
@@ -253,8 +271,27 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
             ({rider.medicalCertificateRejectionReason})
           </span>
         ) : null}
+        {rider.medicalCertificateStatus !== 'missing' ? (
+          <Button
+            type="button"
+            variant="ghost"
+            loading={openingDoc === 'medical_certificate'}
+            onClick={() =>
+              openDocViewer('medical_certificate', () =>
+                fetchRiderDocument(rider.id, 'medical_certificate')
+              )
+            }
+          >
+            Voir
+          </Button>
+        ) : null}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="font-sans text-xs text-muted">Licence :</span>{' '}
         {docBadge(rider.licenseStatus)}
+        {rider.licenseNumber ? (
+          <span className="font-sans text-xs text-muted">n° {rider.licenseNumber}</span>
+        ) : null}
         {rider.licenseExpiresAt ? (
           <span className="font-sans text-xs text-muted">
             (valide jusqu’au {new Date(rider.licenseExpiresAt).toLocaleDateString('fr-FR')})
@@ -263,7 +300,18 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
         {rider.licenseStatus === 'rejected' && rider.licenseRejectionReason ? (
           <span className="font-sans text-xs text-danger">({rider.licenseRejectionReason})</span>
         ) : null}
+        {rider.licenseStatus !== 'missing' ? (
+          <Button
+            type="button"
+            variant="ghost"
+            loading={openingDoc === 'license'}
+            onClick={() => openDocViewer('license', () => fetchRiderDocument(rider.id, 'license'))}
+          >
+            Voir
+          </Button>
+        ) : null}
       </div>
+      {docError ? <Alert className="mt-2">{docError}</Alert> : null}
 
       <div className="mt-4 space-y-3 border-t border-border pt-4">
         <p className="font-sans text-sm font-medium text-muted">Documents</p>

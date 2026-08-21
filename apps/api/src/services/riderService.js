@@ -19,6 +19,7 @@ const RIDER_SELECT = {
   licenseStatus: true,
   licenseRejectionReason: true,
   licenseExpiresAt: true,
+  licenseNumber: true,
   medicalConsentAt: true,
   createdAt: true,
   updatedAt: true,
@@ -186,6 +187,7 @@ const PENDING_DOC_SELECT = {
   medicalCertificateExpiresAt: true,
   licenseStatus: true,
   licenseExpiresAt: true,
+  licenseNumber: true,
   family: {
     select: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -205,6 +207,59 @@ export async function listPendingDocuments() {
     select: PENDING_DOC_SELECT,
     orderBy: { updatedAt: 'desc' },
   });
+}
+
+/**
+ * Cavaliers sans licence enregistrée — le club la fournit parfois lui-même,
+ * ou un adhérent arrive en cours d'année déjà licencié via un autre club.
+ * @returns {Promise<object[]>}
+ */
+export async function listRidersMissingLicense() {
+  return prisma.rider.findMany({
+    where: { licenseStatus: 'missing' },
+    select: PENDING_DOC_SELECT,
+    orderBy: { lastName: 'asc' },
+  });
+}
+
+/**
+ * Téléversement d'une licence par un admin, pour le compte d'une famille.
+ * Contrairement à l'upload famille (`uploadRiderDocument`), le statut passe
+ * directement à `approved` : l'admin est déjà l'autorité de validation, un
+ * second passage par la file de relecture n'apporterait rien. Réservé à la
+ * licence — le certificat médical requiert le consentement RGPD explicite de
+ * la famille, qu'un admin ne peut pas donner à sa place.
+ *
+ * @param {string} adminId
+ * @param {string} riderId
+ * @param {Express.Multer.File} file
+ * @param {{ expiresAt: Date, licenseNumber?: string }} fields
+ */
+export async function adminUploadLicense(adminId, riderId, file, fields) {
+  const rider = await prisma.rider.findUnique({ where: { id: riderId } });
+  if (!rider) throw AppError.notFound('Cavalier introuvable');
+
+  const { relativePath } = await persistRiderDocument(file, 'license');
+  const previousPath = rider.licenseUrl;
+
+  const updated = await prisma.rider.update({
+    where: { id: riderId },
+    data: {
+      licenseUrl: relativePath,
+      licenseStatus: 'approved',
+      licenseRejectionReason: null,
+      licenseExpiresAt: fields.expiresAt,
+      ...(fields.licenseNumber ? { licenseNumber: fields.licenseNumber } : {}),
+    },
+    select: RIDER_SELECT,
+  });
+
+  await deleteStoredFile(previousPath);
+
+  const { logAdminAudit } = await import('./adminService.js');
+  await logAdminAudit({ adminId, action: 'license_uploaded_by_admin', riderId });
+
+  return updated;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { RIDER_LEVEL_LABELS } from '@equime/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -53,7 +54,24 @@ export function EnrollSection() {
     },
   });
 
-  if (riders.length === 0) return null;
+  // Sans cavalier, l'inscription est impossible — mais la masquer laisserait
+  // l'utilisateur sans indication sur la marche à suivre.
+  if (riders.length === 0) {
+    return (
+      <Card title="Inscrire un cavalier">
+        <p className="font-sans text-sm text-muted-on-card">
+          Aucun cavalier n&apos;est encore rattaché à votre famille. Ajoutez-en un pour pouvoir
+          réserver des séances.
+        </p>
+        <Link
+          to="/app/cavaliers"
+          className="mt-3 inline-block font-sans text-sm font-semibold text-primary hover:underline"
+        >
+          Ajouter un cavalier →
+        </Link>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Inscrire un cavalier">
