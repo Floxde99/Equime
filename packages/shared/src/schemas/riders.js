@@ -23,6 +23,15 @@ export const createRiderSchema = z.object({
     .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ'), z.coerce.date()])
     .transform((value) => (value instanceof Date ? value : new Date(`${value}T00:00:00.000Z`))),
   level: riderLevelSchema.default('initiation'),
+  // Optionnel et sans format imposé : les numéros de licence FFE varient
+  // selon les clubs et les années d'émission, une contrainte de format
+  // rejetterait des numéros valides.
+  licenseNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export const updateRiderSchema = createRiderSchema.partial();
@@ -63,6 +72,7 @@ export const riderPublicSchema = z.object({
   licenseStatus: z.enum(DOCUMENT_STATUS_VALUES),
   licenseRejectionReason: z.string().nullable().optional(),
   licenseExpiresAt: z.coerce.date().nullable().optional(),
+  licenseNumber: z.string().nullable().optional(),
   medicalConsentAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

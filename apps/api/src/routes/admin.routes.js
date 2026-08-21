@@ -2,6 +2,7 @@
 import {
   adminChangeFamilySubscriptionSchema,
   adminRiderDocumentParamSchema,
+  adminUploadLicenseFieldsSchema,
   compatibilityAuditSchema,
   createDiscountRuleSchema,
   createInvoiceSchema,
@@ -21,6 +22,7 @@ import { Router } from 'express';
 
 import * as adminController from '../controllers/adminController.js';
 import * as billingController from '../controllers/billingController.js';
+import { riderDocumentUpload } from '../lib/uploads.js';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
 
@@ -56,6 +58,14 @@ router.get(
   '/riders/:riderId/documents/:docType',
   validate(adminRiderDocumentParamSchema, 'params'),
   adminController.downloadRiderDocument
+);
+router.get('/riders/missing-license', adminController.listRidersMissingLicense);
+router.post(
+  '/riders/:riderId/license',
+  validate(riderDocumentReviewParamSchema, 'params'),
+  riderDocumentUpload.single('file'),
+  validate(adminUploadLicenseFieldsSchema),
+  adminController.uploadLicense
 );
 
 router.patch(

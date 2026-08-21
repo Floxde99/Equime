@@ -23,10 +23,13 @@ import { PageHeader } from '@/components/ui/page-header.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import {
+  adminUploadLicense,
   banMember,
   createMember,
+  fetchAdminRiderDocument,
   fetchMembers,
   fetchPendingDocuments,
+  fetchRidersMissingLicense,
   reviewDocument,
   unbanMember,
   updateMember,
@@ -34,6 +37,7 @@ import {
 import { changeFamilySubscription, fetchSubscriptionPlans } from '@/features/billing/api.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 import { formatEuroCents } from '@/lib/money.js';
+import { useDocumentViewer } from '@/lib/useDocumentViewer.js';
 
 /** Gestion des membres et validation des documents (US-9.2, US-9.3). */
 export function AdminMembersPage() {
@@ -55,6 +59,10 @@ export function AdminMembersPage() {
   const { data: pendingRiders = [], isLoading: docsLoading } = useQuery({
     queryKey: ['pending-documents'],
     queryFn: fetchPendingDocuments,
+  });
+  const { data: unlicensedRiders = [] } = useQuery({
+    queryKey: ['riders-missing-license'],
+    queryFn: fetchRidersMissingLicense,
   });
   const { data: plans = [] } = useQuery({
     queryKey: ['subscription-plans'],
@@ -124,6 +132,29 @@ export function AdminMembersPage() {
       ) : (
         <p className="font-sans text-sm text-muted">Aucun document en attente.</p>
       )}
+
+      {unlicensedRiders.length > 0 ? (
+        <section className="space-y-4 rounded-xl bg-warning/10 p-5">
+          <h2 className="font-display text-xl text-on-card">Cavaliers sans licence</h2>
+          <p className="font-sans text-sm text-muted">
+            Le club fournit parfois directement la licence, ou un adhérent arrive en cours
+            d&apos;année déjà licencié via un autre club. Le document est ici validé immédiatement —
+            c&apos;est vous qui en attestez.
+          </p>
+          <ul className="space-y-3">
+            {unlicensedRiders.map((rider) => (
+              <MissingLicenseCard
+                key={rider.id}
+                rider={rider}
+                onUploaded={() => {
+                  qc.invalidateQueries({ queryKey: ['riders-missing-license'] });
+                  qc.invalidateQueries({ queryKey: ['pending-documents'] });
+                }}
+              />
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <CreateMemberForm
         onCreated={() => {
@@ -533,6 +564,10 @@ function PendingDocumentCard({ rider, onReviewed }) {
     },
   });
 
+  const { open: openDocViewer, openingKey: openingDoc, error: docError } = useDocumentViewer();
+  const openDocument = (docType) =>
+    openDocViewer(docType, () => fetchAdminRiderDocument(rider.id, docType));
+
   const pendingDocs = [
     rider.medicalCertificateStatus === 'pending' ? 'medical_certificate' : null,
     rider.licenseStatus === 'pending' ? 'license' : null,
@@ -555,7 +590,16 @@ function PendingDocumentCard({ rider, onReviewed }) {
                 {docType === 'medical_certificate' ? 'Certificat médical' : 'Licence'} —{' '}
                 {DOCUMENT_STATUS_LABELS.pending}
               </span>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={openingDoc === docType}
+                onClick={() => openDocument(docType)}
+              >
+                Voir le document
+              </Button>
             </div>
+            {docError ? <Alert className="mt-2">{docError}</Alert> : null}
             <Field label="Date d’expiration" htmlFor={`expires-${rider.id}-${docType}`}>
               <Input
                 id={`expires-${rider.id}-${docType}`}
@@ -616,6 +660,70 @@ function PendingDocumentCard({ rider, onReviewed }) {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+/** @param {{ rider: object, onUploaded: () => void }} props */
+function MissingLicenseCard({ rider, onUploaded }) {
+  const [expiresAt, setExpiresAt] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: (file) => adminUploadLicense(rider.id, file, { expiresAt, licenseNumber }),
+    onSuccess: () => {
+      setExpiresAt('');
+      setLicenseNumber('');
+      onUploaded();
+    },
+  });
+
+  return (
+    <Card>
+      <p className="font-sans text-sm font-semibold text-text">
+        {rider.firstName} {rider.lastName}
+      </p>
+      <p className="font-sans text-xs text-muted">
+        Famille {rider.family.user.firstName} {rider.family.user.lastName} (
+        {rider.family.user.email})
+      </p>
+      {mutation.isError ? <Alert className="mt-2">{mutation.error.message}</Alert> : null}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Numéro de licence FFE" htmlFor={`license-number-${rider.id}`}>
+          <Input
+            id={`license-number-${rider.id}`}
+            value={licenseNumber}
+            onChange={(e) => setLicenseNumber(e.target.value)}
+          />
+        </Field>
+        <Field label="Date d’expiration" htmlFor={`license-exp-${rider.id}`}>
+          <Input
+            id={`license-exp-${rider.id}`}
+            type="date"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+          />
+        </Field>
+      </div>
+      <label
+        className={`mt-3 inline-flex h-11 items-center rounded-lg border border-border-on-card px-4 font-sans text-sm ${
+          !expiresAt || mutation.isPending
+            ? 'cursor-not-allowed opacity-50'
+            : 'cursor-pointer text-muted-on-card hover:bg-border-on-card/40'
+        }`}
+      >
+        <input
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          className="sr-only"
+          disabled={!expiresAt || mutation.isPending}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) mutation.mutate(file);
+          }}
+        />
+        {mutation.isPending ? 'Envoi…' : 'Téléverser la licence'}
+      </label>
     </Card>
   );
 }

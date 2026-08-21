@@ -1,4 +1,4 @@
-import { api } from '@/lib/apiClient.js';
+import { api, apiFetchBlob } from '@/lib/apiClient.js';
 
 export function fetchHorses() {
   return api.get('/horses').then((r) => r.horses);
@@ -180,6 +180,26 @@ export function fetchPendingDocuments() {
   return api.get('/admin/pending-documents').then((r) => r.riders);
 }
 
+/** Cavaliers sans licence enregistrée (le club la fournit parfois lui-même). */
+export function fetchRidersMissingLicense() {
+  return api.get('/admin/riders/missing-license').then((r) => r.riders);
+}
+
+/**
+ * Téléverse une licence pour le compte d'une famille — statut approuvé
+ * directement, l'admin étant déjà l'autorité de validation.
+ *
+ * @param {string} riderId @param {File} file
+ * @param {{ expiresAt: string, licenseNumber?: string }} fields
+ */
+export function adminUploadLicense(riderId, file, fields) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('expiresAt', fields.expiresAt);
+  if (fields.licenseNumber) form.append('licenseNumber', fields.licenseNumber);
+  return api.upload(`/admin/riders/${riderId}/license`, form).then((r) => r.rider);
+}
+
 /**
  * @param {string} riderId
  * @param {{ docType: string, decision: string, rejectionReason?: string, expiresAt?: string }} body
@@ -188,9 +208,17 @@ export function reviewDocument(riderId, body) {
   return api.post(`/admin/riders/${riderId}/review-document`, body).then((r) => r.rider);
 }
 
-/** @param {string} riderId @param {'medical_certificate' | 'license'} docType */
-export function getAdminRiderDocumentUrl(riderId, docType) {
-  return `/api/v1/admin/riders/${riderId}/documents/${docType}`;
+/**
+ * Récupère un document cavalier (PDF, JPEG ou PNG) pour relecture.
+ *
+ * L'endpoint exige le Bearer JWT, qui ne vit qu'en mémoire : un `<a href>` ne
+ * le transmettrait pas et recevrait un 401. D'où le passage par un blob.
+ *
+ * @param {string} riderId @param {'medical_certificate' | 'license'} docType
+ * @returns {Promise<Blob>}
+ */
+export function fetchAdminRiderDocument(riderId, docType) {
+  return apiFetchBlob(`/admin/riders/${riderId}/documents/${docType}`);
 }
 
 export function fetchInstructors() {

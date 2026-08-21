@@ -58,6 +58,23 @@ export async function reviewDocument(req, res) {
   res.json({ rider });
 }
 
+/** GET /api/v1/admin/riders/missing-license */
+export async function listRidersMissingLicense(_req, res) {
+  const riders = await riderService.listRidersMissingLicense();
+  res.json({ riders });
+}
+
+/** POST /api/v1/admin/riders/:riderId/license */
+export async function uploadLicense(req, res) {
+  const rider = await riderService.adminUploadLicense(
+    req.user.id,
+    req.params.riderId,
+    req.file,
+    req.body
+  );
+  res.json({ rider });
+}
+
 /** GET /api/v1/admin/riders/:riderId/documents/:docType */
 export async function downloadRiderDocument(req, res, next) {
   const path = await riderService.getAdminRiderDocumentPath(

@@ -55,3 +55,19 @@ export const adminRiderDocumentParamSchema = z.object({
   riderId: z.string().min(1),
   docType: z.enum(['medical_certificate', 'license']),
 });
+
+/**
+ * Téléversement d'une licence par un admin, pour le compte d'une famille —
+ * le club la fournit parfois directement, ou l'adhérent arrivait déjà
+ * licencié via un club précédent. Le certificat médical n'a pas d'équivalent
+ * admin : seule la famille peut donner le consentement RGPD qui l'accompagne.
+ */
+export const adminUploadLicenseFieldsSchema = z.object({
+  expiresAt: documentExpiresAtSchema,
+  licenseNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((value) => value || undefined),
+});
