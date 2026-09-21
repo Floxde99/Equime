@@ -113,12 +113,16 @@ export async function apiFetch(path, { method = 'GET', body, retry = true } = {}
 
   if (res.ok) return data;
 
-  // Access token expiré : refresh silencieux puis un unique rejeu
-  if (res.status === 401 && data.error?.code === 'TOKEN_EXPIRED' && retry) {
-    const refreshed = await refreshOnce();
-    if (refreshed) {
-      return apiFetch(path, { method, body, retry: false });
+  // 401 : tenter un refresh uniquement sur TOKEN_EXPIRED ; sinon (ou refresh
+  // échoué) → session morte → clear token + callback AuthProvider.
+  if (res.status === 401) {
+    if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) {
+        return apiFetch(path, { method, body, retry: false });
+      }
     }
+    setAccessToken(null);
     onSessionExpired?.();
   }
 
@@ -148,8 +152,9 @@ export async function apiFetchBlob(path, { retry = true } = {}) {
     if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
       const refreshed = await refreshOnce();
       if (refreshed) return apiFetchBlob(path, { retry: false });
-      onSessionExpired?.();
     }
+    setAccessToken(null);
+    onSessionExpired?.();
     throw new ApiError(res.status, data.error ?? {});
   }
 
@@ -198,9 +203,12 @@ async function apiUpload(path, formData, retry = true) {
 
   if (res.ok) return data;
 
-  if (res.status === 401 && data.error?.code === 'TOKEN_EXPIRED' && retry) {
-    const refreshed = await refreshOnce();
-    if (refreshed) return apiUpload(path, formData, false);
+  if (res.status === 401) {
+    if (data.error?.code === 'TOKEN_EXPIRED' && retry) {
+      const refreshed = await refreshOnce();
+      if (refreshed) return apiUpload(path, formData, false);
+    }
+    setAccessToken(null);
     onSessionExpired?.();
   }
 

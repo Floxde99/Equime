@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { HorsePortrait } from '@/components/ui/horse-portrait.jsx';
+import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { fetchClientInvoices } from '@/features/billing/api.js';
 import { UpcomingEnrollments } from '@/features/client/components/UpcomingEnrollments.jsx';
 import { fetchHorses, fetchRiderAffinities, fetchRiders } from '@/features/riders/api.js';
@@ -14,8 +15,14 @@ export function ClientDashboardPage() {
   const user = useAuthStore((s) => s.user);
   const quota = user?.sessionQuota ?? 0;
 
-  const { data: horses = [] } = useQuery({ queryKey: ['horses'], queryFn: fetchHorses });
-  const { data: riders = [] } = useQuery({ queryKey: ['riders'], queryFn: fetchRiders });
+  const { data: horses = [], isPending: horsesPending } = useQuery({
+    queryKey: ['horses'],
+    queryFn: fetchHorses,
+  });
+  const { data: riders = [], isPending: ridersPending } = useQuery({
+    queryKey: ['riders'],
+    queryFn: fetchRiders,
+  });
   const { data: invoices = [] } = useQuery({
     queryKey: ['client-invoices'],
     queryFn: fetchClientInvoices,
@@ -27,6 +34,9 @@ export function ClientDashboardPage() {
       queryFn: () => fetchRiderAffinities(rider.id),
     })),
   });
+
+  const affinitiesPending = ridersPending || affinityQueries.some((query) => query.isPending);
+  const favoritesReady = !horsesPending && !affinitiesPending;
 
   const favoriteIds = new Set(
     affinityQueries.flatMap((query) =>
@@ -84,7 +94,9 @@ export function ClientDashboardPage() {
             </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {favorites.length === 0 ? (
+            {!favoritesReady ? (
+              <Skeleton lines={3} />
+            ) : favorites.length === 0 ? (
               <Card>
                 <p className="font-sans text-sm text-muted-on-card">Aucun favori pour le moment.</p>
               </Card>

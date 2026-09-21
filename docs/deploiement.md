@@ -154,11 +154,17 @@ cd ~/apps/equime-preprod && git checkout develop
 ```bash
 openssl rand -base64 48 | tr -d '\n'                      # JWT_ACCESS_SECRET
 openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32  # POSTGRES_PASSWORD
+openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32  # REDIS_PASSWORD
 ```
 
 Un jeu par environnement, conservé dans un gestionnaire de mots de passe.
 `config/env.js` refuse toute valeur commençant par `change_me` en production.
 
+**Redis (préprod / prod)** : `REDIS_PASSWORD` active `requirepass` sur le service
+Redis Compose ; l'API reçoit `REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379`
+(injecté par `docker-compose.*.yml`, pas besoin de la définir à la main).
+Préférer un mot de passe URL-safe (`A-Za-z0-9`) pour éviter l'encodage dans l'URL.
+Le Redis de développement local reste sans AUTH.
 ---
 
 ## 4. Démarrage des stacks

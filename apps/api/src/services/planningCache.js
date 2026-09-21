@@ -2,6 +2,9 @@
 /**
  * Cache Redis du planning (US-4.2 — réponse < 500 ms sur 8 semaines).
  * Invalidé à chaque mutation de cours.
+ *
+ * Clé isolée par fenêtre + scope : `all` partagé ; `mine` toujours segmenté
+ * par utilisateur (client) ou moniteur — jamais fusionné vers `all`.
  */
 import { redis } from '../lib/redis.js';
 
@@ -9,21 +12,26 @@ const PREFIX = 'planning:';
 const TTL_SEC = 300;
 
 /**
- * @param {{ from: Date, to: Date, scope: string, instructorId?: string }} params
+ * Construit la clé Redis du planning.
+ * @param {{ from: Date, to: Date, scope: string, userId?: string, instructorId?: string }} params
+ * @returns {string}
  */
-function cacheKey({ from, to, scope, instructorId }) {
+export function buildPlanningCacheKey({ from, to, scope, userId, instructorId }) {
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
-  const scopeKey = scope === 'mine' && instructorId ? `mine:${instructorId}` : 'all';
-  return `${PREFIX}${fromIso}:${toIso}:${scopeKey}`;
+  if (scope === 'mine') {
+    const id = instructorId ?? userId ?? 'unknown';
+    return `${PREFIX}${fromIso}:${toIso}:mine:${id}`;
+  }
+  return `${PREFIX}${fromIso}:${toIso}:all`;
 }
 
 /**
- * @param {object} params
+ * @param {{ from: Date, to: Date, scope: string, userId?: string, instructorId?: string }} params
  * @param {() => Promise<unknown>} loader
  */
 export async function getPlanningCached(params, loader) {
-  const key = cacheKey(params);
+  const key = buildPlanningCacheKey(params);
   const cached = await redis.get(key);
   if (cached) return JSON.parse(cached);
 

@@ -17,16 +17,19 @@ import {
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 
-const DEFAULT_RANGE = {
-  from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
-  to: new Date(new Date().setDate(new Date().getDate() + 21)).toISOString(),
-};
+/** @returns {{ from: string, to: string }} */
+function computeDefaultRange() {
+  return {
+    from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
+    to: new Date(new Date().setDate(new Date().getDate() + 21)).toISOString(),
+  };
+}
 
 /** Planning moniteur — filtre « mon planning » par défaut (US-4.2). */
 export function InstructorPlanningPage() {
   const qc = useQueryClient();
   const [scope, setScope] = useState('mine');
-  const [range, setRange] = useState(DEFAULT_RANGE);
+  const [range, setRange] = useState(() => computeDefaultRange());
   const [courseId, setCourseId] = useState('');
 
   const {

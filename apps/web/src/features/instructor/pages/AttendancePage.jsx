@@ -1,4 +1,5 @@
-import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_VALUES } from '@equime/shared';
+import { ATTENDANCE_STATUS_VALUES } from '@equime/shared/constants';
+import { ATTENDANCE_STATUS_LABELS } from '@equime/shared/labels';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -10,16 +11,19 @@ import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { fetchEnrollments, fetchPlanning, updateAttendance } from '@/features/admin/api.js';
 
-const DEFAULT_RANGE = {
-  from: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-  to: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString(),
-};
+/** @returns {{ from: string, to: string }} */
+function computeDefaultRange() {
+  return {
+    from: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+    to: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString(),
+  };
+}
 
 /** Appel d'une séance — cartes cavaliers (artboard Stitch `d_tail_de_s_ance_moniteur`). */
 export function AttendancePage() {
   const qc = useQueryClient();
   const [courseId, setCourseId] = useState('');
-  const [range] = useState(DEFAULT_RANGE);
+  const [range] = useState(() => computeDefaultRange());
 
   const { data: events = [] } = useQuery({
     queryKey: ['planning', range, 'mine'],

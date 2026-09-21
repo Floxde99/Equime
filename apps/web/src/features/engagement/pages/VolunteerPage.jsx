@@ -42,7 +42,10 @@ function missionToForm(mission) {
   };
 }
 
-export function VolunteerPage({ admin = false }) {
+/**
+ * @param {{ isAdmin: boolean }} props
+ */
+function VolunteerPageView({ isAdmin }) {
   const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState(null);
@@ -93,9 +96,9 @@ export function VolunteerPage({ admin = false }) {
     <div className="space-y-6">
       <PageHeader
         eyebrow={eyebrow}
-        title={admin ? 'Bénévolat' : 'Espace bénévole'}
+        title={isAdmin ? 'Bénévolat' : 'Espace bénévole'}
         description={
-          admin
+          isAdmin
             ? 'Gestion des missions bénévoles du club.'
             : 'Donnez un peu de votre temps aux écuries — missions ouvertes, photos du domaine.'
         }
@@ -115,7 +118,7 @@ export function VolunteerPage({ admin = false }) {
         </Alert>
       ) : null}
 
-      {admin ? (
+      {isAdmin ? (
         <Card title={editingId ? 'Modifier la mission' : 'Créer une mission'}>
           <form
             className="grid gap-4 md:grid-cols-2"
@@ -210,7 +213,7 @@ export function VolunteerPage({ admin = false }) {
         </Card>
       ) : null}
 
-      <div className={admin ? 'space-y-3' : 'grid gap-6 md:grid-cols-2'}>
+      <div className={isAdmin ? 'space-y-3' : 'grid gap-6 md:grid-cols-2'}>
         {missions.map((mission) => (
           <Card key={mission.id} className="overflow-hidden p-0">
             <img src={missionPhotoSrc(mission.id)} alt="" className="h-48 w-full object-cover" />
@@ -225,7 +228,7 @@ export function VolunteerPage({ admin = false }) {
                   <p className="mt-2 font-sans text-sm text-muted-on-card">{mission.description}</p>
                 ) : null}
               </div>
-              {admin ? (
+              {isAdmin ? (
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -276,4 +279,14 @@ export function VolunteerPage({ admin = false }) {
       />
     </div>
   );
+}
+
+/** Espace famille / moniteur — inscription aux missions. */
+export function VolunteerPage() {
+  return <VolunteerPageView isAdmin={false} />;
+}
+
+/** Administration — CRUD des missions bénévoles. */
+export function AdminVolunteerPage() {
+  return <VolunteerPageView isAdmin={true} />;
 }

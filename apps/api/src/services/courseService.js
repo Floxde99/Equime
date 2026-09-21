@@ -168,9 +168,14 @@ export async function createCourse(input) {
 }
 
 /**
+ * Lecture d'un cours. Les brouillons (`draft`) ne sont exposés qu'à un admin
+ * ou au moniteur assigné (anti-IDOR) ; les appels internes sans `viewer`
+ * (mutations admin) restent autorisés.
+ *
  * @param {string} courseId
+ * @param {{ id: string, role: string }} [viewer] Utilisateur authentifié (GET HTTP)
  */
-export async function getCourse(courseId) {
+export async function getCourse(courseId, viewer) {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     select: {
@@ -181,6 +186,16 @@ export async function getCourse(courseId) {
     },
   });
   if (!course) throw AppError.notFound('Cours introuvable');
+
+  if (viewer && course.status === COURSE_STATUS.DRAFT) {
+    const isAdmin = viewer.role === ROLES.ADMIN;
+    const isAssignedInstructor =
+      viewer.role === ROLES.INSTRUCTOR && course.instructorId === viewer.id;
+    if (!isAdmin && !isAssignedInstructor) {
+      throw AppError.notFound('Cours introuvable');
+    }
+  }
+
   return course;
 }
 
@@ -280,6 +295,7 @@ export async function getPlanningEvents(params) {
       from: params.from,
       to: params.to,
       scope: params.scope,
+      userId: params.userId,
       instructorId: params.role === 'instructor' ? params.userId : undefined,
     },
     async () => {

@@ -12,6 +12,15 @@ import { AppError } from '../lib/appError.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
 
+/** Script Lua : INCR puis EXPIRE uniquement au premier hit (une seule RTT). */
+const INCR_WITH_EXPIRE_LUA = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`;
+
 /**
  * @param {object} options
  * @param {string} options.keyPrefix Espace de nommage de la limite (ex. `login`)
@@ -27,10 +36,7 @@ export function rateLimit({ keyPrefix, max, windowSec, failClosed = false, keyFr
     const identifier = keyFrom ? keyFrom(req) : req.ip;
     const key = `rl:${keyPrefix}:${identifier}`;
     try {
-      const count = await redis.incr(key);
-      if (count === 1) {
-        await redis.expire(key, windowSec);
-      }
+      const count = Number(await redis.eval(INCR_WITH_EXPIRE_LUA, 1, key, String(windowSec)));
       res.setHeader('X-RateLimit-Limit', String(max));
       res.setHeader('X-RateLimit-Remaining', String(Math.max(max - count, 0)));
       if (count > max) {

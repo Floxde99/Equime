@@ -32,6 +32,20 @@ function setRefreshCookie(res, refreshToken) {
   res.cookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_OPTIONS);
 }
 
+/**
+ * Efface le cookie refresh avec les mêmes attributs que `set` (path, httpOnly,
+ * secure, sameSite) — requis pour que le navigateur le retire réellement.
+ * @param {import('express').Response} res
+ */
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE, {
+    path: REFRESH_COOKIE_OPTIONS.path,
+    httpOnly: REFRESH_COOKIE_OPTIONS.httpOnly,
+    secure: REFRESH_COOKIE_OPTIONS.secure,
+    sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
+  });
+}
+
 /** @param {import('express').Request} req */
 function requestContext(req) {
   return { userAgent: req.headers['user-agent'], ip: req.ip };
@@ -69,7 +83,7 @@ export async function refresh(req, res) {
     res.json({ user: me, accessToken });
   } catch (err) {
     // Session compromise ou expirée : le cookie ne sert plus à rien
-    res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_OPTIONS.path });
+    clearRefreshCookie(res);
     throw err;
   }
 }
@@ -78,7 +92,7 @@ export async function refresh(req, res) {
 export async function logout(req, res) {
   const user = /** @type {{ jti: string } | undefined} */ (req.user);
   await revokeSession(req.cookies?.[REFRESH_COOKIE], user?.jti);
-  res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_OPTIONS.path });
+  clearRefreshCookie(res);
   res.status(204).end();
 }
 
@@ -121,6 +135,6 @@ export async function resetPassword(req, res) {
 export async function deleteAccount(req, res) {
   const user = /** @type {{ id: string, jti: string }} */ (req.user);
   await authService.anonymizeAccount(user.id, user.jti);
-  res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_OPTIONS.path });
+  clearRefreshCookie(res);
   res.status(204).end();
 }

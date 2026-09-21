@@ -43,7 +43,7 @@ Equime applique une défense en profondeur : validation systématique des entré
 | `POST /reset-password` | 10 req | 1 h |
 | `POST /api/v1/public/newsletter` | 5 req | 1 h |
 
-Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/rateLimit.js`). Login : seconde limite `rl:login-account:<email>` (5 / h). Routes d’auth **fail-closed** (Redis down → 503) ; newsletter fail-open. Nginx `limit_req` sur `/api/v1/auth/` (préprod / prod). Rotation refresh : `updateMany` conditionnel (`revokedAt: null`) ; concurrence → 401 sans révoquer la famille du gagnant ; réutilisation (token déjà consommé au read) → révocation famille.
+Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/rateLimit.js`) — script Lua `INCR` + `EXPIRE` atomique au premier hit. Login : seconde limite `rl:login-account:<email>` (5 / h). Routes d’auth **fail-closed** (Redis down → 503) ; newsletter fail-open. Nginx `limit_req` sur `/api/v1/auth/` (préprod / prod). Rotation refresh : `updateMany` conditionnel (`revokedAt: null`) ; concurrence → 401 sans révoquer la famille du gagnant ; réutilisation (token déjà consommé au read) → révocation famille.
 
 ### Politique de mot de passe
 
@@ -100,7 +100,8 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 
 | Mesure | Détail | Fichier |
 |---|---|---|
-| Cache Redis | TTL 5 min, invalidation globale à chaque mutation cours | `apps/api/src/services/planningCache.js` |
+| Cache Redis isolé | TTL 5 min ; clé `planning:{from}:{to}:{scope}` avec `mine:<userId>` (client) ou `mine:<instructorId>` (moniteur) — jamais fusionné vers `all` ; invalidation globale à chaque mutation cours | `apps/api/src/services/planningCache.js`, `apps/api/src/services/courseService.js` |
+| Lecture brouillon | GET `/courses/:id` : statut `draft` réservé admin ou moniteur assigné (404 sinon) | `apps/api/src/services/courseService.js` |
 | Conflit d'espace | Refus 409 si chevauchement dans le même espace | `apps/api/src/services/spaceService.js` |
 
 ## Détail — attribution & facturation (Phase 4)
@@ -118,6 +119,7 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 |---|---|---|
 | Préférences par canal | Chaque type de notification vérifie les préférences `in_app` / `email` avant dispatch ; création automatique des préférences manquantes | `apps/api/src/services/notificationService.js`, `apps/api/src/routes/notifications.routes.js` |
 | Lecture publique limitée | Les événements publics exposent uniquement les rendez-vous à venir, sans données d'inscription ni d'utilisateurs | `apps/api/src/services/eventService.js`, `apps/api/src/routes/events.routes.js` |
+| Inscription événement | Capacité recomptée dans une transaction Prisma avant upsert ; HTML des emails d'confirmation échappé (`escapeHtml`) | `apps/api/src/services/eventService.js`, `apps/api/src/lib/mailer.js` |
 | Contrôle d'accès messagerie | Contacts filtrés par rôle ; accès à une conversation borné aux participants ; un tiers reçoit 404 (anti-IDOR) | `apps/api/src/services/messageService.js`, `apps/api/src/routes/messages.routes.js` |
 | XSS messagerie | Les messages sont rendus en texte brut via React (pas de `dangerouslySetInnerHTML`) ; l'access token reste en mémoire uniquement | `apps/web/src/features/engagement/pages/MessagesPage.jsx`, `apps/web/src/lib/apiClient.js` |
 | Incidents critiques visibles | Les incidents `critical` ouverts sont exposés au dashboard admin pour traitement prioritaire | `apps/api/src/services/incidentService.js`, `apps/web/src/features/admin/pages/AdminDashboardPage.jsx` |
@@ -131,6 +133,8 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 | Isolation rate limit E2E | Purge Redis `rl:*` avant la suite pour éviter les 429 après tests d'intégration | `playwright/clear-rate-limits.mjs`, `playwright/start-stack.mjs` |
 | Seed recette déterministe | Jeu de données volumétrique pour préprod, rejouable | `apps/api/prisma/seed-recette.js` |
 | Headers HTTP | X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP SPA sur le statique (Nginx de l'image web) et Helmet sur l'API ; HSTS et Permissions-Policy au frontal Caddy de l'hôte | `docker/nginx/web.conf`, `apps/api/src/app.js`, `docs/deploiement.md` |
+| CSP `style-src 'unsafe-inline'` | **Risque accepté** : Tailwind / styles runtime de la SPA exigent l'inline CSS ; `script-src` reste `'self'` uniquement. Pas de nonce/hash styles en v1 (casse le build). | `docker/nginx/web.conf`, `docker/nginx/prod.conf`, `docker/nginx/preprod.conf` |
+| Redis AUTH préprod/prod | `requirepass` via `REDIS_PASSWORD` ; `REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379` injecté par Compose (réseau interne uniquement) | `docker-compose.prod.yml`, `docker-compose.preprod.yml`, `.env.prod.example`, `.env.preprod.example` |
 | Stack préprod/prod | Compose multi-services (postgres, redis, migrate, api, web) ; ports publiés sur la loopback uniquement, TLS terminé par Caddy sur l'hôte | `docker-compose.preprod.yml`, `docker-compose.prod.yml`, `docs/deploiement.md` |
 | Chaîne de proxy à un seul saut | Caddy attaque l'API en direct pour `/api/*` : `trust proxy 1` reste valide et le rate limiting garde la vraie IP client (vérifié : compteurs isolés par IP) | `apps/api/src/app.js`, `docs/deploiement.md` |
 | Aucun secret dans les images | `.dockerignore` exclut `**/.env` (les motifs non préfixés ne matchent que la racine) ; secrets injectés au runtime | `.dockerignore`, `docker-compose.prod.yml` |

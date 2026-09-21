@@ -45,6 +45,48 @@ describe('apiFetch', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('clear la session sur un 401 générique (ban, blacklist…)', async () => {
+    setAccessToken('still-there');
+    const onExpired = vi.fn();
+    setOnSessionExpired(onExpired);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'banni' } }), {
+            status: 401,
+          })
+      )
+    );
+
+    await expect(apiFetch('/secure')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 401,
+      code: 'UNAUTHORIZED',
+    });
+    expect(getAccessToken()).toBeNull();
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it('clear la session si le refresh échoue après TOKEN_EXPIRED', async () => {
+    setAccessToken('expired');
+    const onExpired = vi.fn();
+    setOnSessionExpired(onExpired);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { code: 'TOKEN_EXPIRED', message: 'expiré' } }), {
+          status: 401,
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiFetch('/secure')).rejects.toBeInstanceOf(ApiError);
+    expect(getAccessToken()).toBeNull();
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+
   it('lève ApiError sur un 400', async () => {
     vi.stubGlobal(
       'fetch',
@@ -93,5 +135,50 @@ describe('apiFetchBlob', () => {
     const blob = await apiFetchBlob('/auth/me/export');
     expect(blob).toBeInstanceOf(Blob);
     await expect(blob.text()).resolves.toBe('{"hello":true}');
+  });
+
+  it('clear la session sur un 401 générique', async () => {
+    setAccessToken('still-there');
+    const onExpired = vi.fn();
+    setOnSessionExpired(onExpired);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'banni' } }), {
+            status: 401,
+          })
+      )
+    );
+
+    await expect(apiFetchBlob('/auth/me/export')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 401,
+      code: 'UNAUTHORIZED',
+    });
+    expect(getAccessToken()).toBeNull();
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it('rafraîchit puis rejoue sur TOKEN_EXPIRED', async () => {
+    setAccessToken('expired');
+    const blobBody = new Blob(['export'], { type: 'application/zip' });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { code: 'TOKEN_EXPIRED', message: 'expiré' } }), {
+          status: 401,
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: 'fresh', user: { id: '1' } }), { status: 200 })
+      )
+      .mockResolvedValueOnce(new Response(blobBody, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const blob = await apiFetchBlob('/auth/me/export');
+    expect(blob).toBeInstanceOf(Blob);
+    expect(getAccessToken()).toBe('fresh');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
