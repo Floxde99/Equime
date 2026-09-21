@@ -251,6 +251,29 @@ describe('POST /api/v1/auth/refresh', () => {
     expect(me.status).toBe(401);
   });
 
+  it('deux refresh parallèles sur le même token : un seul succès, le perdant 401 sans tuer le gagnant', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const cookie = refreshCookieOf(reg);
+
+    const [a, b] = await Promise.all([
+      request(app).post('/api/v1/auth/refresh').set('Cookie', cookie),
+      request(app).post('/api/v1/auth/refresh').set('Cookie', cookie),
+    ]);
+
+    const statuses = [a.status, b.status].sort((x, y) => x - y);
+    expect(statuses).toEqual([200, 401]);
+
+    const winner = a.status === 200 ? a : b;
+    const winnerCookie = refreshCookieOf(winner);
+    const followUp = await request(app).post('/api/v1/auth/refresh').set('Cookie', winnerCookie);
+    expect(followUp.status).toBe(200);
+
+    const active = await prisma.refreshToken.count({
+      where: { userId: reg.body.user.id, revokedAt: null },
+    });
+    expect(active).toBeGreaterThanOrEqual(1);
+  });
+
   it('refuse un refresh token expiré (401)', async () => {
     const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
     const cookie = refreshCookieOf(reg);

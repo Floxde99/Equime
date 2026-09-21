@@ -43,7 +43,7 @@ Equime applique une défense en profondeur : validation systématique des entré
 | `POST /reset-password` | 10 req | 1 h |
 | `POST /api/v1/public/newsletter` | 5 req | 1 h |
 
-Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/rateLimit.js`). Login : seconde limite `rl:login-account:<email>` (5 / h). Routes d’auth **fail-closed** (Redis down → 503) ; newsletter fail-open. Nginx `limit_req` sur `/api/v1/auth/` (préprod / prod).
+Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/rateLimit.js`). Login : seconde limite `rl:login-account:<email>` (5 / h). Routes d’auth **fail-closed** (Redis down → 503) ; newsletter fail-open. Nginx `limit_req` sur `/api/v1/auth/` (préprod / prod). Rotation refresh : `updateMany` conditionnel (`revokedAt: null`) ; concurrence → 401 sans révoquer la famille du gagnant ; réutilisation (token déjà consommé au read) → révocation famille.
 
 ### Politique de mot de passe
 

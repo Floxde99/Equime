@@ -11,8 +11,10 @@
  *
  * Rotation : chaque appel à /auth/refresh révoque le token présenté et en émet
  * un nouveau au sein de la même famille (`familyId`). Si un token déjà révoqué
- * est présenté (vol ou rejeu), toute la famille est révoquée et les access
- * tokens associés encore valides sont blacklistés.
+ * est présenté au `findUnique` (vol ou rejeu), toute la famille est révoquée
+ * et les access tokens associés encore valides sont blacklistés. Une course
+ * parallèle perdue (`updateMany` count === 0) renvoie 401 sans révoquer la
+ * famille du gagnant.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
@@ -179,16 +181,44 @@ export async function revokeAllUserTokens(userId) {
   );
 }
 
+/** @type {Set<string>} Hashes de refresh en cours de rotation dans ce process */
+const inflightRotations = new Set();
+
 /**
  * Rotation d'un refresh token (cf. diagramme de séquence).
  *
+ * Concurrence same-process : un Set en mémoire refuse le second appel sur le
+ * même hash avant tout accès BDD (StrictMode / Promise.all) → 401 sans
+ * revokeFamily. Multi-instance : le perdant d'`updateMany` est traité idem.
+ * Réutilisation réelle = `revokedAt` déjà positionné au `findUnique` → famille
+ * révoquée.
+ *
  * @param {string} presentedToken Token en clair reçu dans le cookie
  * @returns {Promise<{ accessToken: string, refreshToken: string, user: { id: string, role: string } }>}
- * @throws {import('../lib/appError.js').AppError} 401 si invalide, expiré, ou réutilisé
+ * @throws {import('../lib/appError.js').AppError} 401 si invalide, expiré, réutilisé, ou course perdue
  */
 export async function rotateRefreshToken(presentedToken) {
+  const tokenHash = hashToken(presentedToken);
+  if (inflightRotations.has(tokenHash)) {
+    throw AppError.unauthorized('Session invalide');
+  }
+  inflightRotations.add(tokenHash);
+  try {
+    return await rotateRefreshTokenUnlocked(presentedToken, tokenHash);
+  } finally {
+    inflightRotations.delete(tokenHash);
+  }
+}
+
+/**
+ * Cœur de la rotation (appelé sous garde `inflightRotations`).
+ * @param {string} presentedToken
+ * @param {string} tokenHash
+ * @returns {Promise<{ accessToken: string, refreshToken: string, user: { id: string, role: string } }>}
+ */
+async function rotateRefreshTokenUnlocked(presentedToken, tokenHash) {
   const stored = await prisma.refreshToken.findUnique({
-    where: { tokenHash: hashToken(presentedToken) },
+    where: { tokenHash },
     include: { user: { select: { id: true, role: true, banned: true, anonymizedAt: true } } },
   });
 
@@ -216,11 +246,17 @@ export async function rotateRefreshToken(presentedToken) {
     throw AppError.forbidden('Ce compte a été supprimé');
   }
 
-  // Rotation : l'ancien token est consommé, un nouveau prend sa place
-  await prisma.refreshToken.update({
-    where: { id: stored.id },
+  // Rotation atomique : seuls les tokens encore actifs peuvent être consommés.
+  // Deux refresh parallèles (multi-instance) → un seul `count === 1` ; le
+  // perdant reçoit 401 sans revokeFamily (la session du gagnant reste valide).
+  const consumed = await prisma.refreshToken.updateMany({
+    where: { id: stored.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+
+  if (consumed.count === 0) {
+    throw AppError.unauthorized('Session invalide');
+  }
 
   const pair = await issueTokenPair(stored.user, { familyId: stored.familyId });
   return { accessToken: pair.accessToken, refreshToken: pair.refreshToken, user: stored.user };
