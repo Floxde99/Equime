@@ -5,11 +5,7 @@
  */
 import Stripe from 'stripe';
 
-import {
-  env,
-  getPaymentConfig,
-  isStripeConfigured,
-} from '../config/env.js';
+import { env, getPaymentConfig, isStripeConfigured } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';

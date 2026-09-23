@@ -4,10 +4,7 @@ import { Link } from 'react-router';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
-import {
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '@/features/engagement/api.js';
+import { markAllNotificationsRead, markNotificationRead } from '@/features/engagement/api.js';
 import {
   NOTIFICATIONS_QUERY_KEY,
   useNotificationsQuery,

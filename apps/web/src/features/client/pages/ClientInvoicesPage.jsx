@@ -143,8 +143,7 @@ export function ClientInvoicesPage() {
     },
   });
 
-  const payPending =
-    checkoutMutation.isPending || payMutation.isPending;
+  const payPending = checkoutMutation.isPending || payMutation.isPending;
   const payVariables = checkoutMutation.isPending
     ? checkoutMutation.variables
     : payMutation.variables;
@@ -160,8 +159,7 @@ export function ClientInvoicesPage() {
   const waitingInvoice = waitingInvoiceId
     ? invoices.find((inv) => inv.id === waitingInvoiceId)
     : null;
-  const showConfirmPending =
-    awaitingConfirm && waitingInvoice && waitingInvoice.status !== 'paid';
+  const showConfirmPending = awaitingConfirm && waitingInvoice && waitingInvoice.status !== 'paid';
 
   return (
     <div className="space-y-6">

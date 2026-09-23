@@ -438,10 +438,7 @@ export async function enrollRider(userId, courseId, riderId, options = {}) {
     email: buildSimpleNotificationEmail({
       firstName: rider.family.user.firstName,
       subject: `Equime — Inscription confirmée : ${course.title}`,
-      paragraphs: [
-        body,
-        'Retrouvez le détail de la séance dans votre planning.',
-      ],
+      paragraphs: [body, 'Retrouvez le détail de la séance dans votre planning.'],
       ctaUrl: `${env.APP_URL}/app/planning`,
       ctaLabel: 'Voir le planning',
     }),
@@ -531,10 +528,7 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
       email: buildSimpleNotificationEmail({
         firstName: enrollment.rider.family.user.firstName,
         subject: `Equime — Absence signalée : ${enrollment.course.title}`,
-        paragraphs: [
-          body,
-          'Vous pouvez consulter le planning depuis votre espace Equime.',
-        ],
+        paragraphs: [body, 'Vous pouvez consulter le planning depuis votre espace Equime.'],
         ctaUrl: `${env.APP_URL}/app/planning`,
         ctaLabel: 'Voir le planning',
       }),

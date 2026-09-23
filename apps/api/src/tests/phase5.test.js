@@ -207,9 +207,7 @@ describe('Phase 5 — notifications & préférences', () => {
     expect(emailSpy.mock.calls[0][0].subject).toMatch(/Inscription confirmée/i);
     expect(emailSpy.mock.calls[0][0].text).toMatch(/Emma/);
 
-    const listRes = await request(app)
-      .get('/api/v1/notifications')
-      .set(authHeader(clientToken));
+    const listRes = await request(app).get('/api/v1/notifications').set(authHeader(clientToken));
     expect(listRes.status).toBe(200);
     expect(listRes.body.notifications.some((n) => n.type === 'course_enrolled')).toBe(true);
     expect(listRes.body.unreadCount).toBeGreaterThanOrEqual(1);

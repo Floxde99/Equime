@@ -39,13 +39,7 @@ export function escapeHtml(value) {
  * }} params
  * @returns {{ subject: string, text: string, html: string }}
  */
-export function buildSimpleNotificationEmail({
-  firstName,
-  subject,
-  paragraphs,
-  ctaUrl,
-  ctaLabel,
-}) {
+export function buildSimpleNotificationEmail({ firstName, subject, paragraphs, ctaUrl, ctaLabel }) {
   const safeName = escapeHtml(firstName);
   const textLines = [`Bonjour ${firstName},`, '', ...paragraphs];
   /** @type {string[]} */
@@ -58,9 +52,7 @@ export function buildSimpleNotificationEmail({
   if (ctaUrl) {
     const label = ctaLabel ?? 'Ouvrir';
     textLines.push('', `${label} : ${ctaUrl}`);
-    htmlParts.push(
-      `<p><a href="${escapeHtml(ctaUrl)}">${escapeHtml(label)}</a></p>`
-    );
+    htmlParts.push(`<p><a href="${escapeHtml(ctaUrl)}">${escapeHtml(label)}</a></p>`);
   }
 
   return {
