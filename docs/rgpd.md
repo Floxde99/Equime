@@ -1,7 +1,12 @@
 # Conformité RGPD — Equime
 
 > Livrable Phase 7. Document de référence pour la soutenance CDA et l’exploitation du centre.
-> Responsable de traitement : le centre équestre (client métier). Equime est l’outil de traitement.
+>
+> **Rôles (modèle SaaS, une instance par club)** : chaque **club** est éditeur de son site et
+> **responsable de traitement** ; le **fournisseur du logiciel Equime** est son
+> **sous-traitant** (RGPD art. 28), ce qui implique un contrat de sous-traitance avec chaque
+> club. Les personnes sont informées sur la page publique `/confidentialite`, dont l’identité
+> du club vient de la configuration de l’instance (`CLUB_*`, `GET /api/v1/public/legal`).
 
 ## 1. Finalités et bases légales
 
@@ -22,7 +27,7 @@
 - **Famille / cavaliers** : lien parent–enfant, profil cavalier, niveau, documents administratifs.
 - **Données sensibles** : certificat médical (fichier) — **uniquement** après case de consentement dédiée côté client (`EnrollSection` / flux documents).
 - **Cavalerie** : fiche cheval, carnet de santé (notes vétérinaires — données opérationnelles du centre).
-- **Facturation** : factures, montants, références Stripe (`stripeCheckoutSessionId`, `stripePaymentIntentId`) ; **aucune donnée de carte bancaire** stockée chez Equime — saisie et traitement CB chez **Stripe** (sous-traitant / processor). Le marquage « payé » ne se fait qu’après webhook signé (`checkout.session.completed`).
+- **Facturation** : factures, montants, références Stripe (`stripeCheckoutSessionId`, `stripePaymentIntentId`) ; **aucune donnée de carte bancaire** stockée chez Equime — saisie et traitement CB chez **Stripe** (sous-traitant / processor). Le marquage « payé » ne se fait qu’après webhook signé (`checkout.session.completed`) **et seulement si `payment_status = paid`** : pour un moyen de paiement différé (SEPA), l’encaissement est confirmé par `checkout.session.async_payment_succeeded`.
 - **Traces techniques** : logs applicatifs (pino) sans mot de passe ni jeton en clair ; refresh tokens hashés en base.
 - **Newsletter** : adresse email et date de consentement (`newsletter_subscriptions`), hors compte utilisateur.
 
@@ -67,9 +72,29 @@ Fichiers de référence : service auth (suppression), `docs/securite.md` (contr�
 
 ## 7. Sous-traitants et transferts
 
-- **Hébergement** : serveur du centre ou prestataire (à renseigner en fiche prod).
-- **Email transactionnel** : SendGrid (UE / clauses contractuelles si hors UE).
+| Sous-traitant | Rôle | Localisation / garanties |
+|---|---|---|
+| Fournisseur du logiciel Equime | Édition, maintenance et exploitation de l’instance | Contrat de sous-traitance art. 28 avec chaque club |
+| Hébergeur (instance de démonstration : **OVH SAS**, Roubaix) | Serveurs, sauvegardes | France (UE) ; configurable par instance (`HOST_*`) |
+| **Stripe** | Paiement en ligne ; saisie de la carte chez Stripe | Transferts hors UE encadrés (chapitre V du RGPD) |
+| **SendGrid** | Emails transactionnels | Transferts hors UE encadrés (chapitre V du RGPD) |
+
 - Pas de revente de données ; pas de profilage publicitaire.
+
+## 7 bis. Cookies et traceurs
+
+- Un **seul cookie** : `equime_refresh` (refresh token, `httpOnly`, `Secure`, `SameSite=Strict`,
+  limité à `/api/v1/auth`). Strictement nécessaire à l’authentification : **exempté de
+  consentement** (lignes directrices CNIL, délibération n° 2020-091) ; il est simplement
+  mentionné dans la politique de confidentialité. **Aucun bandeau cookies n’est requis.**
+- Aucun `localStorage` de données personnelles (l’access token vit en mémoire), aucun outil
+  d’analyse d’audience, polices hébergées localement.
+
+## 7 ter. Information des personnes (art. 13)
+
+- Page publique `/confidentialite` (finalités, bases légales, durées, sous-traitants, droits,
+  réclamation CNIL), `/mentions-legales` (LCEN art. 1-1) et `/cgv`.
+- Mention et lien au moment de la collecte : formulaire d’inscription et newsletter.
 
 ## 8. Sécurité (mesures techniques et organisationnelles)
 

@@ -7,6 +7,7 @@ import { Router } from 'express';
 
 import * as billingController from '../controllers/billingController.js';
 import * as courseController from '../controllers/courseController.js';
+import * as legalController from '../controllers/legalController.js';
 import * as newsletterController from '../controllers/newsletterController.js';
 import * as paymentController from '../controllers/paymentController.js';
 import { rateLimit } from '../middlewares/rateLimit.js';
@@ -16,6 +17,7 @@ const router = Router();
 
 router.get('/plans', billingController.listPublicPlans);
 router.get('/payment-config', paymentController.getPaymentConfig);
+router.get('/legal', legalController.getLegalInfo);
 router.get('/courses', courseController.listPublicCourses);
 
 router.post(

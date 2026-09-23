@@ -3,7 +3,7 @@
  * Attribution des chevaux — scoring pur + orchestration transactionnelle (EPIC 5).
  */
 import { AppError } from '../lib/appError.js';
-import { isLevelInRange } from '../lib/levels.js';
+import { levelIndex } from '../lib/levels.js';
 import { prisma } from '../lib/prisma.js';
 
 import { invalidatePlanningCache } from './planningCache.js';
@@ -18,6 +18,32 @@ export function durationHoursFromRange(startAt, endAt) {
 }
 
 /**
+ * Pénalité quand le cavalier dépasse le niveau maximum du cheval. Sans danger,
+ * mais cela mobilise un cheval dont les cavaliers moins avancés ont besoin :
+ * elle doit peser plus lourd que le bonus de compatibilité et quelques heures
+ * de charge, sinon un cheval inadapté passe devant un cheval adapté (ADR 009).
+ */
+export const OVER_LEVEL_PENALTY = 20;
+
+/**
+ * Adéquation du niveau du cavalier à la plage du cheval (ADR 009).
+ * - `under` : cavalier sous le niveau minimum — dangereux, jamais attribué
+ *   automatiquement (le moniteur peut encore le choisir en override) ;
+ * - `over` : cavalier au-dessus du maximum — sans danger, pénalisé ;
+ * - `ok` : dans la plage.
+ *
+ * @param {string} riderLevel
+ * @param {{ minLevel: string, maxLevel: string }} horse
+ * @returns {'ok' | 'over' | 'under'}
+ */
+export function levelFit(riderLevel, horse) {
+  const idx = levelIndex(riderLevel);
+  if (idx < levelIndex(horse.minLevel)) return 'under';
+  if (idx > levelIndex(horse.maxLevel)) return 'over';
+  return 'ok';
+}
+
+/**
  * @param {{ rider: { level: string }, horse: { minLevel: string, maxLevel: string, weeklyLoadHours: number },
  * affinity?: string | null }} input
  */
@@ -26,10 +52,30 @@ export function scoreRiderHorse({ rider, horse, affinity }) {
 
   if (affinity === 'favorite') score += 10;
   if (affinity === 'avoid') score -= 15;
-  if (isLevelInRange(rider.level, horse.minLevel, horse.maxLevel)) score += 5;
+
+  const fit = levelFit(rider.level, horse);
+  if (fit === 'ok') score += 5;
+  if (fit === 'over') score -= OVER_LEVEL_PENALTY;
 
   score -= horse.weeklyLoadHours * 5;
   return score;
+}
+
+const LEVEL_WARNINGS = {
+  under: 'Cavalier sous le niveau minimum du cheval',
+  over: 'Cheval d’un niveau inférieur au cavalier',
+};
+
+/**
+ * Avertissements affichés au moniteur pour un candidat (override, audit).
+ * @param {{ levelFit: 'ok' | 'over' | 'under', affinity: string }} entry
+ * @returns {string | null}
+ */
+export function candidateWarning(entry) {
+  const warnings = [];
+  if (entry.levelFit !== 'ok') warnings.push(LEVEL_WARNINGS[entry.levelFit]);
+  if (entry.affinity === 'avoid') warnings.push('Affinité à éviter');
+  return warnings.length > 0 ? warnings.join(' · ') : null;
 }
 
 /** @param {{ status: string, weeklyLoadHours: number, maxWeeklyLoadHours: number }} horse */
@@ -44,16 +90,17 @@ export function rankCandidateHorses({ rider, horses, affinitiesByHorseId, takenH
   return horses
     .filter((horse) => isEligibleHorse(horse))
     .filter((horse) => !takenHorseIds.has(horse.id))
-    .map((horse) => ({
-      horse,
-      affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
-      score: scoreRiderHorse({
-        rider,
+    .map((horse) => {
+      const affinity = affinitiesByHorseId.get(horse.id) ?? 'neutral';
+      const fit = levelFit(rider.level, horse);
+      return {
         horse,
-        affinity: affinitiesByHorseId.get(horse.id) ?? 'neutral',
-      }),
-      levelCompatible: isLevelInRange(rider.level, horse.minLevel, horse.maxLevel),
-    }))
+        affinity,
+        score: scoreRiderHorse({ rider, horse, affinity }),
+        levelFit: fit,
+        levelCompatible: fit === 'ok',
+      };
+    })
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -74,23 +121,38 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
   const assignments = [];
   const conflicts = [];
 
-  for (const enrollment of enrollments) {
-    if (enrollment.horseId) continue;
-
+  /** @param {any} enrollment */
+  const rankFor = (enrollment) => {
     const affinitiesByHorseId = new Map(
       affinities
         .filter((affinity) => affinity.riderId === enrollment.rider.id)
         .map((affinity) => [affinity.horseId, affinity.affinity])
     );
-    const ranked = rankCandidateHorses({
+    // Un cavalier n'est jamais placé automatiquement sur un cheval exigeant un
+    // niveau supérieur au sien (sécurité, ADR 009) : conflit plutôt que risque.
+    return rankCandidateHorses({
       rider: enrollment.rider,
       horses,
       affinitiesByHorseId,
       takenHorseIds,
-    });
+    }).filter((entry) => entry.levelFit !== 'under');
+  };
+
+  // Le cavalier qui a le moins de chevaux possibles choisit en premier : un
+  // cavalier confirmé ne prend plus le seul cheval accessible à un débutant.
+  // Tri stable : à égalité, l'ordre d'inscription est conservé.
+  const queue = enrollments
+    .map((enrollment, index) => ({ enrollment, index }))
+    .filter(({ enrollment }) => !enrollment.horseId)
+    .map((item) => ({ ...item, options: rankFor(item.enrollment).length }))
+    .sort((a, b) => a.options - b.options);
+
+  for (const { enrollment, index } of queue) {
+    const ranked = rankFor(enrollment);
 
     if (ranked.length === 0) {
       conflicts.push({
+        index,
         enrollmentId: enrollment.id,
         riderId: enrollment.rider.id,
         riderName: `${enrollment.rider.firstName} ${enrollment.rider.lastName}`,
@@ -102,6 +164,7 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
     const [selected] = ranked;
     takenHorseIds.add(selected.horse.id);
     assignments.push({
+      index,
       enrollmentId: enrollment.id,
       riderId: enrollment.rider.id,
       riderName: `${enrollment.rider.firstName} ${enrollment.rider.lastName}`,
@@ -114,12 +177,21 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
         horseName: entry.horse.name,
         score: entry.score,
         affinity: entry.affinity,
-        warning: entry.affinity === 'avoid' ? 'Affinite a eviter' : null,
+        warning: candidateWarning(entry),
       })),
     });
   }
 
-  return { assignments, conflicts, durationHours };
+  // Résultats rendus dans l'ordre d'inscription, quel que soit l'ordre de traitement.
+  /** @param {Array<{ index: number }>} items */
+  const inEnrollmentOrder = (items) =>
+    items.sort((a, b) => a.index - b.index).map(({ index: _index, ...rest }) => rest);
+
+  return {
+    assignments: inEnrollmentOrder(assignments),
+    conflicts: inEnrollmentOrder(conflicts),
+    durationHours,
+  };
 }
 
 export const assignmentWriter = {
@@ -282,7 +354,7 @@ export async function listHorseOverrideOptions(courseId, enrollmentId) {
     horseName: entry.horse.name,
     score: entry.score,
     affinity: entry.affinity,
-    warning: entry.affinity === 'avoid' ? 'Affinite a eviter' : null,
+    warning: candidateWarning(entry),
   }));
 }
 
@@ -438,7 +510,7 @@ export async function listEventHorseOverrideOptions(eventId, registrationId) {
     horseName: entry.horse.name,
     score: entry.score,
     affinity: entry.affinity,
-    warning: entry.affinity === 'avoid' ? 'Affinite a eviter' : null,
+    warning: candidateWarning(entry),
   }));
 }
 

@@ -104,3 +104,20 @@ describe('GET /api/v1/public/courses', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/Emma|Secret|eleve-vitrine/i);
   });
 });
+
+describe('GET /api/v1/public/legal', () => {
+  it('expose l’identité légale de l’instance, sans aucun secret de configuration', async () => {
+    const res = await request(app).get('/api/v1/public/legal');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      demo: expect.any(Boolean),
+      club: { name: expect.any(String), legalName: expect.any(String) },
+      host: expect.any(Object),
+    });
+    // Aucune valeur sensible de la configuration ne doit transiter
+    expect(JSON.stringify(res.body)).not.toMatch(
+      /sk_(test|live)_|whsec_|postgres(ql)?:\/\/|redis:\/\/|JWT/i
+    );
+  });
+});

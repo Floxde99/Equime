@@ -99,6 +99,17 @@ export function RegisterPage() {
           />
         </Field>
 
+        {/* Information RGPD au moment de la collecte (art. 13) */}
+        <p className="font-sans text-xs text-muted">
+          Vos données servent à gérer votre compte famille, vos réservations et votre facturation.{' '}
+          <Link
+            to="/confidentialite"
+            className="text-text underline underline-offset-2 hover:text-primary"
+          >
+            Politique de confidentialité
+          </Link>
+        </p>
+
         <Button type="submit" loading={isSubmitting} className="w-full">
           Créer mon compte
         </Button>

@@ -35,6 +35,9 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 | US-9.2 | Gestion membres (Excel 7.1) | admin | `authService.js` (`createMember`, `updateMemberProfile`), `admin.routes.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.2, `subscription.test.js` | Livré |
 | US-9.3 | Validation documents | admin / riders | `riderService.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.3 | Livré |
 | US-9.4 | Inscription forcée admin (Excel 10.4) | courses / events | `courseService.js`, `eventService.js` (`force: true`) | `core.test.js`, `phase5.test.js` | Livré |
+| ADR 009 | Règle de niveau asymétrique (attribution) | horses / events | `horseAssignment.js` (`levelFit`, `candidateWarning`), `InstructorPlanningPage.jsx` | `horseAssignment.test.js` (jeu d'essai) | Livré |
+| Conformité | Pages légales configurables par instance (LCEN, RGPD art. 13, CGV) | legal / public | `legalService.js`, `legalController.js`, `features/legal/` | `publicVitrine.test.js`, `authSurface.test.js`, `public.spec.js` | Livré |
+| Éco-conception | Images responsives et chargement différé (EcoIndex 79 → 82) | home | `scripts/optimize-images.mjs`, `HomePage.jsx` | Mesure EcoIndex (`docs/eco-conception.md`) | Livré |
 
 ## Couverture tests automatisés
 
@@ -51,7 +54,9 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 - Recette : `docs/cahier-de-recette.md`
 - Cahier de tests : `docs/cahier-de-tests.md`
 - Soutenance : `docs/soutenance-plan.md`, `docs/questions-jury.md`
-- Sécurité / RGPD : `docs/securite.md`, `docs/rgpd.md`
+- Sécurité / RGPD : `docs/securite.md` (OWASP Top 10:2025), `docs/rgpd.md`, `docs/veille-securite.md`
+- Éco-conception : `docs/eco-conception.md`
+- Navigation : `docs/uml/navigation.md`
 - Déploiement : `docs/deploiement.md`
 
 ## Clôture Phase 6–7 (2026-09-23)

@@ -1,7 +1,7 @@
 import { INVOICE_STATUS_LABELS } from '@equime/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -110,6 +110,9 @@ export function ClientInvoicesPage() {
   );
 
   const useStripe = isStripeCheckout(paymentConfig);
+  const hasPayableInvoice = visibleInvoices.some(
+    (invoice) => invoice.status === 'sent' || invoice.status === 'overdue'
+  );
 
   const confirmCheckoutMutation = useMutation({
     mutationFn: confirmCheckoutSession,
@@ -220,63 +223,87 @@ export function ClientInvoicesPage() {
               <p className="mt-1 font-sans text-sm text-muted-on-card">séances restantes</p>
             </Card>
             <div className="overflow-hidden rounded-xl">
-              <img src={STITCH_PHOTOS.billingStables} alt="" className="h-56 w-full object-cover" />
+              {/* Variantes générées par scripts/optimize-images.mjs (docs/eco-conception.md) */}
+              <img
+                src="/images/ecuries-or-640.webp"
+                srcSet={`/images/ecuries-or-640.webp 640w, /images/ecuries-or-960.webp 960w, ${STITCH_PHOTOS.billingStables} 1536w`}
+                sizes="(min-width: 1024px) 20rem, 100vw"
+                width={640}
+                height={427}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-56 w-full object-cover"
+              />
             </div>
           </div>
           <Card title="Historique">
             {visibleInvoices.length === 0 ? (
               <EmptyState title="Aucune facture pour le moment." />
             ) : (
-              <ul className="space-y-3">
-                {visibleInvoices.map((invoice) => (
-                  <li
-                    key={invoice.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-paper p-4"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="font-sans text-sm font-semibold text-text underline-offset-4 hover:underline"
-                          onClick={() => setOpenInvoice(invoice)}
-                          aria-label={`Ouvrir la facture ${invoice.number}`}
-                        >
-                          {invoice.number}
-                        </button>
-                        <Badge variant={STATUS_VARIANT[invoice.status]}>
-                          {INVOICE_STATUS_LABELS[invoice.status]}
-                        </Badge>
+              <>
+                {/* Information précontractuelle, AVANT le paiement (C. consom. L221-5) */}
+                {hasPayableInvoice ? (
+                  <p className="mb-4 font-sans text-xs text-muted-on-card">
+                    Le paiement vaut acceptation des{' '}
+                    <Link to="/cgv" className="underline hover:text-primary">
+                      conditions générales de vente
+                    </Link>
+                    . Les stages et événements à date fixe ne bénéficient pas du droit de
+                    rétractation (article L221-28, 12° du Code de la consommation).
+                  </p>
+                ) : null}
+                <ul className="space-y-3">
+                  {visibleInvoices.map((invoice) => (
+                    <li
+                      key={invoice.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-paper p-4"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="font-sans text-sm font-semibold text-text underline-offset-4 hover:underline"
+                            onClick={() => setOpenInvoice(invoice)}
+                            aria-label={`Ouvrir la facture ${invoice.number}`}
+                          >
+                            {invoice.number}
+                          </button>
+                          <Badge variant={STATUS_VARIANT[invoice.status]}>
+                            {INVOICE_STATUS_LABELS[invoice.status]}
+                          </Badge>
+                        </div>
+                        <p className="font-sans text-sm text-muted">
+                          {invoice.items.map((item) => item.label).join(' · ')}
+                        </p>
+                        <p className="font-sans text-sm text-text">
+                          {currency.format(invoice.totalCents / 100)}
+                        </p>
                       </div>
-                      <p className="font-sans text-sm text-muted">
-                        {invoice.items.map((item) => item.label).join(' · ')}
-                      </p>
-                      <p className="font-sans text-sm text-text">
-                        {currency.format(invoice.totalCents / 100)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setOpenInvoice(invoice)}
-                        aria-label={`Voir la facture ${invoice.number}`}
-                      >
-                        Voir
-                      </Button>
-                      {invoice.status === 'sent' || invoice.status === 'overdue' ? (
+                      <div className="flex gap-2">
                         <Button
                           type="button"
-                          variant="secondary"
-                          loading={payPending && payVariables === invoice.id}
-                          onClick={() => handlePay(invoice.id)}
+                          variant="ghost"
+                          onClick={() => setOpenInvoice(invoice)}
+                          aria-label={`Voir la facture ${invoice.number}`}
                         >
-                          Payer
+                          Voir
                         </Button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        {invoice.status === 'sent' || invoice.status === 'overdue' ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            loading={payPending && payVariables === invoice.id}
+                            onClick={() => handlePay(invoice.id)}
+                          >
+                            Payer
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </Card>
         </div>

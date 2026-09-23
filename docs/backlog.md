@@ -192,6 +192,8 @@ Critères d'acceptation :
 Critères d'acceptation :
 - [x] Éligibilité : statut `fit` ET charge hebdo < max.
 - [x] Score : favori +10 · niveau compatible +5 · à éviter −15 · charge −5 × heures.
+- [x] Règle de niveau asymétrique (ADR 009) : cavalier sous le niveau minimum du cheval → exclu de l'attribution automatique ; au-dessus du maximum → −20 et avertissement.
+- [x] Ordre de traitement : le cavalier qui a le moins de chevaux possibles est servi en premier (ADR 009).
 - [x] Un cheval n'est jamais attribué deux fois dans la même séance.
 - [x] Charge hebdo incrémentée de la durée du cours ; tout est transactionnel (échec = aucune écriture).
 - [x] Les inscriptions sans solution sont listées comme conflits avec la raison.
@@ -202,7 +204,7 @@ Critères d'acceptation :
 **En tant que** moniteur, **je veux** remplacer manuellement un cheval attribué **afin de** garder la décision finale.
 
 Critères d'acceptation :
-- [x] Liste des chevaux disponibles avec leur score et un avertissement si affinité « à éviter ».
+- [x] Liste des chevaux disponibles avec leur score et un avertissement si affinité « à éviter » ou niveau inadapté (ADR 009).
 - [x] Les charges hebdo des deux chevaux (retiré/ajouté) sont réajustées.
 
 ### US-5.3 — Audit de compatibilité `S`

@@ -50,8 +50,14 @@ if [ "$ENVIRONMENT" = "prod" ]; then
   fi
 fi
 
-echo "▸ Build et démarrage des conteneurs"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+echo "▸ Build des images (images de base rafraîchies)"
+# --pull : sans lui, `node:22-alpine` et `nginx` restent figés sur la version en
+# cache du VPS et les correctifs de sécurité publiés depuis ne sont jamais
+# intégrés (docs/veille-securite.md).
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --pull
+
+echo "▸ Démarrage des conteneurs"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 # Le service `migrate` joue les migrations Prisma avant que l'API ne démarre
 # (depends_on: service_completed_successfully), il n'y a rien à lancer ici.

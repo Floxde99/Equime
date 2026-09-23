@@ -93,6 +93,76 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-5.7 | Atomicité | Erreur simulée en cours d'attribution | ROLLBACK complet — aucune écriture partielle | ✅ intégration | ✅ |
 | T-5.8 | Override manuel | Moniteur remplace le cheval | Charges réajustées sur les 2 chevaux | ✅ phase4 / phase5 | ✅ |
 | T-5.9 | Audit batch | POST /admin/compatibility-audit | Rapport complet, **aucune écriture** | ✅ phase4 | ✅ |
+| T-5.10 | Cavalier sous le niveau du cheval | Galop 1, seul cheval restant en galop 3–7 | **Non attribué** automatiquement (conflit) ; proposé en override avec avertissement (ADR 009) | ✅ unit | ✅ |
+| T-5.11 | Cavalier au-dessus du niveau du cheval | Galop 4, poney initiation–galop 2 disponible | Pénalité −20 : un cheval adapté passe devant ; avertissement affiché | ✅ unit | ✅ |
+| T-5.12 | Cavalier le plus contraint d'abord | Galop 4 inscrit avant un débutant, un seul poney | Le débutant reçoit le poney, le confirmé le cheval restant ; résultats dans l'ordre d'inscription | ✅ unit | ✅ |
+
+### Jeu d'essai — fonctionnalité la plus représentative : l'attribution des chevaux
+
+> Exigé par le plan du dossier (RE CDA) : données en entrée, attendues, **obtenues**, et
+> **analyse des écarts**. Exécuté sur la fonction réelle `simulateHorseAssignments`
+> (`apps/api/src/services/horseAssignment.js`), sans base de données. Il est automatisé
+> dans `horseAssignment.test.js` (« jeu d'essai »).
+
+**Données en entrée**
+
+| Cheval | Statut | Plage de niveau | Charge semaine | Rôle dans l'essai |
+|---|---|---|---|---|
+| Tornade | apte | galop 3 → galop 7 | 2 h / 10 | cheval confirmé |
+| Caramel | apte | initiation → galop 2 | 1 h / 10 | poney débutant |
+| Éclair | apte | galop 3 → galop 7 | 9 h / 10 | confirmé, très chargé |
+| Brume | **indisponible** | galop 1 → galop 5 | 0 h | doit être écarté |
+| Saphir | apte | galop 1 → galop 4 | **10 h / 10** | au plafond, doit être écarté |
+
+Cavaliers, dans l'ordre d'inscription : **Emma** (galop 4, favori : Éclair), **Tom**
+(galop 1), **Léa** (galop 5, évite Tornade), **Hugo** (initiation). Séance d'une heure.
+
+**Première exécution — règle d'origine (niveau compatible = +5 seulement)**
+
+| Cavalier | Attendu (logique métier) | Obtenu | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Tornade | **Caramel** (−5 ; Tornade aussi à −5) | ❌ Égalité départagée par la charge : un poney débutant pour une cavalière confirmée |
+| Tom, galop 1 | Caramel | **Tornade**, cheval galop 3–7 (−10) | ❌ **Débutant sur un cheval confirmé : risque de sécurité** |
+| Léa, galop 5 | Éclair | Éclair (−40) | ✅ |
+| Hugo, initiation | Caramel ou conflit | Conflit « aucun cheval éligible » | ⚠️ Caramel lui convenait, pris par Emma |
+| Brume, Saphir | Écartés | Écartés | ✅ |
+
+**Analyse des écarts**
+
+1. Le bonus de niveau (+5) vaut exactement une heure de charge (−5) : un cheval
+   inadapté mais moins chargé passe devant un cheval adapté.
+2. L'attribution est gloutonne, dans l'ordre d'inscription : en prenant le poney, Emma
+   prive les deux cavaliers suivants.
+3. L'incompatibilité de niveau ne déclenchait aucun avertissement ; seule l'affinité
+   « à éviter » en déclenchait un.
+
+Le moniteur pouvait corriger à la main, mais l'algorithme proposait un choix dangereux.
+Correction : **règle de niveau asymétrique** (ADR 009).
+
+**Seconde exécution — après correction**
+
+| Cavalier | Attendu | Obtenu | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Tornade | **Tornade** (−5) ; Caramel à −25 avec l'avertissement « Cheval d'un niveau inférieur au cavalier » | ✅ |
+| Tom, galop 1 | Caramel | **Caramel** (0) ; Tornade et Éclair exclus (sous-niveau) | ✅ |
+| Léa, galop 5 | Éclair | **Éclair** (−40) | ✅ |
+| Hugo, initiation | Conflit (3 chevaux éligibles pour 4 cavaliers) | **Conflit** | ✅ inévitable, signalé au moniteur |
+
+Aucune attribution dangereuse. Tom et Hugo n'ont chacun qu'un cheval possible, le même
+poney : à égalité de contrainte, l'ordre d'inscription les départage.
+
+**Troisième correction — le cavalier le plus contraint choisit en premier** (ADR 009)
+
+L'écart 2 (ordre glouton) subsistait dans d'autres configurations. Cas ajouté au jeu
+d'essai : Emma (galop 4) inscrite avant Hugo (initiation) ; Tornade (galop 3–7, 6 h de
+charge) et Caramel (poney, 0 h).
+
+| Cavalier | Avant (ordre d'inscription) | Après (le moins de chevaux possibles d'abord) | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Caramel (−20 contre −25 pour Tornade) | **Tornade** | ✅ |
+| Hugo, initiation | Conflit : Tornade lui est interdite | **Caramel** | ✅ plus de conflit évitable |
+
+Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 
 ## Module 6 — Facturation & abonnements (Phase 4)
 
