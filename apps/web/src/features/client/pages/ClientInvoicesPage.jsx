@@ -31,6 +31,9 @@ const STATUS_VARIANT = {
   cancelled: 'danger',
 };
 
+/** Durée maximale du polling de confirmation après retour de Stripe. */
+const CONFIRM_POLL_MAX_MS = 2 * 60 * 1000;
+
 export function ClientInvoicesPage() {
   const user = useAuthStore((s) => s.user);
   const quota = user?.sessionQuota ?? 0;
@@ -40,6 +43,17 @@ export function ClientInvoicesPage() {
   const confirmAttemptedRef = useRef(null);
   const awaitingConfirm = searchParams.get('paid') === '1';
   const waitingInvoiceId = searchParams.get('invoice');
+  const justConfirmed = searchParams.get('confirmed') === '1';
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+
+  // Le polling de confirmation est borné : paiement différé, webhook absent ou
+  // URL `?paid=1` rouverte depuis l'historique ne doivent pas interroger l'API
+  // indéfiniment.
+  useEffect(() => {
+    if (!awaitingConfirm) return undefined;
+    const timer = setTimeout(() => setPollTimedOut(true), CONFIRM_POLL_MAX_MS);
+    return () => clearTimeout(timer);
+  }, [awaitingConfirm]);
 
   const { data: paymentConfig } = useQuery({
     queryKey: ['payment-config'],
@@ -57,7 +71,7 @@ export function ClientInvoicesPage() {
     queryKey: ['client-invoices'],
     queryFn: fetchClientInvoices,
     refetchInterval: (query) => {
-      if (!awaitingConfirm) return false;
+      if (!awaitingConfirm || pollTimedOut) return false;
       const list = query.state.data ?? [];
       if (waitingInvoiceId) {
         const target = list.find((inv) => inv.id === waitingInvoiceId);
@@ -81,6 +95,8 @@ export function ClientInvoicesPage() {
           const next = new URLSearchParams(prev);
           next.delete('paid');
           next.delete('invoice');
+          // Porte le message de succès au-delà du nettoyage de `paid`.
+          next.set('confirmed', '1');
           return next;
         },
         { replace: true }
@@ -159,7 +175,9 @@ export function ClientInvoicesPage() {
   const waitingInvoice = waitingInvoiceId
     ? invoices.find((inv) => inv.id === waitingInvoiceId)
     : null;
-  const showConfirmPending = awaitingConfirm && waitingInvoice && waitingInvoice.status !== 'paid';
+  const confirmStillPending = awaitingConfirm && waitingInvoice && waitingInvoice.status !== 'paid';
+  const showConfirmPending = confirmStillPending && !pollTimedOut;
+  const showConfirmTimedOut = confirmStillPending && pollTimedOut;
 
   return (
     <div className="space-y-6">
@@ -177,7 +195,14 @@ export function ClientInvoicesPage() {
         </p>
       ) : null}
 
-      {awaitingConfirm && waitingInvoice?.status === 'paid' ? (
+      {showConfirmTimedOut ? (
+        <p role="status" className="font-sans text-sm text-muted">
+          Confirmation en attente : l’enregistrement du paiement peut prendre quelques minutes.
+          Revenez sur cette page plus tard.
+        </p>
+      ) : null}
+
+      {justConfirmed ? (
         <p role="status" className="font-sans text-sm text-primary">
           Paiement confirmé. Merci !
         </p>

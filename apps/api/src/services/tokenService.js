@@ -185,6 +185,20 @@ export async function revokeAllUserTokens(userId) {
 const inflightRotations = new Set();
 
 /**
+ * Délai après rotation pendant lequel l'ancien token est tenu pour une course
+ * légitime (second onglet parti avec le même cookie) plutôt qu'un rejeu. Pas
+ * de nouveau token émis pour autant : on répond 401 sans révoquer la famille.
+ */
+const ROTATION_GRACE_MS = 10_000;
+
+/** Code d'erreur d'une course de refresh perdue : le cookie ne doit PAS être effacé. */
+export const REFRESH_RACE_CODE = 'REFRESH_RACE';
+
+function refreshRaceLost() {
+  return new AppError('Session déjà renouvelée', { statusCode: 401, code: REFRESH_RACE_CODE });
+}
+
+/**
  * Rotation d'un refresh token (cf. diagramme de séquence).
  *
  * Concurrence same-process : un Set en mémoire refuse le second appel sur le
@@ -200,7 +214,7 @@ const inflightRotations = new Set();
 export async function rotateRefreshToken(presentedToken) {
   const tokenHash = hashToken(presentedToken);
   if (inflightRotations.has(tokenHash)) {
-    throw AppError.unauthorized('Session invalide');
+    throw refreshRaceLost();
   }
   inflightRotations.add(tokenHash);
   try {
@@ -225,6 +239,11 @@ async function rotateRefreshTokenUnlocked(presentedToken, tokenHash) {
   if (!stored) throw AppError.unauthorized('Session invalide');
 
   if (stored.revokedAt) {
+    // Rotation toute récente : second refresh parti avec le même cookie
+    // (autre onglet) et traité juste après le gagnant — pas un vol.
+    if (Date.now() - stored.revokedAt.getTime() < ROTATION_GRACE_MS) {
+      throw refreshRaceLost();
+    }
     // Réutilisation détectée : un token déjà consommé est présenté à nouveau.
     // Vol probable → révocation de toute la famille (l'attaquant ET la victime
     // sont déconnectés, la victime se réauthentifie par mot de passe).
@@ -255,7 +274,7 @@ async function rotateRefreshTokenUnlocked(presentedToken, tokenHash) {
   });
 
   if (consumed.count === 0) {
-    throw AppError.unauthorized('Session invalide');
+    throw refreshRaceLost();
   }
 
   const pair = await issueTokenPair(stored.user, { familyId: stored.familyId });
