@@ -193,6 +193,7 @@ Critères d'acceptation :
 - [x] Éligibilité : statut `fit` ET charge hebdo < max.
 - [x] Score : favori +10 · niveau compatible +5 · à éviter −15 · charge −5 × heures.
 - [x] Règle de niveau asymétrique (ADR 009) : cavalier sous le niveau minimum du cheval → exclu de l'attribution automatique ; au-dessus du maximum → −20 et avertissement.
+- [x] Ordre de traitement : le cavalier qui a le moins de chevaux possibles est servi en premier (ADR 009).
 - [x] Un cheval n'est jamais attribué deux fois dans la même séance.
 - [x] Charge hebdo incrémentée de la durée du cours ; tout est transactionnel (échec = aucune écriture).
 - [x] Les inscriptions sans solution sont listées comme conflits avec la raison.

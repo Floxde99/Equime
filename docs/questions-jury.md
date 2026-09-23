@@ -5,7 +5,7 @@
 1. **Pourquoi pas TypeScript ?** Choix projet CDA : Zod + JSDoc + ESLint strict pour la sûreté à l’exécution ; schémas partagés front/back (ADR 004).
 2. **Pourquoi JWT maison plutôt qu’OAuth ?** Contrôle pédagogique sur rotation refresh, détection de réutilisation, blacklist Redis (ADR 002).
 3. **Comment évitez-vous les IDOR ?** Filtrage par `familyId` / rôle dans les services ; tests T-S.4 (`phase4` / `phase5` / `core`).
-4. **Attribution des chevaux ?** Score dans `horseAssignment.js` (niveau, affinités, charge, statut cheval) — tests unitaires + stages (Excel 11.2). **Règle de niveau asymétrique** (ADR 009) : un cavalier n'est jamais placé automatiquement sur un cheval exigeant un niveau supérieur ; écart découvert grâce au jeu d'essai.
+4. **Attribution des chevaux ?** Score dans `horseAssignment.js` (niveau, affinités, charge, statut cheval) — tests unitaires + stages (Excel 11.2). **Règle de niveau asymétrique** (ADR 009) : un cavalier n'est jamais placé automatiquement sur un cheval exigeant un niveau supérieur ; écart découvert grâce au jeu d'essai. Le cavalier qui a le moins de chevaux possibles est servi en premier (heuristique « le plus contraint d'abord »).
 5. **Cache planning ?** `planningCache.js` + invalidation à la mutation des cours ; isolation par scope client.
 6. **Paiement Stripe ?** Checkout hébergé (ADR 008) : webhook `constructEvent` = source de vérité ; `confirm-checkout` = filet côté serveur après retour ; clés `sk_test_` jusqu’au go-live.
 

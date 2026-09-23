@@ -256,6 +256,33 @@ describe('règle de niveau asymétrique (ADR 009)', () => {
     ]);
     expect(result.conflicts).toMatchObject([{ enrollmentId: 'e4' }]);
   });
+
+  it('sert d’abord le cavalier qui a le moins de chevaux possibles', () => {
+    const rider = (id, firstName, level) => ({ id, firstName, lastName: '', level });
+    // Inscrite la première, Emma aurait pris le poney (Tornade, très chargé, la pénalise
+    // davantage) et laissé Hugo, débutant, sans aucun cheval accessible.
+    const result = simulateHorseAssignments({
+      course: {
+        startAt: new Date('2026-10-01T10:00:00.000Z'),
+        endAt: new Date('2026-10-01T11:00:00.000Z'),
+      },
+      enrollments: [
+        { id: 'e1', rider: rider('r1', 'Emma', 'galop_4') },
+        { id: 'e2', rider: rider('r2', 'Hugo', 'initiation') },
+      ],
+      horses: [
+        horse('h1', 'Tornade', 'galop_3', 'galop_7', 6),
+        horse('h2', 'Caramel', 'initiation', 'galop_2', 0),
+      ],
+      affinities: [],
+    });
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.assignments.map((a) => [a.enrollmentId, a.horse.name])).toEqual([
+      ['e1', 'Tornade'],
+      ['e2', 'Caramel'],
+    ]);
+  });
 });
 
 describe('durationHoursFromRange', () => {

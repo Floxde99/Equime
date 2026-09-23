@@ -60,6 +60,12 @@ niveau minimum du cheval ».
 - Résultat du jeu d'essai : Emma → Tornade, Tom → Caramel, Léa → Éclair, Hugo en
   conflit (inévitable : 3 chevaux éligibles pour 4 cavaliers) ; **aucune
   attribution dangereuse**.
-- Limite connue : l'algorithme reste glouton. Traiter d'abord les cavaliers ayant
-  le moins de chevaux possibles réduirait encore les conflits ; c'est une
-  évolution possible, non nécessaire pour la sécurité.
+- **Ordre de traitement** : l'algorithme reste glouton, mais sert d'abord le
+  cavalier qui a le **moins de chevaux possibles** (heuristique « le plus
+  contraint d'abord » ; à égalité, ordre d'inscription). Un cavalier confirmé
+  ne prend plus le seul cheval accessible à un débutant. Exemple testé : Emma
+  (galop 4) inscrite avant Hugo (initiation) prenait le poney et laissait Hugo
+  sans cheval ; Hugo passe désormais en premier et les deux sont servis. Les
+  résultats restent présentés dans l'ordre d'inscription.
+- Limite connue : ce n'est pas une affectation optimale au sens strict
+  (algorithme hongrois), jugée disproportionnée pour 4 à 12 cavaliers par reprise.

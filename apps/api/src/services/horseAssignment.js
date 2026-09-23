@@ -121,9 +121,8 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
   const assignments = [];
   const conflicts = [];
 
-  for (const enrollment of enrollments) {
-    if (enrollment.horseId) continue;
-
+  /** @param {any} enrollment */
+  const rankFor = (enrollment) => {
     const affinitiesByHorseId = new Map(
       affinities
         .filter((affinity) => affinity.riderId === enrollment.rider.id)
@@ -131,15 +130,29 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
     );
     // Un cavalier n'est jamais placé automatiquement sur un cheval exigeant un
     // niveau supérieur au sien (sécurité, ADR 009) : conflit plutôt que risque.
-    const ranked = rankCandidateHorses({
+    return rankCandidateHorses({
       rider: enrollment.rider,
       horses,
       affinitiesByHorseId,
       takenHorseIds,
     }).filter((entry) => entry.levelFit !== 'under');
+  };
+
+  // Le cavalier qui a le moins de chevaux possibles choisit en premier : un
+  // cavalier confirmé ne prend plus le seul cheval accessible à un débutant.
+  // Tri stable : à égalité, l'ordre d'inscription est conservé.
+  const queue = enrollments
+    .map((enrollment, index) => ({ enrollment, index }))
+    .filter(({ enrollment }) => !enrollment.horseId)
+    .map((item) => ({ ...item, options: rankFor(item.enrollment).length }))
+    .sort((a, b) => a.options - b.options);
+
+  for (const { enrollment, index } of queue) {
+    const ranked = rankFor(enrollment);
 
     if (ranked.length === 0) {
       conflicts.push({
+        index,
         enrollmentId: enrollment.id,
         riderId: enrollment.rider.id,
         riderName: `${enrollment.rider.firstName} ${enrollment.rider.lastName}`,
@@ -151,6 +164,7 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
     const [selected] = ranked;
     takenHorseIds.add(selected.horse.id);
     assignments.push({
+      index,
       enrollmentId: enrollment.id,
       riderId: enrollment.rider.id,
       riderName: `${enrollment.rider.firstName} ${enrollment.rider.lastName}`,
@@ -168,7 +182,16 @@ export function simulateHorseAssignments({ course, enrollments, horses, affiniti
     });
   }
 
-  return { assignments, conflicts, durationHours };
+  // Résultats rendus dans l'ordre d'inscription, quel que soit l'ordre de traitement.
+  /** @param {Array<{ index: number }>} items */
+  const inEnrollmentOrder = (items) =>
+    items.sort((a, b) => a.index - b.index).map(({ index: _index, ...rest }) => rest);
+
+  return {
+    assignments: inEnrollmentOrder(assignments),
+    conflicts: inEnrollmentOrder(conflicts),
+    durationHours,
+  };
 }
 
 export const assignmentWriter = {

@@ -95,6 +95,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-5.9 | Audit batch | POST /admin/compatibility-audit | Rapport complet, **aucune écriture** | ✅ phase4 | ✅ |
 | T-5.10 | Cavalier sous le niveau du cheval | Galop 1, seul cheval restant en galop 3–7 | **Non attribué** automatiquement (conflit) ; proposé en override avec avertissement (ADR 009) | ✅ unit | ✅ |
 | T-5.11 | Cavalier au-dessus du niveau du cheval | Galop 4, poney initiation–galop 2 disponible | Pénalité −20 : un cheval adapté passe devant ; avertissement affiché | ✅ unit | ✅ |
+| T-5.12 | Cavalier le plus contraint d'abord | Galop 4 inscrit avant un débutant, un seul poney | Le débutant reçoit le poney, le confirmé le cheval restant ; résultats dans l'ordre d'inscription | ✅ unit | ✅ |
 
 ### Jeu d'essai — fonctionnalité la plus représentative : l'attribution des chevaux
 
@@ -147,9 +148,21 @@ Correction : **règle de niveau asymétrique** (ADR 009).
 | Léa, galop 5 | Éclair | **Éclair** (−40) | ✅ |
 | Hugo, initiation | Conflit (3 chevaux éligibles pour 4 cavaliers) | **Conflit** | ✅ inévitable, signalé au moniteur |
 
-Aucune attribution dangereuse. Écart résiduel assumé : l'ordre d'inscription décide
-entre Tom et Hugo pour le seul poney. Traiter d'abord les cavaliers ayant le moins de
-chevaux possibles est une évolution identifiée (ADR 009).
+Aucune attribution dangereuse. Tom et Hugo n'ont chacun qu'un cheval possible, le même
+poney : à égalité de contrainte, l'ordre d'inscription les départage.
+
+**Troisième correction — le cavalier le plus contraint choisit en premier** (ADR 009)
+
+L'écart 2 (ordre glouton) subsistait dans d'autres configurations. Cas ajouté au jeu
+d'essai : Emma (galop 4) inscrite avant Hugo (initiation) ; Tornade (galop 3–7, 6 h de
+charge) et Caramel (poney, 0 h).
+
+| Cavalier | Avant (ordre d'inscription) | Après (le moins de chevaux possibles d'abord) | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Caramel (−20 contre −25 pour Tornade) | **Tornade** | ✅ |
+| Hugo, initiation | Conflit : Tornade lui est interdite | **Caramel** | ✅ plus de conflit évitable |
+
+Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 
 ## Module 6 — Facturation & abonnements (Phase 4)
 
