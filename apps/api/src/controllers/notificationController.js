@@ -19,8 +19,8 @@ export async function updatePreference(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function listNotifications(req, res) {
-  const notifications = await notificationService.listNotifications(req.user.id);
-  res.json({ notifications });
+  const { notifications, unreadCount } = await notificationService.listNotifications(req.user.id);
+  res.json({ notifications, unreadCount });
 }
 
 /** @param {import('express').Request} req @param {import('express').Response} res */

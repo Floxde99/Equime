@@ -55,6 +55,9 @@ services:
       CLUB_ADDRESS: '${CLUB_ADDRESS:-12 chemin des Écuries, 31000 Toulouse}'
       CLUB_PHONE: '${CLUB_PHONE:-05 61 00 00 00}'
       CLUB_EMAIL: ${CLUB_EMAIL:-contact@equime.local}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_CURRENCY: ${STRIPE_CURRENCY:-eur}
     ports:
       - '3000:3000'
     volumes:

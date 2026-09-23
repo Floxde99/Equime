@@ -234,12 +234,14 @@ Critères d'acceptation :
 - [x] PDF téléchargeable (`GET /admin/invoices/:id/pdf`) y compris brouillon.
 
 ### US-6.3 — Consulter et payer `M`
-**En tant que** client, **je veux** consulter mes factures et les payer (paiement simulé) **afin de** régler mes échéances.
+**En tant que** client, **je veux** consulter mes factures et les payer via Stripe Checkout **afin de** régler mes échéances.
 
 Critères d'acceptation :
 - [ ] Le client ne voit que les factures de sa famille.
 - [x] Les brouillons restent invisibles côté client (seules envoyée / payée / en retard).
-- [ ] Paiement simulé : facture marquée payée, notification `payment_confirmed`, visible côté admin.
+- [x] Paiement réel : `POST /client/invoices/:id/checkout` → redirect Stripe ; webhook → statut `paid` + notification `payment_confirmed` (idempotent).
+- [x] Sans Stripe en development/test : paiement simulé `POST …/pay` conservé pour CI/E2E.
+- [x] Bandeau « Mode test » si clés `sk_test_`.
 - [x] PDF téléchargeable (`GET /client/invoices/:id/pdf`) pour les factures visibles ; 404 si brouillon ou facture d'une autre famille.
 
 ### US-6.4 — Générer les factures d'abonnement du mois `S`
@@ -353,7 +355,7 @@ Critères d'acceptation :
 
 | Sujet | Raison |
 |---|---|
-| Paiement réel (Stripe) | Paiement simulé suffisant pour le référentiel ; intégration réelle en perspective |
+| Paiement Stripe (Checkout) | Livré (ADR 008) — clés test autorisées jusqu’au go-live ; abonnements Stripe / SEPA / remboursements auto hors v1 |
 | WebSocket temps réel | Polling TanStack Query suffisant à cette échelle ; perspective d'évolution |
 | PWA / mode hors-ligne (Excel 4.7) | Cible CDA = web responsive ; pas de service worker en v1 |
 | Stats prédictives / ML (Excel 5.1) | Dashboard KPIs = analyse (occupation, charge, CA), pas de prédiction |

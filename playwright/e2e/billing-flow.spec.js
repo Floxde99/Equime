@@ -6,6 +6,8 @@ test('un client peut payer une facture et l’admin voit le statut mis à jour',
   browser,
   page,
 }) => {
+  // Sans STRIPE_SECRET_KEY (CI / stack locale) : paiement simulé POST …/pay.
+  // Avec Stripe test : le bouton redirige vers Checkout — hors parcours CI.
   await loginAs(page, {
     email: 'lina@equime.local',
     password: 'Equime!2026',

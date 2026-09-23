@@ -40,6 +40,44 @@ const EXCEPTIONS = {
       'Un `overrides` vers deepmerge-ts@8 est ignoré par npm sur cette chaîne.',
     reexamen: '2026-11-19',
   },
+  'GHSA-5jgf-p345-68v8': {
+    paquet: 'fast-uri (via ajv, via @prisma/dev dans la CLI prisma)',
+    motif:
+      "Chaîne d'outillage Prisma uniquement (@prisma/client → prisma → @prisma/dev → " +
+      'ajv). Pas sur le chemin HTTP Equime. Un `overrides` npm vers fast-uri@3.1.8 est ' +
+      'ignoré sur cette chaîne (même comportement que deepmerge-ts). Le correctif ' +
+      'proposé par npm audit force prisma@6, incompatible avec le socle Prisma 7.',
+    reexamen: '2026-12-23',
+  },
+  'GHSA-f65p-4m7j-42xc': {
+    paquet: 'fast-uri (via ajv, via @prisma/dev dans la CLI prisma)',
+    motif:
+      'Même chaîne outillage Prisma que GHSA-5jgf-p345-68v8. Pas de correctif ' +
+      'non-cassant : ajv@8.20 reste sur fast-uri@3.1.5 et l’override npm est ignoré.',
+    reexamen: '2026-12-23',
+  },
+  'GHSA-fph4-wmhf-6fwf': {
+    paquet: 'fast-uri (via ajv, via @prisma/dev dans la CLI prisma)',
+    motif:
+      'Même chaîne outillage Prisma que GHSA-5jgf-p345-68v8. Exposition SSRF non ' +
+      'atteignable : Equime ne passe pas d’URI contrôlée par un tiers à cet ajv.',
+    reexamen: '2026-12-23',
+  },
+  'GHSA-jqff-g426-hqxp': {
+    paquet: 'fast-uri (via ajv, via @prisma/dev dans la CLI prisma)',
+    motif:
+      'Même chaîne outillage Prisma que GHSA-5jgf-p345-68v8. Pas de correctif ' +
+      'non-cassant sans downgrade Prisma 6.',
+    reexamen: '2026-12-23',
+  },
+  'GHSA-3f6p-5ww8-9rcr': {
+    paquet: 'mysql2 (épinglé 3.15.3 par prisma@7, CLI)',
+    motif:
+      'Equime utilise PostgreSQL via @prisma/adapter-pg ; le driver mysql2 n’est ' +
+      'jamais instancié. Prisma 7 épingle mysql2@3.15.3 et ignore un override npm. ' +
+      'Le correctif audit (prisma@6.19.3) casse le socle Prisma 7.',
+    reexamen: '2026-12-23',
+  },
 };
 
 // Commande passée en chaîne unique : `shell: true` avec un tableau d'arguments

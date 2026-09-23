@@ -24,6 +24,7 @@ import publicRouter from './routes/public.routes.js';
 import ridersRouter from './routes/riders.routes.js';
 import spacesRouter from './routes/spaces.routes.js';
 import volunteerRouter from './routes/volunteer.routes.js';
+import webhookRouter from './routes/webhook.routes.js';
 
 /**
  * Construit l'application Express (sans l'attacher à un port),
@@ -56,6 +57,9 @@ export function createApp() {
       credentials: true, // nécessaire au cookie httpOnly du refresh token (Phase 2)
     })
   );
+
+  // --- Webhook Stripe : body brut AVANT express.json (signature HMAC) ---
+  app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }), webhookRouter);
 
   // --- Parsing & logs ---
   app.use(express.json({ limit: '1mb' }));
