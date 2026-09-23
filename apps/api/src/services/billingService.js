@@ -7,6 +7,7 @@ import { NOTIFICATION_TYPES } from '@equime/shared';
 import { env, isSimulatedPaymentAllowed } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { buildInvoicePdf, invoicePdfFilename } from '../lib/invoicePdf.js';
+import { logger } from '../lib/logger.js';
 import { buildSimpleNotificationEmail, escapeHtml } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -656,19 +657,15 @@ export async function createSentInvoiceForEventRegistration(input) {
 
 /**
  * Marque une facture payée et envoie la notification `payment_confirmed`.
- * Idempotent : si déjà `paid`, retourne la facture sans re-notifier.
+ * Idempotent, y compris en concurrence (webhook et confirm-checkout
+ * simultanés) : la transition `sent|overdue → paid` est conditionnelle, et
+ * seul l'appel qui l'effectue notifie.
  *
  * @param {string} invoiceId
  * @param {{ paymentIntentId?: string | null }} [extras]
  * @returns {Promise<object>}
  */
 export async function markInvoicePaidFromPayment(invoiceId, extras = {}) {
-  const current = await getInvoiceOrThrow(invoiceId);
-  if (current.status === 'paid') return current;
-  if (current.status !== 'sent' && current.status !== 'overdue') {
-    throw AppError.badRequest('Cette facture ne peut pas être payée');
-  }
-
   /** @type {Record<string, unknown>} */
   const data = {
     status: 'paid',
@@ -678,9 +675,28 @@ export async function markInvoicePaidFromPayment(invoiceId, extras = {}) {
     data.stripePaymentIntentId = extras.paymentIntentId;
   }
 
-  const invoice = await prisma.invoice.update({
-    where: { id: invoiceId },
+  const { count } = await prisma.invoice.updateMany({
+    where: { id: invoiceId, status: { in: ['sent', 'overdue'] } },
     data,
+  });
+
+  if (count === 0) {
+    const current = await getInvoiceOrThrow(invoiceId);
+    if (current.status !== 'paid') {
+      throw AppError.badRequest('Cette facture ne peut pas être payée');
+    }
+    // Second encaissement pour une facture déjà réglée : à rembourser à la main.
+    if (extras.paymentIntentId && extras.paymentIntentId !== current.stripePaymentIntentId) {
+      logger.error(
+        { invoiceId, paymentIntentId: extras.paymentIntentId },
+        'Paiement Stripe reçu pour une facture déjà payée'
+      );
+    }
+    return current;
+  }
+
+  const invoice = await prisma.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
     select: INVOICE_SELECT,
   });
 

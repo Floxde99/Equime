@@ -231,6 +231,12 @@ describe('POST /api/v1/auth/refresh', () => {
     const rotated = await request(app).post('/api/v1/auth/refresh').set('Cookie', stolenCookie);
     const legitCookie = refreshCookieOf(rotated);
 
+    // Le rejeu survient après la fenêtre de grâce anti-course (10 s)
+    await prisma.refreshToken.update({
+      where: { tokenHash: hashToken(stolenCookie.split('=')[1]) },
+      data: { revokedAt: new Date(Date.now() - 60_000) },
+    });
+
     // L'attaquant rejoue le token déjà consommé
     const replay = await request(app).post('/api/v1/auth/refresh').set('Cookie', stolenCookie);
     expect(replay.status).toBe(401);
@@ -272,6 +278,25 @@ describe('POST /api/v1/auth/refresh', () => {
       where: { userId: reg.body.user.id, revokedAt: null },
     });
     expect(active).toBeGreaterThanOrEqual(1);
+  });
+
+  it('refresh juste après la rotation (autre onglet) : 401 sans révoquer la famille ni effacer le cookie', async () => {
+    const reg = await request(app).post('/api/v1/auth/register').send(registerPayload());
+    const cookie = refreshCookieOf(reg);
+
+    const first = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
+    expect(first.status).toBe(200);
+
+    // Même cookie, traité après la rotation complète du premier
+    const late = await request(app).post('/api/v1/auth/refresh').set('Cookie', cookie);
+    expect(late.status).toBe(401);
+    expect(late.body.error.code).toBe('REFRESH_RACE');
+    expect(late.headers['set-cookie']).toBeUndefined();
+
+    const followUp = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', refreshCookieOf(first));
+    expect(followUp.status).toBe(200);
   });
 
   it('refuse un refresh token expiré (401)', async () => {

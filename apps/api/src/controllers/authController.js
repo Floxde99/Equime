@@ -12,7 +12,7 @@
 import { env, isProd } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import * as authService from '../services/authService.js';
-import { revokeSession, rotateRefreshToken } from '../services/tokenService.js';
+import { REFRESH_RACE_CODE, revokeSession, rotateRefreshToken } from '../services/tokenService.js';
 
 export const REFRESH_COOKIE = 'equime_refresh';
 
@@ -82,8 +82,12 @@ export async function refresh(req, res) {
     const me = await authService.getMe(user.id);
     res.json({ user: me, accessToken });
   } catch (err) {
-    // Session compromise ou expirée : le cookie ne sert plus à rien
-    clearRefreshCookie(res);
+    // Session compromise ou expirée : le cookie ne sert plus à rien. Sauf
+    // course perdue : le gagnant vient de poser un cookie valide dans ce même
+    // navigateur, l'effacer déconnecterait une session saine.
+    if (!(err instanceof AppError && err.code === REFRESH_RACE_CODE)) {
+      clearRefreshCookie(res);
+    }
     throw err;
   }
 }

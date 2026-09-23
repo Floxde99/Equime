@@ -171,8 +171,12 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
     throw AppError.conflict('Ce cavalier est déjà inscrit à cet événement');
   }
 
-  // Capacité + upsert atomiques : recompte dans la transaction pour éviter le surbooking.
+  // Capacité + upsert atomiques. Sous READ COMMITTED, recompter dans la
+  // transaction ne suffit pas : deux inscriptions simultanées liraient le même
+  // compte. Le verrou de ligne sur l'événement sérialise les inscriptions à un
+  // même événement jusqu'au commit.
   const { registration, event } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "events" WHERE id = ${eventId} FOR UPDATE`;
     const eventRow = await tx.event.findUnique({
       where: { id: eventId },
       include: {

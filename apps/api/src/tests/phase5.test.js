@@ -358,6 +358,38 @@ describe('Phase 5 — événements', () => {
     expect(res.status).toBe(409);
   });
 
+  it('deux inscriptions simultanées pour la dernière place : une seule passe', async () => {
+    const event = await prisma.event.create({
+      data: {
+        title: 'Dernière place',
+        type: 'stage',
+        startAt: new Date('2026-11-20T08:00:00.000Z'),
+        endAt: new Date('2026-11-20T18:00:00.000Z'),
+        capacity: 1,
+      },
+    });
+
+    const rider = await createClientRider();
+    const otherRider = await createClientRider({ familyId: otherFamilyId, firstName: 'Tom' });
+
+    const [a, b] = await Promise.all([
+      request(app)
+        .post(`/api/v1/events/${event.id}/registrations`)
+        .set(authHeader(clientToken))
+        .send({ riderId: rider.id }),
+      request(app)
+        .post(`/api/v1/events/${event.id}/registrations`)
+        .set(authHeader(otherClientToken))
+        .send({ riderId: otherRider.id }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const confirmed = await prisma.eventRegistration.count({
+      where: { eventId: event.id, status: { not: 'cancelled' } },
+    });
+    expect(confirmed).toBe(1);
+  });
+
   it('refuse l’inscription événement sans documents validés et autorise le force admin', async () => {
     const event = await prisma.event.create({
       data: {

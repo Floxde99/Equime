@@ -8,6 +8,9 @@ import { AppError } from '../lib/appError.js';
 import { sendTransactionalEmail } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 
+/** Notifications les plus récentes renvoyées par la liste (cloche + page). */
+const NOTIFICATION_LIST_LIMIT = 50;
+
 const NOTIFICATION_SELECT = {
   id: true,
   type: true,
@@ -72,10 +75,13 @@ export async function updateNotificationPreference(userId, type, input) {
  */
 export async function listNotifications(userId) {
   const [notifications, unreadCount] = await Promise.all([
+    // Borné : la cloche interroge cette route toutes les 30 s, l'historique
+    // complet grossirait avec l'ancienneté du compte. `unreadCount` reste exact.
     prisma.notification.findMany({
       where: { userId },
       select: NOTIFICATION_SELECT,
       orderBy: { createdAt: 'desc' },
+      take: NOTIFICATION_LIST_LIMIT,
     }),
     prisma.notification.count({
       where: { userId, readAt: null },

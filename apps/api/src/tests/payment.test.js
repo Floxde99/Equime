@@ -226,6 +226,73 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
 
     expect(res.status).toBe(503);
   });
+
+  it('réutilise la session encore ouverte au lieu d’en créer une seconde', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7017',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 2100,
+        stripeCheckoutSessionId: 'cs_test_open',
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 2100, totalCents: 2100 }],
+        },
+      },
+    });
+
+    stripeMocks.sessionsRetrieve.mockResolvedValue({
+      id: 'cs_test_open',
+      status: 'open',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_open',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionId).toBe('cs_test_open');
+    expect(stripeMocks.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it('crée une nouvelle session si la précédente a expiré', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7018',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 2200,
+        stripeCheckoutSessionId: 'cs_test_expired',
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 2200, totalCents: 2200 }],
+        },
+      },
+    });
+
+    stripeMocks.sessionsRetrieve.mockResolvedValue({
+      id: 'cs_test_expired',
+      status: 'expired',
+      url: null,
+    });
+    stripeMocks.sessionsCreate.mockResolvedValue({
+      id: 'cs_test_fresh',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_fresh',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionId).toBe('cs_test_fresh');
+    const updated = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    expect(updated.stripeCheckoutSessionId).toBe('cs_test_fresh');
+  });
 });
 
 describe('POST /api/v1/webhooks/stripe', () => {
@@ -276,6 +343,7 @@ describe('POST /api/v1/webhooks/stripe', () => {
           id: 'cs_test_paid',
           client_reference_id: invoice.id,
           metadata: { invoiceId: invoice.id, familyId: clientFamilyId },
+          payment_status: 'paid',
           payment_intent: 'pi_test_intent_1',
         },
       },
@@ -486,6 +554,45 @@ describe('handleStripeWebhookEvent (unit)', () => {
     expect(result.handled).toBe(false);
   });
 
+  it('ne marque pas payée une session completed au paiement différé (unpaid)', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7019',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1400,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1400, totalCents: 1400 }],
+        },
+      },
+    });
+
+    const result = await paymentService.handleStripeWebhookEvent({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_sepa',
+          metadata: { invoiceId: invoice.id },
+          payment_status: 'unpaid',
+          payment_intent: 'pi_sepa',
+        },
+      },
+    });
+
+    expect(result.handled).toBe(false);
+    const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    expect(stored.status).toBe('sent');
+  });
+
+  it('laisse la facture due sur async_payment_failed', async () => {
+    const result = await paymentService.handleStripeWebhookEvent({
+      type: 'checkout.session.async_payment_failed',
+      data: { object: { id: 'cs_test_sepa_failed', metadata: { invoiceId: 'inv_x' } } },
+    });
+    expect(result.handled).toBe(false);
+  });
+
   it('accepte async_payment_succeeded via client_reference_id et payment_intent objet', async () => {
     const invoice = await prisma.invoice.create({
       data: {
@@ -541,5 +648,30 @@ describe('handleStripeWebhookEvent (unit)', () => {
     expect(again.status).toBe('paid');
     const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(stored.stripePaymentIntentId).toBe('pi_first');
+  });
+
+  it('webhook et confirm simultanés : une seule notification de paiement', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7020',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1600,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1600, totalCents: 1600 }],
+        },
+      },
+    });
+
+    await Promise.all([
+      billingService.markInvoicePaidFromPayment(invoice.id, { paymentIntentId: 'pi_race' }),
+      billingService.markInvoicePaidFromPayment(invoice.id, { paymentIntentId: 'pi_race' }),
+    ]);
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: clientId, type: 'payment_confirmed' },
+    });
+    expect(notifications).toHaveLength(1);
   });
 });
