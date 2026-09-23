@@ -12,6 +12,7 @@ import { SkipLink } from '@/components/ui/skip-link.jsx';
 import { fetchPublicPlans } from '@/features/billing/api.js';
 import { fetchPublicEvents } from '@/features/engagement/api.js';
 import { fetchPublicCourses, subscribeNewsletter } from '@/features/home/api.js';
+import { LegalLinks } from '@/features/legal/components/LegalLinks.jsx';
 import { clubContact } from '@/lib/clubContact.js';
 import { onInPageAnchorClick } from '@/lib/inPageScroll.js';
 import { formatEuroCents, formatEventPrice, formatMonthlyPlanPrice } from '@/lib/money.js';
@@ -168,8 +169,13 @@ export function HomePage() {
 
       <main id="contenu" className="flex-1 scroll-mt-24">
         <section className="relative min-h-[34rem] overflow-hidden md:min-h-[38rem]">
+          {/* Visible dès l'arrivée : chargement immédiat, mais taille adaptée à l'écran */}
           <img
             src="/images/hero-centre.webp"
+            srcSet={`${imageVariants('/images/hero-centre.webp', [768, 1280])}, /images/hero-centre.webp 1536w`}
+            sizes="100vw"
+            width={1536}
+            height={1024}
             alt=""
             className="absolute inset-0 size-full object-cover"
           />
@@ -204,7 +210,17 @@ export function HomePage() {
             <ul className="mt-14 grid gap-12 md:grid-cols-3">
               {PROGRAMS.map((program) => (
                 <li key={program.title}>
-                  <img src={program.src} alt="" className="aspect-[4/3] w-full object-cover" />
+                  <img
+                    src={program.src}
+                    srcSet={imageVariants(program.src, [480, 960])}
+                    sizes="(min-width: 1280px) 384px, (min-width: 768px) 30vw, 100vw"
+                    width={1536}
+                    height={1024}
+                    loading="lazy"
+                    decoding="async"
+                    alt=""
+                    className="aspect-[4/3] w-full object-cover"
+                  />
                   <h3 className="mt-6 font-display text-2xl text-on-card">{program.title}</h3>
                   <p className="mt-3 font-sans text-sm leading-relaxed text-muted-on-card">
                     {program.text}
@@ -358,16 +374,22 @@ export function HomePage() {
                   </div>
                 </div>
               </div>
-              <img
-                src="/images/experience-ecuries.webp"
-                alt=""
-                className="h-44 w-full object-cover md:h-full"
-              />
-              <img
-                src="/images/experience-carriere.webp"
-                alt=""
-                className="h-44 w-full object-cover md:h-full"
-              />
+              {['/images/experience-ecuries.webp', '/images/experience-carriere.webp'].map(
+                (src) => (
+                  <img
+                    key={src}
+                    src={src}
+                    srcSet={imageVariants(src, [640, 800, 1200])}
+                    sizes="(min-width: 768px) 46vw, 100vw"
+                    width={1536}
+                    height={1024}
+                    loading="lazy"
+                    decoding="async"
+                    alt=""
+                    className="h-44 w-full object-cover md:h-full"
+                  />
+                )
+              )}
             </div>
           </div>
         </section>
@@ -379,8 +401,13 @@ export function HomePage() {
               vraiment un second chez-soi. »
             </p>
             <footer className="mt-10 flex flex-col items-center gap-3">
+              {/* Avatar affiché en 56 px : variante 112 px (écrans haute densité) */}
               <img
-                src="/images/temoin-claire.webp"
+                src="/images/temoin-claire-112.webp"
+                width={56}
+                height={56}
+                loading="lazy"
+                decoding="async"
                 alt=""
                 className="size-14 rounded-full object-cover"
               />
@@ -560,9 +587,10 @@ export function HomePage() {
           </div>
         </div>
         <div className="border-t border-border-on-card px-8 py-6">
-          <p className="mx-auto max-w-7xl text-right font-sans text-xs text-muted-on-card">
-            Equime — centre équestre
-          </p>
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+            <LegalLinks />
+            <p className="font-sans text-xs text-muted-on-card">Equime — centre équestre</p>
+          </div>
         </div>
       </footer>
     </div>
@@ -576,6 +604,17 @@ function formatEventDate(iso) {
     day: date.toLocaleDateString('fr-FR', { day: '2-digit' }),
     month: date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').toUpperCase(),
   };
+}
+
+/**
+ * `srcSet` des variantes redimensionnées générées par
+ * `scripts/optimize-images.mjs` (`<image>-<largeur>.webp`).
+ * @param {string} src
+ * @param {number[]} widths
+ */
+function imageVariants(src, widths) {
+  const base = src.replace(/\.webp$/, '');
+  return widths.map((width) => `${base}-${width}.webp ${width}w`).join(', ');
 }
 
 function NewsletterForm() {
@@ -618,7 +657,10 @@ function NewsletterForm() {
       </div>
       <p className="font-sans text-xs text-muted-on-card">
         En vous inscrivant, vous acceptez de recevoir les actualités du club. Désinscription sur
-        demande.
+        demande.{' '}
+        <Link to="/confidentialite" className="underline hover:text-primary">
+          Données personnelles
+        </Link>
       </p>
       {mutation.isSuccess ? (
         <Alert variant="success">Inscription enregistrée. Vérifiez votre boîte mail.</Alert>
