@@ -42,12 +42,26 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 |---|---|---|
 | Unitaire | `apps/api/src/services/*.test.js`, `apps/api/src/lib/*.test.js` | récurrence, pricing, attribution, documents cavalier |
 | Intégration API | `apps/api/src/tests/core.test.js`, `phase4.test.js`, `phase5.test.js` | parcours métier par phase |
-| E2E | `playwright/e2e/*.spec.js` | 4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13) |
-| CI | `.github/workflows/ci.yml` | lint, tests API, couverture, Playwright |
+| E2E | `playwright/e2e/*.spec.js` | 4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13) — **verts en CI** |
+| CI | `.github/workflows/ci.yml` | lint, tests API, couverture, Playwright, deploy préprod (`develop`) / prod (`main` + approbation) |
+| Recette | `docs/cahier-de-recette.md` | Journal clôturé 2026-09-23 (health, HSTS, T-S/T-A, E2E) |
 
 ## Documents associés
 
 - Recette : `docs/cahier-de-recette.md`
+- Cahier de tests : `docs/cahier-de-tests.md`
+- Soutenance : `docs/soutenance-plan.md`, `docs/questions-jury.md`
+- Sécurité / RGPD : `docs/securite.md`, `docs/rgpd.md`
+- Déploiement : `docs/deploiement.md`
+
+## Clôture Phase 6–7 (2026-09-23)
+
+| Élément | Statut |
+|---|---|
+| US fonctionnelles Must/Should/Could | **Livré** (matrice ci-dessus) |
+| Recette préprod + prod | **Terminé** — journal §4 cahier de recette |
+| Déploiements CI | **Terminé** — préprod + prod verts |
+| Dossier jury (soutenance, questions, traçabilité) | **Terminé** |
 - Tests détaillés : `docs/cahier-de-tests.md`
 - Sécurité OWASP : `docs/securite.md`
 - RGPD : `docs/rgpd.md`
