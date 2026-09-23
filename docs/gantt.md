@@ -54,8 +54,8 @@ gantt
 | Fin S3 | Un client inscrit un cavalier à un cours récurrent visible au planning |
 | Fin S4 | Attribution automatique + facture payée de bout en bout ; couverture ≥ 70 % maintenue |
 | Fin S5 | Les 8 types de notification partent selon les préférences |
-| Fin S6 | Cahier de recette exécuté en préprod, prod déployée avec approbation |
-| Fin S7 | Dossier livrable au jury |
+| Fin S6 | Cahier de recette exécuté (CI + smoke préprod/prod), prod déployée avec approbation — **atteint 2026-09-23** |
+| Fin S7 | Dossier livrable au jury — **atteint** (traçabilité, soutenance, questions, cahiers alignés) |
 
 ## Risques planifiés
 
