@@ -7,6 +7,14 @@ import process from 'node:process';
 
 import { z } from 'zod';
 
+/** Chaîne optionnelle : une valeur vide dans le .env vaut « non renseignée ». */
+function optionalText() {
+  return z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().optional()
+  );
+}
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -46,6 +54,27 @@ export const envSchema = z
     CLUB_ADDRESS: z.string().default('12 chemin des Écuries, 31000 Toulouse'),
     CLUB_PHONE: z.string().default('05 61 00 00 00'),
     CLUB_EMAIL: z.string().default('contact@equime.local'),
+
+    // --- Informations légales de l'instance (LCEN art. 1-1, RGPD art. 13) ---
+    // Une instance par club : le club est éditeur et responsable de traitement,
+    // le fournisseur du logiciel est son sous-traitant. Tout est public, rien de
+    // secret ; une valeur vide vaut « non renseignée ».
+    /** Raison sociale (défaut : CLUB_NAME) */
+    CLUB_LEGAL_NAME: optionalText(),
+    /** Forme juridique et capital, ex. « SAS au capital de 10 000 € » */
+    CLUB_LEGAL_FORM: optionalText(),
+    /** Immatriculation, ex. « RCS Toulouse 123 456 789 » ou SIRET */
+    CLUB_REGISTRATION: optionalText(),
+    CLUB_PUBLICATION_DIRECTOR: optionalText(),
+    /** Médiateur de la consommation (Code de la consommation, L612-1) */
+    CLUB_MEDIATOR: optionalText(),
+    HOST_NAME: optionalText(),
+    HOST_ADDRESS: optionalText(),
+    HOST_PHONE: optionalText(),
+    /** Fournisseur du logiciel Equime (sous-traitant RGPD du club) */
+    SOFTWARE_PROVIDER: optionalText(),
+    /** Instance de démonstration : pas de vente réelle, éditeur non professionnel */
+    LEGAL_DEMO_INSTANCE: z.stringbool().default(false),
 
     // --- Paiement Stripe (optionnel : absent → simulé en development|test uniquement) ---
     /** Clé secrète Stripe — `sk_test_…` ou `sk_live_…` (test autorisé jusqu’au go-live) */

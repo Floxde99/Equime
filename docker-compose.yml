@@ -55,6 +55,11 @@ services:
       CLUB_ADDRESS: '${CLUB_ADDRESS:-12 chemin des Écuries, 31000 Toulouse}'
       CLUB_PHONE: '${CLUB_PHONE:-05 61 00 00 00}'
       CLUB_EMAIL: ${CLUB_EMAIL:-contact@equime.local}
+      LEGAL_DEMO_INSTANCE: ${LEGAL_DEMO_INSTANCE:-true}
+      HOST_NAME: ${HOST_NAME:-OVH SAS}
+      HOST_ADDRESS: '${HOST_ADDRESS:-2 rue Kellermann, 59100 Roubaix, France}'
+      HOST_PHONE: ${HOST_PHONE:-1007}
+      SOFTWARE_PROVIDER: '${SOFTWARE_PROVIDER:-Equime — logiciel de gestion de centre équestre}'
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_CURRENCY: ${STRIPE_CURRENCY:-eur}

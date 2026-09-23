@@ -25,6 +25,15 @@ const NotFoundPage = lazyNamed(
   () => import('@/features/home/pages/NotFoundPage.jsx'),
   'NotFoundPage'
 );
+const LegalNoticePage = lazyNamed(
+  () => import('@/features/legal/pages/LegalNoticePage.jsx'),
+  'LegalNoticePage'
+);
+const PrivacyPage = lazyNamed(
+  () => import('@/features/legal/pages/PrivacyPage.jsx'),
+  'PrivacyPage'
+);
+const TermsPage = lazyNamed(() => import('@/features/legal/pages/TermsPage.jsx'), 'TermsPage');
 const LoginPage = lazyNamed(() => import('@/features/auth/pages/LoginPage.jsx'), 'LoginPage');
 const RegisterPage = lazyNamed(
   () => import('@/features/auth/pages/RegisterPage.jsx'),
@@ -169,6 +178,11 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorPage />,
     children: [
       { path: '/', element: <HomePage /> },
+
+      // --- Pages légales (publiques, identité lue depuis la config d'instance) ---
+      { path: '/mentions-legales', element: <LegalNoticePage /> },
+      { path: '/confidentialite', element: <PrivacyPage /> },
+      { path: '/cgv', element: <TermsPage /> },
 
       // --- Pages publiques d'authentification (redirige si déjà connecté) ---
       {
