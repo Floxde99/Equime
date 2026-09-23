@@ -60,6 +60,9 @@ Corrections appliquées :
 3. **`loading="lazy"` + `decoding="async"`** sur toutes les images sous la ligne de
    flottaison. Un visiteur qui ne fait pas défiler la page ne télécharge que 397 Ko.
 4. **`width` / `height`** renseignés : le navigateur réserve la place, sans saut de mise en page.
+5. **Espace famille** : même traitement pour la photo de la page Factures (`ecuries-or.webp`,
+   1536 px et 180 Ko pour une colonne de 320 px) : variantes 640 et 960 px, soit **35 Ko**
+   sur ordinateur (−81 %), chargement différé (`ClientInvoicesPage.jsx`).
 
 ## 4. Autres mesures d'éco-conception en place
 
@@ -76,7 +79,8 @@ Corrections appliquées :
 
 ## 5. Pistes identifiées (non réalisées)
 
-- Appliquer la même optimisation aux images des espaces connectés (ex. `ecuries-or.webp`,
-  180 Ko pour une colonne de 320 px sur la page Factures).
-- Réduire les graisses de police chargées (5 fichiers, 89 Ko).
+- Étendre les variantes aux autres photos des espaces connectés : elles pèsent déjà moins
+  de 50 Ko chacune, le gain est faible.
+- Réduire les graisses de police chargées (5 fichiers, 89 Ko) : cela touche la charte
+  graphique et demande l'accord du commanditaire.
 - Publier une déclaration d'éco-conception RGESN au passage en production réelle.

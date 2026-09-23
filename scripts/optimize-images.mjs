@@ -29,6 +29,8 @@ const VARIANTS = {
   'experience-ecuries.webp': [640, 800, 1200],
   'experience-carriere.webp': [640, 800, 1200],
   'temoin-claire.webp': [112],
+  // Espace famille : colonne de 20rem sur la page Factures, pleine largeur sous 1024 px.
+  'ecuries-or.webp': [640, 960],
 };
 
 for (const [file, widths] of Object.entries(VARIANTS)) {

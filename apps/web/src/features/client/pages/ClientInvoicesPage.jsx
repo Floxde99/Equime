@@ -223,7 +223,18 @@ export function ClientInvoicesPage() {
               <p className="mt-1 font-sans text-sm text-muted-on-card">séances restantes</p>
             </Card>
             <div className="overflow-hidden rounded-xl">
-              <img src={STITCH_PHOTOS.billingStables} alt="" className="h-56 w-full object-cover" />
+              {/* Variantes générées par scripts/optimize-images.mjs (docs/eco-conception.md) */}
+              <img
+                src="/images/ecuries-or-640.webp"
+                srcSet={`/images/ecuries-or-640.webp 640w, /images/ecuries-or-960.webp 960w, ${STITCH_PHOTOS.billingStables} 1536w`}
+                sizes="(min-width: 1024px) 20rem, 100vw"
+                width={640}
+                height={427}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="h-56 w-full object-cover"
+              />
             </div>
           </div>
           <Card title="Historique">
