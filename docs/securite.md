@@ -111,7 +111,10 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 | Attribution transactionnelle | Affectation chevaux + charge hebdo dans une unique transaction Prisma, rollback complet sur erreur | `apps/api/src/services/horseAssignment.js` |
 | Audit sans écriture | Simulation batch admin sans modification BDD | `apps/api/src/services/horseAssignment.js`, `apps/api/src/routes/admin.routes.js` |
 | Isolation famille factures | Consultation/paiement/PDF client bornés à `family.userId` ; brouillons exclus de la liste et du PDF client | `apps/api/src/services/billingService.js`, `apps/api/src/lib/invoicePdf.js`, `apps/api/src/routes/client.routes.js` |
-| Paiement simulé maîtrisé | Aucun PSP réel ; simple changement d'état + notification | `apps/api/src/services/billingService.js` |
+| Paiement Stripe Checkout | Aucune CB stockée chez Equime (PCI hors scope) ; Session hébergée Stripe ; confirmation uniquement via webhook | `apps/api/src/services/paymentService.js`, ADR 008 |
+| Webhook signé (A02/A04) | Body brut `express.raw` avant `express.json` ; `constructEvent` + `STRIPE_WEBHOOK_SECRET` ; signature invalide → 400 | `apps/api/src/app.js`, `apps/api/src/routes/webhook.routes.js` |
+| Secrets paiement | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` uniquement en `.env` ; préfixes validés Zod au boot | `apps/api/src/config/env.js` |
+| Paiement simulé borné | `POST …/pay` uniquement si Stripe absent **et** `NODE_ENV` ∈ {development, test} ; sinon 410 | `apps/api/src/services/billingService.js` |
 
 ## Détail — événements, incidents, bénévolat, messagerie, notifications (Phase 5)
 

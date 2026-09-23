@@ -46,8 +46,52 @@ export const envSchema = z
     CLUB_ADDRESS: z.string().default('12 chemin des Écuries, 31000 Toulouse'),
     CLUB_PHONE: z.string().default('05 61 00 00 00'),
     CLUB_EMAIL: z.string().default('contact@equime.local'),
+
+    // --- Paiement Stripe (optionnel : absent → simulé en development|test uniquement) ---
+    /** Clé secrète Stripe — `sk_test_…` ou `sk_live_…` (test autorisé jusqu’au go-live) */
+    STRIPE_SECRET_KEY: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.string().optional()
+    ),
+    /** Secret de signature des webhooks — `whsec_…` (CLI ou Dashboard) */
+    STRIPE_WEBHOOK_SECRET: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+      z.string().optional()
+    ),
+    /** Devise ISO lowercase pour Checkout (défaut EUR) */
+    STRIPE_CURRENCY: z
+      .string()
+      .regex(/^[a-z]{3}$/, 'STRIPE_CURRENCY doit être un code ISO à 3 lettres (ex. eur)')
+      .default('eur'),
   })
   .superRefine((data, ctx) => {
+    if (data.STRIPE_SECRET_KEY) {
+      if (
+        !data.STRIPE_SECRET_KEY.startsWith('sk_test_') &&
+        !data.STRIPE_SECRET_KEY.startsWith('sk_live_')
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['STRIPE_SECRET_KEY'],
+          message: 'STRIPE_SECRET_KEY doit commencer par sk_test_ ou sk_live_',
+        });
+      }
+      if (!data.STRIPE_WEBHOOK_SECRET) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['STRIPE_WEBHOOK_SECRET'],
+          message: 'STRIPE_WEBHOOK_SECRET est requis lorsque STRIPE_SECRET_KEY est défini',
+        });
+      }
+    }
+    if (data.STRIPE_WEBHOOK_SECRET && !data.STRIPE_WEBHOOK_SECRET.startsWith('whsec_')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['STRIPE_WEBHOOK_SECRET'],
+        message: 'STRIPE_WEBHOOK_SECRET doit commencer par whsec_',
+      });
+    }
+
     if (data.NODE_ENV !== 'production') return;
     for (const [key, value] of Object.entries(data)) {
       if (typeof value === 'string' && value.startsWith('change_me')) {
@@ -76,3 +120,26 @@ export const env = parsed.data;
 export const isDev = env.NODE_ENV === 'development';
 export const isTest = env.NODE_ENV === 'test';
 export const isProd = env.NODE_ENV === 'production';
+
+/** Stripe configuré (clés présentes et validées au boot). */
+export const isStripeConfigured = Boolean(env.STRIPE_SECRET_KEY);
+
+/**
+ * Paiement simulé autorisé uniquement sans Stripe et hors production.
+ * @returns {boolean}
+ */
+export function isSimulatedPaymentAllowed() {
+  return !isStripeConfigured && (isDev || isTest);
+}
+
+/**
+ * Config exposable au front (bandeau mode test).
+ * @returns {{ provider: 'stripe' | 'simulated', mode: 'test' | 'live' }}
+ */
+export function getPaymentConfig() {
+  if (!isStripeConfigured) {
+    return { provider: 'simulated', mode: 'test' };
+  }
+  const mode = env.STRIPE_SECRET_KEY.startsWith('sk_live_') ? 'live' : 'test';
+  return { provider: 'stripe', mode };
+}

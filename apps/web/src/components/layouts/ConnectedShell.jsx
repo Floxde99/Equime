@@ -1,10 +1,11 @@
-import { Bell, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
 
 import { BrandLockup } from '@/components/ui/brand-lockup.jsx';
 import { SkipLink } from '@/components/ui/skip-link.jsx';
 import { LogoutButton } from '@/features/auth/LogoutButton.jsx';
+import { NotificationBell } from '@/features/engagement/components/NotificationBell.jsx';
 import { cn } from '@/lib/utils.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
@@ -78,13 +79,7 @@ export function ConnectedShell({ eyebrow, items, cta, notificationsTo, navLabel 
               <BrandLockup size="md" tone="dark" showMark={false} />
             </div>
             <div className="flex items-center gap-3">
-              <Link
-                to={notificationsTo}
-                className="inline-flex size-11 items-center justify-center rounded-full text-muted hover:bg-card hover:text-on-card"
-                aria-label="Notifications"
-              >
-                <Bell className="size-5" />
-              </Link>
+              <NotificationBell to={notificationsTo} />
               <span
                 className="inline-flex size-10 items-center justify-center rounded-full bg-primary font-sans text-sm font-semibold text-primary-fg"
                 aria-hidden="true"

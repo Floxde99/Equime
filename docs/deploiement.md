@@ -507,6 +507,79 @@ sudo systemctl restart ssh   # vérifier la reconnexion dans un second terminal 
 
 ---
 
+## 9bis. Paiement Stripe (Checkout + webhook)
+
+Variables dans `.env.preprod` / `.env.prod` (voir `.env.*.example`) :
+
+| Variable | Exemple | Rôle |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | `sk_test_…` ou `sk_live_…` | API Stripe |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Signature des webhooks |
+| `STRIPE_CURRENCY` | `eur` | Devise Checkout |
+| `APP_URL` | URL du front | `success_url` / `cancel_url` |
+
+**Endpoint webhook** (public, sans JWT) : `POST /api/v1/webhooks/stripe`.
+Le body doit arriver **brut** (pas de rebuffering qui casse la signature) —
+Caddy → API en direct est OK.
+
+### Dev local (Stripe CLI)
+
+Sous **PowerShell**, ne pas passer `--events a,b` sans guillemets :
+PowerShell coupe à la virgule et le listener ne reçoit pas
+`checkout.session.completed`. Préférer `--all-snapshot`, ou des guillemets :
+
+```powershell
+stripe login
+# Recommandé (PowerShell / Windows) :
+stripe listen --all-snapshot --forward-to localhost:3000/api/v1/webhooks/stripe
+# Ou avec liste d’événements quotée :
+# stripe listen --events "checkout.session.completed,checkout.session.async_payment_succeeded" --forward-to localhost:3000/api/v1/webhooks/stripe
+# Copier le whsec_… affiché dans .env → STRIPE_WEBHOOK_SECRET
+# Relancer l'API (ex. docker compose up -d --force-recreate api), renseigner aussi STRIPE_SECRET_KEY=sk_test_…
+```
+
+Sous bash / Git Bash, `--events a,b` sans guillemets fonctionne aussi.
+
+Carte test : `4242 4242 4242 4242`, date future, CVC quelconque.
+
+**Filet de sécurité** : au retour Checkout (`?paid=1`), le front appelle
+`POST /api/v1/client/invoices/:id/confirm-checkout`, qui interroge Stripe
+(`sessions.retrieve`) et marque la facture payée si `payment_status === paid`
+(idempotent avec le webhook).
+
+### Préprod / prod (Dashboard)
+
+1. Developers → Webhooks → Add endpoint  
+   `https://preprod.equime.fr/api/v1/webhooks/stripe` (ou domaine prod).
+2. Événements : `checkout.session.completed`, `checkout.session.async_payment_succeeded`.
+3. Copier le signing secret → `STRIPE_WEBHOOK_SECRET`.
+4. **Go-live** : remplacer `sk_test_` / `whsec_` test par les clés **live** dans `.env` uniquement (même code, ADR 008). Redémarrer l’API.
+
+Sans `STRIPE_SECRET_KEY`, le paiement simulé reste actif uniquement si `NODE_ENV` est `development` ou `test` (CI Playwright).
+
+---
+
+## 9ter. Emails transactionnels (SendGrid)
+
+Variables dans `.env` / `.env.preprod` / `.env.prod` (voir les fichiers `.env*.example`) :
+
+| Variable | Exemple | Rôle |
+|---|---|---|
+| `SENDGRID_API_KEY` | `SG.…` | Clé API SendGrid |
+| `MAIL_FROM` | `no-reply@equime.fr` | Expéditeur **vérifié** (Sender Authentication) |
+| `APP_URL` | URL du front | Liens CTA dans les emails |
+
+**Sans `SENDGRID_API_KEY`** (dev, CI) : aucun envoi réel — l’API journalise
+`[mailer] email simulé (dev)` et le flux métier (notifications in-app) continue.
+
+**Avec clé** : les notifications concernées (facture, paiement, inscription
+cours/événement, absence, abonnement, reset mot de passe, newsletter) partent
+via SendGrid. `MAIL_FROM` doit être un domaine/adresse **authentifié** dans
+SendGrid ; une adresse fictive du type `no-reply@equime.local` est refusée
+par les FAI.
+
+---
+
 ## 10. Déploiement continu (GitHub Actions)
 
 Une fois configuré, `develop` déploie automatiquement en préproduction, et

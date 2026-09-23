@@ -36,6 +36,8 @@ function formatDate(value) {
  *   onRetry?: () => void,
  *   showFamily?: boolean,
  *   pdfPath?: string | null,
+ *   onPay?: (() => void) | null,
+ *   payLoading?: boolean,
  * }} props
  */
 export function InvoiceDetailDialog({
@@ -48,6 +50,8 @@ export function InvoiceDetailDialog({
   onRetry,
   showFamily = false,
   pdfPath = null,
+  onPay = null,
+  payLoading = false,
 }) {
   const [downloading, setDownloading] = useState(false);
   const [pdfError, setPdfError] = useState('');
@@ -80,6 +84,11 @@ export function InvoiceDetailDialog({
           <Button type="button" variant="secondary" onClick={onClose}>
             Fermer
           </Button>
+          {onPay ? (
+            <Button type="button" variant="secondary" loading={payLoading} onClick={onPay}>
+              Payer
+            </Button>
+          ) : null}
           {invoice && pdfPath ? (
             <Button type="button" loading={downloading} onClick={handleDownload}>
               Télécharger le PDF

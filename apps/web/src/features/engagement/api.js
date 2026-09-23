@@ -61,13 +61,21 @@ export function updateNotificationPreference(type, body) {
   return api.put(`/notifications/preferences/${type}`, body).then((r) => r.preference);
 }
 
+/** @returns {Promise<{ notifications: object[], unreadCount: number }>} */
 export function fetchNotifications() {
-  return api.get('/notifications').then((r) => r.notifications);
+  return api.get('/notifications').then((r) => ({
+    notifications: r.notifications,
+    unreadCount: r.unreadCount ?? 0,
+  }));
 }
 
 /** @param {string} id */
 export function markNotificationRead(id) {
   return api.post(`/notifications/${id}/read`, {}).then((r) => r.notification);
+}
+
+export function markAllNotificationsRead() {
+  return api.post('/notifications/read-all', {});
 }
 
 export function fetchIncidents(filters = {}) {

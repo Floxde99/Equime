@@ -28,5 +28,6 @@
 ## Pièges à préparer
 
 - Différence **préprod** vs **prod** (compose + Nginx SSL).
-- Limites connues : paiement simulé (pas Stripe), pas de WebSocket, pas de PWA / hors-ligne (Excel 4.7 — web responsive), KPIs d’analyse sans prédiction ML (Excel 5.1). L’export portabilité JSON est disponible depuis « Mon compte ».
+- Limites connues : abonnements Stripe récurrents / SEPA hors v1 (Checkout one-shot livré, ADR 008 — clés test OK préprod/prod jusqu’au go-live), pas de WebSocket, pas de PWA / hors-ligne (Excel 4.7 — web responsive), KPIs d’analyse sans prédiction ML (Excel 5.1). L’export portabilité JSON est disponible depuis « Mon compte ».
+- **Paiement** : aucune CB dans React ; confirmation via webhook signé ; carte test Stripe `4242 4242 4242 4242`.
 

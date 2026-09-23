@@ -68,13 +68,20 @@ export async function updateNotificationPreference(userId, type, input) {
 
 /**
  * @param {string} userId
+ * @returns {Promise<{ notifications: object[], unreadCount: number }>}
  */
 export async function listNotifications(userId) {
-  return prisma.notification.findMany({
-    where: { userId },
-    select: NOTIFICATION_SELECT,
-    orderBy: { createdAt: 'desc' },
-  });
+  const [notifications, unreadCount] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId },
+      select: NOTIFICATION_SELECT,
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.notification.count({
+      where: { userId, readAt: null },
+    }),
+  ]);
+  return { notifications, unreadCount };
 }
 
 /**

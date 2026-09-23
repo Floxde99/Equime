@@ -236,6 +236,7 @@ export const router = createBrowserRouter([
                   { path: '/moniteur/sante', element: <InstructorHealthPage /> },
                   { path: '/moniteur/sante/:id', element: <InstructorHorseHealthPage /> },
                   { path: '/moniteur/messages', element: <MessagesPage /> },
+                  { path: '/moniteur/notifications', element: <NotificationsPage /> },
                 ],
               },
             ],

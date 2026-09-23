@@ -18,7 +18,7 @@ export function InstructorLayout() {
       eyebrow="Espace moniteur"
       items={ITEMS}
       cta={{ to: '/moniteur/appel', label: 'Faire l’appel' }}
-      notificationsTo="/moniteur/messages"
+      notificationsTo="/moniteur/notifications"
       navLabel="Navigation moniteur"
     />
   );

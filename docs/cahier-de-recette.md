@@ -52,7 +52,7 @@ npm run e2e
 | E2E-1 | Inscription client | `/register` → création compte → déconnexion | Dashboard client puis retour `/login` | `auth.spec.js` | ✅ auto |
 | E2E-2 | Client cavaliers + planning | Connexion client → ajout cavalier → réservation cours → planning | Cavalier visible, inscription confirmée, séance au planning | `client-flow.spec.js` | ✅ auto |
 | E2E-3 | Moniteur planning + appel | Connexion moniteur → planning → appel séance | Filtre planning, attribution chevaux, sélection séance appel | `instructor-flow.spec.js` | ✅ auto |
-| E2E-4 | Paiement facture | Client paie FAC-2026-0002 → admin vérifie statut | Statut « Payée » côté client et admin | `billing-flow.spec.js` | ✅ auto |
+| E2E-4 | Paiement facture | Client paie FAC-2026-0002 → admin vérifie statut | Statut « Payée » côté client et admin (simulé si pas de Stripe ; sinon Checkout + webhook) | `billing-flow.spec.js` | ✅ auto |
 | E2E-5 | Vitrine | Nav Accueil / Formules / Cours, CTA Connexion | Pages publiques accessibles, lien vers `/login` | `public.spec.js` | ⬜ |
 | E2E-6 | Isolation des rôles | Client ouvre `/admin` ; visiteur ouvre `/app` | Client renvoyé vers `/app` ; visiteur vers `/login` | `guards.spec.js` | ⬜ |
 | E2E-7 | Inscription aux stages | Client → Inscriptions aux stages → inscrire Emma au Stage vacances (seed) | Inscription confirmée | `client-engagement.spec.js` | ⬜ |
@@ -129,6 +129,13 @@ Légende T-A : ✅ critère du cahier atteint sur le périmètre exercé ; ⚠�
 | T-A.1 | Mineure | Tiroir de navigation mobile : pas de piège de focus (hors parcours desktop T-A.1). | À traiter si recette mobile / RGAA complète. | Ouvert |
 | T-A.2 | Mineure | Critère « jamais couleur seule » OK en code ; aucune session lecteur d'écran consignée. | Exécuter NVDA ou VoiceOver et annexer le journal. | Ouvert |
 | T-A.1 | Info | Piège de focus `Dialog` non rejoué live (seed sans séances à venir). | Spot-check manuel sur une fiche avec modale (absence, facture, confirmation). | Ouvert |
+
+### Recette manuelle Stripe (hors CI)
+
+1. Renseigner `STRIPE_SECRET_KEY` (`sk_test_`) + `STRIPE_WEBHOOK_SECRET` (`stripe listen` ou Dashboard).
+2. Client → Facturation → **Payer** → redirect Checkout → carte `4242…`.
+3. Retour `?paid=1` : statut **Payée** après webhook (bandeau « Mode test » visible).
+4. Sans clés Stripe : le parcours E2E-4 utilise le **paiement simulé** (inchangé).
 
 ---
 

@@ -4,9 +4,11 @@
  */
 import { ATTENDANCE_STATUS, COURSE_STATUS, NOTIFICATION_TYPES, ROLES } from '@equime/shared';
 
+import { env } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
 import { isLevelInRange } from '../lib/levels.js';
+import { buildSimpleNotificationEmail } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 
@@ -15,7 +17,7 @@ import {
   listHorseOverrideOptions,
   overrideAssignedHorse,
 } from './horseAssignment.js';
-import { createNotification } from './notificationService.js';
+import { dispatchNotification } from './notificationService.js';
 import { getPlanningCached, invalidatePlanningCache } from './planningCache.js';
 import { expandWeeklyRecurrence } from './recurrence.js';
 import { assertNoSpaceConflict, assertRidingSpace } from './spaceService.js';
@@ -256,19 +258,40 @@ export async function cancelCourse(courseId, cancelSeries) {
   const enrollments = await prisma.courseEnrollment.findMany({
     where: { courseId: { in: cancelledCourseIds } },
     include: {
-      rider: { include: { family: { select: { userId: true } } } },
+      rider: {
+        include: {
+          family: {
+            select: {
+              userId: true,
+              user: { select: { firstName: true } },
+            },
+          },
+        },
+      },
       course: { select: { title: true, startAt: true } },
     },
   });
 
   for (const enrollment of enrollments) {
     const dateLabel = enrollment.course.startAt.toLocaleDateString('fr-FR');
-    await createNotification({
+    const title = enrollment.course.title;
+    const firstName = enrollment.rider.family.user.firstName;
+    await dispatchNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.COURSE_CANCELLED,
       title: 'Cours annulé',
-      body: `Le cours « ${enrollment.course.title} » du ${dateLabel} a été annulé`,
+      body: `Le cours « ${title} » du ${dateLabel} a été annulé`,
       linkUrl: '/app/planning',
+      email: buildSimpleNotificationEmail({
+        firstName,
+        subject: `Equime — Cours annulé : ${title}`,
+        paragraphs: [
+          `Le cours « ${title} » du ${dateLabel} a été annulé.`,
+          'Consultez le planning pour les prochaines séances.',
+        ],
+        ctaUrl: `${env.APP_URL}/app/planning`,
+        ctaLabel: 'Voir le planning',
+      }),
     });
   }
 
@@ -340,7 +363,14 @@ export async function getPlanningEvents(params) {
  */
 export async function enrollRider(userId, courseId, riderId, options = {}) {
   const force = options.role === ROLES.ADMIN && options.force === true;
-  const riderInclude = { family: { select: { userId: true } } };
+  const riderInclude = {
+    family: {
+      select: {
+        userId: true,
+        user: { select: { firstName: true } },
+      },
+    },
+  };
 
   const rider =
     options.role === ROLES.ADMIN
@@ -398,12 +428,23 @@ export async function enrollRider(userId, courseId, riderId, options = {}) {
     });
   });
 
-  await createNotification({
+  const body = `${rider.firstName} est inscrit(e) au cours « ${course.title} »`;
+  await dispatchNotification({
     userId: rider.family.userId,
     type: NOTIFICATION_TYPES.COURSE_ENROLLED,
     title: 'Inscription confirmée',
-    body: `${rider.firstName} est inscrit(e) au cours « ${course.title} »`,
+    body,
     linkUrl: '/app/planning',
+    email: buildSimpleNotificationEmail({
+      firstName: rider.family.user.firstName,
+      subject: `Equime — Inscription confirmée : ${course.title}`,
+      paragraphs: [
+        body,
+        'Retrouvez le détail de la séance dans votre planning.',
+      ],
+      ctaUrl: `${env.APP_URL}/app/planning`,
+      ctaLabel: 'Voir le planning',
+    }),
   });
 
   await invalidatePlanningCache();
@@ -435,7 +476,16 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
   const enrollment = await prisma.courseEnrollment.findFirst({
     where: { id: enrollmentId, courseId },
     include: {
-      rider: { include: { family: { select: { userId: true } } } },
+      rider: {
+        include: {
+          family: {
+            select: {
+              userId: true,
+              user: { select: { firstName: true } },
+            },
+          },
+        },
+      },
       course: { select: { title: true, startAt: true } },
     },
   });
@@ -469,14 +519,25 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
     (clientExcuse && previous !== ATTENDANCE_STATUS.EXCUSED) ||
     (instructorAbsence && previous !== ATTENDANCE_STATUS.ABSENT)
   ) {
-    await createNotification({
+    const body = clientExcuse
+      ? `${enrollment.rider.firstName} sera absent(e) au cours « ${enrollment.course.title} »`
+      : `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`;
+    await dispatchNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.RIDER_ABSENCE,
       title: 'Absence signalée',
-      body: clientExcuse
-        ? `${enrollment.rider.firstName} sera absent(e) au cours « ${enrollment.course.title} »`
-        : `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`,
+      body,
       linkUrl: '/app/planning',
+      email: buildSimpleNotificationEmail({
+        firstName: enrollment.rider.family.user.firstName,
+        subject: `Equime — Absence signalée : ${enrollment.course.title}`,
+        paragraphs: [
+          body,
+          'Vous pouvez consulter le planning depuis votre espace Equime.',
+        ],
+        ctaUrl: `${env.APP_URL}/app/planning`,
+        ctaLabel: 'Voir le planning',
+      }),
     });
   }
 

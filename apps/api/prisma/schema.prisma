@@ -451,16 +451,20 @@ model DiscountRule {
 }
 
 model Invoice {
-  id         String        @id @default(cuid())
-  familyId   String
-  number     String        @unique
-  status     InvoiceStatus @default(draft)
-  issuedAt   DateTime?
-  dueAt      DateTime?
-  totalCents Int           @default(0)
-  paidAt     DateTime?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id                       String        @id @default(cuid())
+  familyId                 String
+  number                   String        @unique
+  status                   InvoiceStatus @default(draft)
+  issuedAt                 DateTime?
+  dueAt                    DateTime?
+  totalCents               Int           @default(0)
+  paidAt                   DateTime?
+  /// Session Stripe Checkout (idempotence / reprise) — unique si présente
+  stripeCheckoutSessionId  String?       @unique
+  /// PaymentIntent Stripe une fois le paiement confirmé
+  stripePaymentIntentId    String?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
   family Family        @relation(fields: [familyId], references: [id])
   items  InvoiceItem[]

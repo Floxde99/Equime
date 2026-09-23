@@ -165,6 +165,7 @@ describe('Phase 5 — notifications & préférences', () => {
 
     expect(notificationsRes.status).toBe(200);
     expect(notificationsRes.body.notifications[0].type).toBe('invoice_created');
+    expect(notificationsRes.body.unreadCount).toBe(1);
 
     const markReadRes = await request(app)
       .post(`/api/v1/notifications/${notificationsRes.body.notifications[0].id}/read`)
@@ -173,6 +174,108 @@ describe('Phase 5 — notifications & préférences', () => {
 
     expect(markReadRes.status).toBe(200);
     expect(markReadRes.body.notification.readAt).toBeTruthy();
+  });
+
+  it('envoie un email course_enrolled / rider_absence et gère unreadCount + read-all', async () => {
+    const emailSpy = vi.spyOn(mailer, 'sendTransactionalEmail').mockResolvedValue(undefined);
+
+    const space = await prisma.space.create({
+      data: { name: 'Manège notif', type: 'indoor', capacity: 12 },
+    });
+    const course = await prisma.course.create({
+      data: {
+        title: 'Galop 3 notif',
+        instructorId: instructor.id,
+        spaceId: space.id,
+        startAt: new Date(Date.now() + 3 * 86400000),
+        endAt: new Date(Date.now() + 3 * 86400000 + 3600000),
+        capacity: 8,
+        minLevel: 'galop_1',
+        maxLevel: 'galop_5',
+        status: 'scheduled',
+      },
+    });
+    const rider = await createClientRider();
+
+    const enrollRes = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id });
+
+    expect(enrollRes.status).toBe(201);
+    expect(emailSpy).toHaveBeenCalled();
+    expect(emailSpy.mock.calls[0][0].subject).toMatch(/Inscription confirmée/i);
+    expect(emailSpy.mock.calls[0][0].text).toMatch(/Emma/);
+
+    const listRes = await request(app)
+      .get('/api/v1/notifications')
+      .set(authHeader(clientToken));
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.notifications.some((n) => n.type === 'course_enrolled')).toBe(true);
+    expect(listRes.body.unreadCount).toBeGreaterThanOrEqual(1);
+
+    const enrollmentId = enrollRes.body.enrollment.id;
+    emailSpy.mockClear();
+
+    const excuseRes = await request(app)
+      .patch(`/api/v1/courses/${course.id}/enrollments/${enrollmentId}/attendance`)
+      .set(authHeader(clientToken))
+      .send({ attendance: 'excused' });
+    expect(excuseRes.status).toBe(200);
+    expect(emailSpy).toHaveBeenCalled();
+    expect(emailSpy.mock.calls[0][0].subject).toMatch(/Absence signalée/i);
+
+    const readAllRes = await request(app)
+      .post('/api/v1/notifications/read-all')
+      .set(authHeader(clientToken))
+      .send({});
+    expect(readAllRes.status).toBe(204);
+
+    const afterReadAll = await request(app)
+      .get('/api/v1/notifications')
+      .set(authHeader(clientToken));
+    expect(afterReadAll.body.unreadCount).toBe(0);
+    expect(afterReadAll.body.notifications.every((n) => n.readAt)).toBe(true);
+  });
+
+  it('n’envoie pas d’email course_enrolled si la préférence email est désactivée', async () => {
+    await request(app)
+      .put('/api/v1/notifications/preferences/course_enrolled')
+      .set(authHeader(clientToken))
+      .send({ emailEnabled: false, inAppEnabled: true });
+
+    const emailSpy = vi.spyOn(mailer, 'sendTransactionalEmail').mockResolvedValue(undefined);
+
+    const space = await prisma.space.create({
+      data: { name: 'Carrière notif', type: 'outdoor', capacity: 20 },
+    });
+    const course = await prisma.course.create({
+      data: {
+        title: 'Sans email',
+        instructorId: instructor.id,
+        spaceId: space.id,
+        startAt: new Date(Date.now() + 4 * 86400000),
+        endAt: new Date(Date.now() + 4 * 86400000 + 3600000),
+        capacity: 8,
+        minLevel: 'galop_1',
+        maxLevel: 'galop_5',
+        status: 'scheduled',
+      },
+    });
+    const rider = await createClientRider({ firstName: 'Léa' });
+
+    const enrollRes = await request(app)
+      .post(`/api/v1/courses/${course.id}/enrollments`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id });
+
+    expect(enrollRes.status).toBe(201);
+    expect(emailSpy).not.toHaveBeenCalled();
+
+    const notification = await prisma.notification.findFirst({
+      where: { userId: client.id, type: 'course_enrolled' },
+    });
+    expect(notification).not.toBeNull();
   });
 });
 
