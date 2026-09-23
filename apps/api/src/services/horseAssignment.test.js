@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  candidateWarning,
   durationHoursFromRange,
+  levelFit,
+  OVER_LEVEL_PENALTY,
   rankCandidateHorses,
   scoreRiderHorse,
   simulateHorseAssignments,
@@ -178,6 +181,80 @@ describe('simulateHorseAssignments', () => {
         reason: 'Aucun cheval eligible disponible',
       }),
     ]);
+  });
+});
+
+/** @returns {object} cheval apte, charge max 10 h */
+function horse(id, name, minLevel, maxLevel, weeklyLoadHours, status = 'fit') {
+  return { id, name, status, minLevel, maxLevel, weeklyLoadHours, maxWeeklyLoadHours: 10 };
+}
+
+describe('règle de niveau asymétrique (ADR 009)', () => {
+  const tornade = horse('h1', 'Tornade', 'galop_3', 'galop_7', 2);
+
+  it('classe le cavalier sous, dans ou au-dessus de la plage du cheval', () => {
+    expect(levelFit('galop_1', tornade)).toBe('under');
+    expect(levelFit('galop_5', tornade)).toBe('ok');
+    expect(levelFit('galop_2', horse('h2', 'Caramel', 'initiation', 'galop_1', 0))).toBe('over');
+  });
+
+  it('pénalise le cavalier trop avancé plus lourdement que le bonus de compatibilité', () => {
+    const pony = horse('h2', 'Caramel', 'initiation', 'galop_2', 0);
+    expect(scoreRiderHorse({ rider: { level: 'galop_4' }, horse: pony })).toBe(-OVER_LEVEL_PENALTY);
+    expect(scoreRiderHorse({ rider: { level: 'galop_2' }, horse: pony })).toBe(5);
+  });
+
+  it('combine les avertissements de niveau et d’affinité', () => {
+    expect(candidateWarning({ levelFit: 'ok', affinity: 'neutral' })).toBeNull();
+    expect(candidateWarning({ levelFit: 'under', affinity: 'avoid' })).toBe(
+      'Cavalier sous le niveau minimum du cheval · Affinité à éviter'
+    );
+  });
+
+  it('garde les chevaux trop exigeants dans les options d’override, signalés', () => {
+    const ranked = rankCandidateHorses({
+      rider: { level: 'galop_1' },
+      horses: [tornade],
+      affinitiesByHorseId: new Map(),
+      takenHorseIds: new Set(),
+    });
+    expect(ranked).toMatchObject([{ levelFit: 'under', levelCompatible: false }]);
+  });
+
+  // Jeu d'essai du dossier (docs/cahier-de-tests.md) : avant la règle, Tom
+  // (galop 1) recevait Tornade (galop 3–7) et Emma (galop 4) le poney Caramel.
+  it('jeu d’essai : aucun cavalier placé sur un cheval au-dessus de son niveau', () => {
+    const rider = (id, firstName, level) => ({ id, firstName, lastName: '', level });
+    const result = simulateHorseAssignments({
+      course: {
+        startAt: new Date('2026-10-01T10:00:00.000Z'),
+        endAt: new Date('2026-10-01T11:00:00.000Z'),
+      },
+      enrollments: [
+        { id: 'e1', rider: rider('r1', 'Emma', 'galop_4') },
+        { id: 'e2', rider: rider('r2', 'Tom', 'galop_1') },
+        { id: 'e3', rider: rider('r3', 'Lea', 'galop_5') },
+        { id: 'e4', rider: rider('r4', 'Hugo', 'initiation') },
+      ],
+      horses: [
+        tornade,
+        horse('h2', 'Caramel', 'initiation', 'galop_2', 1),
+        horse('h3', 'Eclair', 'galop_3', 'galop_7', 9),
+        horse('h4', 'Brume', 'galop_1', 'galop_5', 0, 'unavailable'),
+        horse('h5', 'Saphir', 'galop_1', 'galop_4', 10),
+      ],
+      affinities: [
+        { riderId: 'r1', horseId: 'h3', affinity: 'favorite' },
+        { riderId: 'r3', horseId: 'h1', affinity: 'avoid' },
+      ],
+    });
+
+    expect(result.assignments.map((a) => [a.riderName.trim(), a.horse.name, a.score])).toEqual([
+      ['Emma', 'Tornade', -5],
+      ['Tom', 'Caramel', 0],
+      ['Lea', 'Eclair', -40],
+    ]);
+    expect(result.conflicts).toMatchObject([{ enrollmentId: 'e4' }]);
   });
 });
 

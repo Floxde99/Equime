@@ -178,7 +178,7 @@ function OverrideRow({ enrollment, options, onOverride }) {
               { value: '', label: '— Choisir —' },
               ...options.map((option) => ({
                 value: option.horseId,
-                label: `${option.horseName} · score ${option.score}${option.warning ? ' · à éviter' : ''}`,
+                label: `${option.horseName} · score ${option.score}${option.warning ? ` · ⚠ ${option.warning}` : ''}`,
               })),
             ]}
           />
