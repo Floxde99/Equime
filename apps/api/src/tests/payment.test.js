@@ -155,6 +155,77 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
 
     expect(res.status).toBe(410);
   });
+
+  it('refuse checkout si facture déjà payée', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7010',
+        status: 'paid',
+        issuedAt: new Date(),
+        paidAt: new Date(),
+        totalCents: 1000,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1000, totalCents: 1000 }],
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(stripeMocks.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuse checkout si montant invalide', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7011',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 0,
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(stripeMocks.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it('répond 503 si Stripe ne renvoie pas d’URL', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7012',
+        status: 'overdue',
+        issuedAt: new Date(),
+        totalCents: 2000,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 2000, totalCents: 2000 }],
+        },
+      },
+    });
+
+    stripeMocks.sessionsCreate.mockResolvedValue({
+      id: 'cs_test_no_url',
+      url: null,
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(503);
+  });
 });
 
 describe('POST /api/v1/webhooks/stripe', () => {
@@ -171,6 +242,16 @@ describe('POST /api/v1/webhooks/stripe', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error?.code).toBe('BAD_REQUEST');
+  });
+
+  it('répond 400 si Stripe-Signature est absent', async () => {
+    const res = await request(app)
+      .post('/api/v1/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ type: 'checkout.session.completed' }));
+
+    expect(res.status).toBe(400);
+    expect(stripeMocks.constructEvent).not.toHaveBeenCalled();
   });
 
   it('marque la facture payée une seule fois (double delivery idempotente)', async () => {
@@ -299,6 +380,93 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
     expect(res.body.invoice.status).toBe('paid');
     expect(stripeMocks.sessionsRetrieve).not.toHaveBeenCalled();
   });
+
+  it('refuse confirm sans session Checkout associée', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7013',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1100,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1100, totalCents: 1100 }],
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/confirm-checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(stripeMocks.sessionsRetrieve).not.toHaveBeenCalled();
+  });
+
+  it('ne confirme pas si payment_status Stripe n’est pas paid', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7014',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1200,
+        stripeCheckoutSessionId: 'cs_test_unpaid',
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1200, totalCents: 1200 }],
+        },
+      },
+    });
+
+    stripeMocks.sessionsRetrieve.mockResolvedValue({
+      id: 'cs_test_unpaid',
+      payment_status: 'unpaid',
+      payment_intent: null,
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/confirm-checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.confirmed).toBe(false);
+    const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    expect(stored.status).toBe('sent');
+  });
+
+  it('extrait payment_intent objet lors du confirm', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7015',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1300,
+        stripeCheckoutSessionId: 'cs_test_pi_obj',
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1300, totalCents: 1300 }],
+        },
+      },
+    });
+
+    stripeMocks.sessionsRetrieve.mockResolvedValue({
+      id: 'cs_test_pi_obj',
+      payment_status: 'paid',
+      payment_intent: { id: 'pi_from_object' },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/confirm-checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.confirmed).toBe(true);
+    const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    expect(paid.stripePaymentIntentId).toBe('pi_from_object');
+  });
 });
 
 describe('handleStripeWebhookEvent (unit)', () => {
@@ -308,6 +476,45 @@ describe('handleStripeWebhookEvent (unit)', () => {
       data: { object: {} },
     });
     expect(result.handled).toBe(false);
+  });
+
+  it('ignore un événement sans invoiceId', async () => {
+    const result = await paymentService.handleStripeWebhookEvent({
+      type: 'checkout.session.completed',
+      data: { object: { metadata: {}, payment_intent: null } },
+    });
+    expect(result.handled).toBe(false);
+  });
+
+  it('accepte async_payment_succeeded via client_reference_id et payment_intent objet', async () => {
+    const invoice = await prisma.invoice.create({
+      data: {
+        familyId: clientFamilyId,
+        number: 'FAC-2026-7016',
+        status: 'sent',
+        issuedAt: new Date(),
+        totalCents: 1800,
+        items: {
+          create: [{ label: 'Stage', quantity: 1, unitCents: 1800, totalCents: 1800 }],
+        },
+      },
+    });
+
+    const result = await paymentService.handleStripeWebhookEvent({
+      type: 'checkout.session.async_payment_succeeded',
+      data: {
+        object: {
+          client_reference_id: invoice.id,
+          metadata: null,
+          payment_intent: { id: 'pi_async_obj' },
+        },
+      },
+    });
+
+    expect(result.handled).toBe(true);
+    const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    expect(paid.status).toBe('paid');
+    expect(paid.stripePaymentIntentId).toBe('pi_async_obj');
   });
 
   it('est idempotent via markInvoicePaidFromPayment', async () => {
