@@ -4,10 +4,10 @@
  */
 import { NOTIFICATION_TYPES } from '@equime/shared';
 
-import { env } from '../config/env.js';
+import { env, isSimulatedPaymentAllowed } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { buildInvoicePdf, invoicePdfFilename } from '../lib/invoicePdf.js';
-import { escapeHtml } from '../lib/mailer.js';
+import { buildSimpleNotificationEmail, escapeHtml } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 
 import { dispatchNotification } from './notificationService.js';
@@ -43,6 +43,8 @@ const INVOICE_SELECT = {
   dueAt: true,
   totalCents: true,
   paidAt: true,
+  stripeCheckoutSessionId: true,
+  stripePaymentIntentId: true,
   createdAt: true,
   updatedAt: true,
   family: {
@@ -292,6 +294,15 @@ async function getInvoiceForClient(userId, invoiceId) {
   return invoice;
 }
 
+/**
+ * Facture d'une famille pour le client connecté (isolation famille).
+ * @param {string} userId
+ * @param {string} invoiceId
+ */
+export async function getClientInvoice(userId, invoiceId) {
+  return getInvoiceForClient(userId, invoiceId);
+}
+
 export async function sendInvoice(invoiceId) {
   const current = await getInvoiceOrThrow(invoiceId);
   if (current.status !== 'draft') {
@@ -485,12 +496,27 @@ export async function subscribeFamilyPlan(userId, planId) {
     select: FAMILY_SUBSCRIPTION_SELECT,
   });
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { firstName: true },
+  });
+
   await dispatchNotification({
     userId,
     type: NOTIFICATION_TYPES.SUBSCRIPTION_CONFIRMED,
     title: 'Formule enregistrée',
     body: `Votre famille est abonnée à la formule ${plan.name}.`,
     linkUrl: '/app/compte',
+    email: buildSimpleNotificationEmail({
+      firstName: user.firstName,
+      subject: `Equime — Formule confirmée : ${plan.name}`,
+      paragraphs: [
+        `Votre famille est abonnée à la formule ${plan.name}.`,
+        'Vous pouvez consulter votre abonnement depuis votre espace client.',
+      ],
+      ctaUrl: `${env.APP_URL}/app/compte`,
+      ctaLabel: 'Voir mon compte',
+    }),
   });
 
   return updated;
@@ -517,12 +543,27 @@ export async function adminChangeFamilySubscription(familyId, planId) {
     select: FAMILY_SUBSCRIPTION_SELECT,
   });
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: family.userId },
+    select: { firstName: true },
+  });
+
   await dispatchNotification({
     userId: family.userId,
     type: NOTIFICATION_TYPES.SUBSCRIPTION_CONFIRMED,
     title: 'Formule mise à jour',
     body: `Votre formule d'abonnement est désormais ${plan.name}.`,
     linkUrl: '/app/compte',
+    email: buildSimpleNotificationEmail({
+      firstName: user.firstName,
+      subject: `Equime — Formule mise à jour : ${plan.name}`,
+      paragraphs: [
+        `Votre formule d'abonnement est désormais ${plan.name}.`,
+        'Vous pouvez consulter votre abonnement depuis votre espace client.',
+      ],
+      ctaUrl: `${env.APP_URL}/app/compte`,
+      ctaLabel: 'Voir mon compte',
+    }),
   });
 
   return updated;
@@ -613,24 +654,38 @@ export async function createSentInvoiceForEventRegistration(input) {
   return invoice;
 }
 
-export async function payInvoice(userId, invoiceId) {
-  const current = await getInvoiceForClient(userId, invoiceId);
+/**
+ * Marque une facture payée et envoie la notification `payment_confirmed`.
+ * Idempotent : si déjà `paid`, retourne la facture sans re-notifier.
+ *
+ * @param {string} invoiceId
+ * @param {{ paymentIntentId?: string | null }} [extras]
+ * @returns {Promise<object>}
+ */
+export async function markInvoicePaidFromPayment(invoiceId, extras = {}) {
+  const current = await getInvoiceOrThrow(invoiceId);
   if (current.status === 'paid') return current;
   if (current.status !== 'sent' && current.status !== 'overdue') {
     throw AppError.badRequest('Cette facture ne peut pas être payée');
   }
 
+  /** @type {Record<string, unknown>} */
+  const data = {
+    status: 'paid',
+    paidAt: new Date(),
+  };
+  if (extras.paymentIntentId) {
+    data.stripePaymentIntentId = extras.paymentIntentId;
+  }
+
   const invoice = await prisma.invoice.update({
     where: { id: invoiceId },
-    data: {
-      status: 'paid',
-      paidAt: new Date(),
-    },
+    data,
     select: INVOICE_SELECT,
   });
 
   await dispatchNotification({
-    userId,
+    userId: invoice.family.userId,
     type: NOTIFICATION_TYPES.PAYMENT_CONFIRMED,
     title: 'Paiement confirmé',
     body: `Le paiement de la facture ${invoice.number} a bien été enregistré.`,
@@ -649,4 +704,25 @@ export async function payInvoice(userId, invoiceId) {
     },
   });
   return invoice;
+}
+
+/**
+ * Paiement simulé (dev/test sans Stripe uniquement).
+ * @param {string} userId
+ * @param {string} invoiceId
+ */
+export async function payInvoice(userId, invoiceId) {
+  if (!isSimulatedPaymentAllowed()) {
+    throw AppError.gone(
+      'Le paiement simulé n’est plus disponible. Utilisez le paiement sécurisé Stripe.'
+    );
+  }
+
+  const current = await getInvoiceForClient(userId, invoiceId);
+  if (current.status === 'paid') return current;
+  if (current.status !== 'sent' && current.status !== 'overdue') {
+    throw AppError.badRequest('Cette facture ne peut pas être payée');
+  }
+
+  return markInvoicePaidFromPayment(invoiceId);
 }

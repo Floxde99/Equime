@@ -9,15 +9,18 @@ import { EnrollSection } from '@/features/client/components/EnrollSection.jsx';
 import { UpcomingEnrollments } from '@/features/client/components/UpcomingEnrollments.jsx';
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
 
-const DEFAULT_RANGE = {
-  from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
-  to: new Date(new Date().setDate(new Date().getDate() + 21)).toISOString(),
-};
+/** @returns {{ from: string, to: string }} */
+function computeDefaultRange() {
+  return {
+    from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
+    to: new Date(new Date().setDate(new Date().getDate() + 21)).toISOString(),
+  };
+}
 
 /** Page planning client — inscriptions famille visibles (US-4.2). */
 export function ClientPlanningPage() {
   const [scope, setScope] = useState('mine');
-  const [range, setRange] = useState(DEFAULT_RANGE);
+  const [range, setRange] = useState(() => computeDefaultRange());
 
   const {
     data: events = [],

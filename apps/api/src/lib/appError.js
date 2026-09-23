@@ -49,6 +49,11 @@ export class AppError extends Error {
   }
 
   /** @param {string} [message] */
+  static gone(message = 'Cette ressource n’est plus disponible') {
+    return new AppError(message, { statusCode: 410, code: 'GONE' });
+  }
+
+  /** @param {string} [message] */
   static tooManyRequests(message = 'Trop de tentatives, réessayez plus tard') {
     return new AppError(message, { statusCode: 429, code: 'TOO_MANY_REQUESTS' });
   }

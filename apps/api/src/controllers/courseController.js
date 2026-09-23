@@ -17,7 +17,10 @@ export async function createCourse(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function getCourse(req, res) {
-  const course = await courseService.getCourse(req.params.id);
+  const course = await courseService.getCourse(req.params.id, {
+    id: req.user.id,
+    role: req.user.role,
+  });
   res.json({ course });
 }
 

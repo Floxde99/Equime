@@ -29,6 +29,40 @@ export function escapeHtml(value) {
 }
 
 /**
+ * Gabarit texte + HTML pour les notifications métier (cours, abonnement…).
+ * @param {{
+ *   firstName: string,
+ *   subject: string,
+ *   paragraphs: string[],
+ *   ctaUrl?: string,
+ *   ctaLabel?: string,
+ * }} params
+ * @returns {{ subject: string, text: string, html: string }}
+ */
+export function buildSimpleNotificationEmail({ firstName, subject, paragraphs, ctaUrl, ctaLabel }) {
+  const safeName = escapeHtml(firstName);
+  const textLines = [`Bonjour ${firstName},`, '', ...paragraphs];
+  /** @type {string[]} */
+  const htmlParts = [`<p>Bonjour ${safeName},</p>`];
+
+  for (const paragraph of paragraphs) {
+    htmlParts.push(`<p>${escapeHtml(paragraph)}</p>`);
+  }
+
+  if (ctaUrl) {
+    const label = ctaLabel ?? 'Ouvrir';
+    textLines.push('', `${label} : ${ctaUrl}`);
+    htmlParts.push(`<p><a href="${escapeHtml(ctaUrl)}">${escapeHtml(label)}</a></p>`);
+  }
+
+  return {
+    subject,
+    text: textLines.join('\n'),
+    html: htmlParts.join('\n'),
+  };
+}
+
+/**
  * @param {{ to: string, subject: string, text: string, html: string }} message
  */
 export async function sendTransactionalEmail(message) {

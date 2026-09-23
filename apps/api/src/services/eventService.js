@@ -6,6 +6,7 @@ import { NOTIFICATION_TYPES, ROLES } from '@equime/shared';
 
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
+import { escapeHtml } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 
@@ -170,33 +171,47 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
     throw AppError.conflict('Ce cavalier est déjà inscrit à cet événement');
   }
 
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    include: { _count: { select: { registrations: { where: { status: { not: 'cancelled' } } } } } },
-  });
-  if (!event || event.startAt <= new Date()) {
-    throw AppError.notFound('Événement introuvable');
-  }
+  // Capacité + upsert atomiques : recompte dans la transaction pour éviter le surbooking.
+  const { registration, event } = await prisma.$transaction(async (tx) => {
+    const eventRow = await tx.event.findUnique({
+      where: { id: eventId },
+      include: {
+        _count: { select: { registrations: { where: { status: { not: 'cancelled' } } } } },
+      },
+    });
+    if (!eventRow || eventRow.startAt <= new Date()) {
+      throw AppError.notFound('Événement introuvable');
+    }
 
-  if (event._count.registrations >= event.capacity) {
-    throw AppError.conflict('Cet événement est complet');
-  }
+    const current = await tx.eventRegistration.findUnique({
+      where: { eventId_riderId: { eventId, riderId } },
+    });
+    if (current && current.status !== 'cancelled') {
+      throw AppError.conflict('Ce cavalier est déjà inscrit à cet événement');
+    }
 
-  const registration = await prisma.eventRegistration.upsert({
-    where: { eventId_riderId: { eventId, riderId } },
-    create: {
-      eventId,
-      riderId,
-      status: 'confirmed',
-    },
-    update: {
-      status: 'confirmed',
-    },
-    include: {
-      rider: { select: { id: true, firstName: true, lastName: true } },
-      event: { select: { id: true, title: true, startAt: true } },
-      horse: { select: { id: true, name: true } },
-    },
+    if (eventRow._count.registrations >= eventRow.capacity) {
+      throw AppError.conflict('Cet événement est complet');
+    }
+
+    const reg = await tx.eventRegistration.upsert({
+      where: { eventId_riderId: { eventId, riderId } },
+      create: {
+        eventId,
+        riderId,
+        status: 'confirmed',
+      },
+      update: {
+        status: 'confirmed',
+      },
+      include: {
+        rider: { select: { id: true, firstName: true, lastName: true } },
+        event: { select: { id: true, title: true, startAt: true } },
+        horse: { select: { id: true, name: true } },
+      },
+    });
+
+    return { registration: reg, event: eventRow };
   });
 
   await createSentInvoiceForEventRegistration({
@@ -224,8 +239,8 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
       ].join('\n'),
       html: [
         '<p>Bonjour,</p>',
-        `<p>${rider.firstName} ${rider.lastName} est inscrit(e) à l'événement <strong>${event.title}</strong>.</p>`,
-        `<p>Début : ${event.startAt.toLocaleString('fr-FR')}</p>`,
+        `<p>${escapeHtml(rider.firstName)} ${escapeHtml(rider.lastName)} est inscrit(e) à l'événement <strong>${escapeHtml(event.title)}</strong>.</p>`,
+        `<p>Début : ${escapeHtml(event.startAt.toLocaleString('fr-FR'))}</p>`,
       ].join('\n'),
     },
   });

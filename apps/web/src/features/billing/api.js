@@ -66,6 +66,30 @@ export function fetchClientInvoices() {
   return api.get('/client/invoices').then((r) => r.invoices);
 }
 
+/** Config publique Stripe / simulé (bandeau mode test). */
+export function fetchPaymentConfig() {
+  return apiFetch('/public/payment-config');
+}
+
+/**
+ * Crée une Session Stripe Checkout et retourne l’URL de redirection.
+ * @param {string} id
+ * @returns {Promise<{ url: string, sessionId: string, mode: string }>}
+ */
+export function createCheckoutSession(id) {
+  return api.post(`/client/invoices/${id}/checkout`, {});
+}
+
+/**
+ * Confirme auprès de Stripe qu’une session Checkout est payée (retour ?paid=1).
+ * @param {string} id
+ * @returns {Promise<{ invoice: object, confirmed: boolean }>}
+ */
+export function confirmCheckoutSession(id) {
+  return api.post(`/client/invoices/${id}/confirm-checkout`, {});
+}
+
+/** Paiement simulé (dev/test sans Stripe uniquement). */
 export function payInvoice(id) {
   return api.post(`/client/invoices/${id}/pay`, {}).then((r) => r.invoice);
 }

@@ -354,6 +354,7 @@ describe('EPIC 6 — facturation & abonnements', () => {
     expect(sendRes.status).toBe(200);
     expect(sendRes.body.invoice.status).toBe('sent');
 
+    // Sans STRIPE_SECRET_KEY (Vitest) : paiement simulé — avec Stripe, utiliser /checkout + webhook.
     const payRes = await request(app)
       .post(`/api/v1/client/invoices/${createRes.body.invoice.id}/pay`)
       .set(authHeader(clientToken))

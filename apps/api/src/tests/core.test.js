@@ -271,6 +271,121 @@ describe('Planning cache', () => {
       .set(authHeader(adminToken));
     expect(after.body.events.some((e) => e.title === 'Nouveau cours cache')).toBe(true);
   });
+
+  it('isole le cache planning entre deux clients scope=mine (pas de collision avec all)', async () => {
+    const otherClient = await createUser({
+      email: 'client2-cache@test.fr',
+      role: 'client',
+      firstName: 'Paul',
+    });
+    const otherToken = await accessTokenFor(otherClient);
+
+    const space = await prisma.space.create({
+      data: { name: 'Manège isolation cache', type: 'indoor', capacity: 10 },
+    });
+    const course = await prisma.course.create({
+      data: {
+        title: 'Cours famille A',
+        instructorId,
+        spaceId: space.id,
+        startAt: new Date('2026-12-01T10:00:00.000Z'),
+        endAt: new Date('2026-12-01T11:00:00.000Z'),
+        capacity: 6,
+        status: 'scheduled',
+      },
+    });
+    const riderA = await prisma.rider.create({
+      data: {
+        familyId,
+        firstName: 'Léa',
+        lastName: 'A',
+        birthdate: new Date('2012-01-01'),
+        level: 'galop_2',
+      },
+    });
+    await prisma.courseEnrollment.create({
+      data: { courseId: course.id, riderId: riderA.id },
+    });
+
+    const query = {
+      from: '2026-12-01T00:00:00.000Z',
+      to: '2026-12-08T00:00:00.000Z',
+      scope: 'mine',
+    };
+
+    const resA = await request(app)
+      .get('/api/v1/courses/planning')
+      .query(query)
+      .set(authHeader(clientToken));
+    const resB = await request(app)
+      .get('/api/v1/courses/planning')
+      .query(query)
+      .set(authHeader(otherToken));
+    const resAll = await request(app)
+      .get('/api/v1/courses/planning')
+      .query({ ...query, scope: 'all' })
+      .set(authHeader(adminToken));
+
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+    expect(resA.body.events).toHaveLength(1);
+    expect(resB.body.events).toHaveLength(0);
+    expect(resAll.body.events.some((e) => e.title === 'Cours famille A')).toBe(true);
+
+    const mineKeys = (await redis.keys('planning:*')).filter((k) => k.includes(':mine:'));
+    const allKeys = (await redis.keys('planning:*')).filter((k) => k.endsWith(':all'));
+    expect(mineKeys.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(mineKeys).size).toBe(mineKeys.length);
+    expect(allKeys.length).toBeGreaterThanOrEqual(1);
+    expect(mineKeys.every((k) => !k.endsWith(':all'))).toBe(true);
+  });
+});
+
+describe('GET /courses/:id — brouillon', () => {
+  it('refuse un client et un moniteur non assigné ; autorise admin et moniteur assigné', async () => {
+    const otherInstructor = await createUser({
+      email: 'coach2@test.fr',
+      role: 'instructor',
+      firstName: 'Zoe',
+    });
+    const otherInstructorToken = await accessTokenFor(otherInstructor);
+
+    const space = await prisma.space.create({
+      data: { name: 'Manège draft', type: 'indoor', capacity: 8 },
+    });
+    const draft = await prisma.course.create({
+      data: {
+        title: 'Brouillon secret',
+        instructorId,
+        spaceId: space.id,
+        startAt: new Date('2027-01-10T09:00:00.000Z'),
+        endAt: new Date('2027-01-10T10:00:00.000Z'),
+        capacity: 4,
+        status: 'draft',
+      },
+    });
+
+    const asClient = await request(app)
+      .get(`/api/v1/courses/${draft.id}`)
+      .set(authHeader(clientToken));
+    expect(asClient.status).toBe(404);
+
+    const asOtherCoach = await request(app)
+      .get(`/api/v1/courses/${draft.id}`)
+      .set(authHeader(otherInstructorToken));
+    expect(asOtherCoach.status).toBe(404);
+
+    const asAssigned = await request(app)
+      .get(`/api/v1/courses/${draft.id}`)
+      .set(authHeader(instructorToken));
+    expect(asAssigned.status).toBe(200);
+    expect(asAssigned.body.course.title).toBe('Brouillon secret');
+
+    const asAdmin = await request(app)
+      .get(`/api/v1/courses/${draft.id}`)
+      .set(authHeader(adminToken));
+    expect(asAdmin.status).toBe(200);
+  });
 });
 
 describe('Annulation de séance (T-4.2)', () => {
@@ -392,13 +507,15 @@ async function createScheduledCourse() {
   const space = await prisma.space.create({
     data: { name: `Manège ${crypto.randomUUID().slice(0, 8)}`, type: 'indoor', capacity: 12 },
   });
+  const startAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
   return prisma.course.create({
     data: {
       title: 'Galop 2 soir',
       instructorId,
       spaceId: space.id,
-      startAt: new Date('2026-09-20T16:00:00.000Z'),
-      endAt: new Date('2026-09-20T17:00:00.000Z'),
+      startAt,
+      endAt,
       capacity: 6,
       minLevel: 'galop_1',
       maxLevel: 'galop_3',

@@ -54,6 +54,10 @@ const VolunteerPage = lazyNamed(
   () => import('@/features/engagement/pages/VolunteerPage.jsx'),
   'VolunteerPage'
 );
+const AdminVolunteerPage = lazyNamed(
+  () => import('@/features/engagement/pages/VolunteerPage.jsx'),
+  'AdminVolunteerPage'
+);
 const MessagesPage = lazyNamed(
   () => import('@/features/engagement/pages/MessagesPage.jsx'),
   'MessagesPage'
@@ -86,6 +90,10 @@ const AttendancePage = lazyNamed(
 const InstructorIncidentsPage = lazyNamed(
   () => import('@/features/engagement/pages/InstructorIncidentsPage.jsx'),
   'InstructorIncidentsPage'
+);
+const AdminIncidentsPage = lazyNamed(
+  () => import('@/features/engagement/pages/InstructorIncidentsPage.jsx'),
+  'AdminIncidentsPage'
 );
 const InstructorHealthPage = lazyNamed(
   () => import('@/features/instructor/pages/InstructorHealthPage.jsx'),
@@ -228,6 +236,7 @@ export const router = createBrowserRouter([
                   { path: '/moniteur/sante', element: <InstructorHealthPage /> },
                   { path: '/moniteur/sante/:id', element: <InstructorHorseHealthPage /> },
                   { path: '/moniteur/messages', element: <MessagesPage /> },
+                  { path: '/moniteur/notifications', element: <NotificationsPage /> },
                 ],
               },
             ],
@@ -251,8 +260,8 @@ export const router = createBrowserRouter([
                   { path: '/admin/cavalerie', element: <AdminCavalryPage /> },
                   { path: '/admin/cavalerie/:id', element: <AdminHorsePage /> },
                   { path: '/admin/evenements', element: <AdminEventsPage /> },
-                  { path: '/admin/incidents', element: <InstructorIncidentsPage admin /> },
-                  { path: '/admin/benevolat', element: <VolunteerPage admin /> },
+                  { path: '/admin/incidents', element: <AdminIncidentsPage /> },
+                  { path: '/admin/benevolat', element: <AdminVolunteerPage /> },
                   { path: '/admin/messages', element: <MessagesPage /> },
                   { path: '/admin/notifications', element: <NotificationsPage /> },
                   { path: '/admin/facturation', element: <AdminBillingPage /> },

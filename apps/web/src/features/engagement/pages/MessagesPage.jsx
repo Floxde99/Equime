@@ -22,6 +22,14 @@ import {
 } from '@/features/engagement/api.js';
 import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
+const MESSAGES_POLL_MS = 15_000;
+
+/** @returns {number | false} */
+function messagesRefetchInterval() {
+  if (typeof document !== 'undefined' && document.hidden) return false;
+  return MESSAGES_POLL_MS;
+}
+
 export function MessagesPage() {
   const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
@@ -44,19 +52,24 @@ export function MessagesPage() {
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations'],
     queryFn: fetchConversations,
-    refetchInterval: 5_000,
+    refetchInterval: messagesRefetchInterval,
   });
 
-  const effectiveId = selectedConversationId || conversations[0]?.id;
+  useEffect(() => {
+    if (selectedConversationId) return;
+    if (conversations.length === 0) return;
+    setSelectedConversationId(conversations[0].id);
+  }, [conversations, selectedConversationId]);
+
   const selectedConversation =
-    conversations.find((conversation) => conversation.id === effectiveId) ?? null;
+    conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
   const hasUnread = Boolean(selectedConversation?.hasUnread);
 
   const { data: messages = [] } = useQuery({
-    queryKey: ['conversation-messages', effectiveId],
-    queryFn: () => fetchConversationMessages(effectiveId),
-    enabled: Boolean(effectiveId),
-    refetchInterval: effectiveId ? 5_000 : false,
+    queryKey: ['conversation-messages', selectedConversationId],
+    queryFn: () => fetchConversationMessages(selectedConversationId),
+    enabled: Boolean(selectedConversationId),
+    refetchInterval: selectedConversationId ? messagesRefetchInterval : false,
   });
 
   const markReadMutation = useMutation({
@@ -68,9 +81,9 @@ export function MessagesPage() {
   const { mutate: markRead } = markReadMutation;
 
   useEffect(() => {
-    if (!effectiveId || !hasUnread) return;
-    markRead(effectiveId);
-  }, [effectiveId, hasUnread, markRead]);
+    if (!selectedConversationId || !hasUnread) return;
+    markRead(selectedConversationId);
+  }, [selectedConversationId, hasUnread, markRead]);
 
   const createMutation = useMutation({
     mutationFn: createConversation,
@@ -87,7 +100,7 @@ export function MessagesPage() {
     mutationFn: ({ conversationId, body }) => sendMessage(conversationId, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['conversations'] });
-      qc.invalidateQueries({ queryKey: ['conversation-messages', effectiveId] });
+      qc.invalidateQueries({ queryKey: ['conversation-messages', selectedConversationId] });
       sendForm.reset();
       setError('');
     },
@@ -102,7 +115,7 @@ export function MessagesPage() {
       <PageHeader
         eyebrow={eyebrow}
         title="Messagerie"
-        description="Rafraîchissement automatique toutes les 5 secondes, lecture suivie par participant."
+        description="Rafraîchissement automatique toutes les 15 secondes, lecture suivie par participant."
       />
 
       {error ? <Alert>{error}</Alert> : null}
@@ -150,7 +163,7 @@ export function MessagesPage() {
                 type="button"
                 onClick={() => setSelectedConversationId(conversation.id)}
                 className={`w-full rounded-xl border p-3 text-left ${
-                  effectiveId === conversation.id
+                  selectedConversationId === conversation.id
                     ? 'border-primary bg-paper'
                     : 'border-border-on-card bg-paper'
                 }`}

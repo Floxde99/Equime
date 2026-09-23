@@ -22,7 +22,7 @@
 - **Famille / cavaliers** : lien parent–enfant, profil cavalier, niveau, documents administratifs.
 - **Données sensibles** : certificat médical (fichier) — **uniquement** après case de consentement dédiée côté client (`EnrollSection` / flux documents).
 - **Cavalerie** : fiche cheval, carnet de santé (notes vétérinaires — données opérationnelles du centre).
-- **Facturation** : factures, montants, références ; pas de stockage de données de carte bancaire (paiement simulé / marquage manuel en recette).
+- **Facturation** : factures, montants, références Stripe (`stripeCheckoutSessionId`, `stripePaymentIntentId`) ; **aucune donnée de carte bancaire** stockée chez Equime — saisie et traitement CB chez **Stripe** (sous-traitant / processor). Le marquage « payé » ne se fait qu’après webhook signé (`checkout.session.completed`).
 - **Traces techniques** : logs applicatifs (pino) sans mot de passe ni jeton en clair ; refresh tokens hashés en base.
 - **Newsletter** : adresse email et date de consentement (`newsletter_subscriptions`), hors compte utilisateur.
 

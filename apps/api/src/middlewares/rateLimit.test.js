@@ -27,7 +27,7 @@ function appWith(middleware) {
 
 describe('rateLimit Redis indisponible', () => {
   it('renvoie 503 sur les routes d’auth (fail-closed)', async () => {
-    vi.spyOn(redis, 'incr').mockRejectedValue(new Error('ECONNREFUSED'));
+    vi.spyOn(redis, 'eval').mockRejectedValue(new Error('ECONNREFUSED'));
 
     const res = await request(
       appWith(rateLimit({ keyPrefix: 'login', max: 10, windowSec: 60, failClosed: true }))
@@ -38,7 +38,7 @@ describe('rateLimit Redis indisponible', () => {
   });
 
   it('laisse passer la newsletter (fail-open)', async () => {
-    vi.spyOn(redis, 'incr').mockRejectedValue(new Error('ECONNREFUSED'));
+    vi.spyOn(redis, 'eval').mockRejectedValue(new Error('ECONNREFUSED'));
 
     const res = await request(
       appWith(rateLimit({ keyPrefix: 'newsletter', max: 5, windowSec: 3600 }))

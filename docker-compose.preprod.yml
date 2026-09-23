@@ -35,8 +35,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD:?REDIS_PASSWORD requis}']
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -68,7 +69,7 @@ services:
     env_file: .env.preprod
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       UPLOAD_DIR: /app/uploads
     ports:
       - '127.0.0.1:3002:3000'
