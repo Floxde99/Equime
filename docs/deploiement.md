@@ -414,12 +414,18 @@ une chaîne de proxys trop longue : vérifier que Caddy pointe bien sur
 ```bash
 # Préproduction (develop)
 cd ~/apps/equime-preprod && git pull
-docker compose -f docker-compose.preprod.yml --env-file .env.preprod up -d --build
+docker compose -f docker-compose.preprod.yml --env-file .env.preprod build --pull
+docker compose -f docker-compose.preprod.yml --env-file .env.preprod up -d
 
 # Production (main) — sauvegarde préalable obligatoire
 cd ~/apps/equime-prod && ~/backups/equime-backup.sh && git pull
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod build --pull
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ```
+
+`build --pull` récupère la dernière version des images de base (`node:22-alpine`,
+`nginx:1.30-alpine`). Sans lui, le VPS réutilise son cache et les correctifs de sécurité
+publiés depuis ne sont jamais intégrés (`docs/veille-securite.md`).
 
 ### Superviser
 
@@ -577,6 +583,33 @@ cours/événement, absence, abonnement, reset mot de passe, newsletter) partent
 via SendGrid. `MAIL_FROM` doit être un domaine/adresse **authentifié** dans
 SendGrid ; une adresse fictive du type `no-reply@equime.local` est refusée
 par les FAI.
+
+---
+
+## 9quater. Informations légales de l'instance
+
+Les pages `/mentions-legales`, `/confidentialite` et `/cgv` affichent l'identité lue
+**à l'exécution** dans la configuration de l'API (`GET /api/v1/public/legal`). Une même
+image sert donc tous les clubs (modèle SaaS, une instance par club), sans reconstruction.
+
+**À ajouter dans `.env.preprod` et `.env.prod` du VPS** (voir `.env.prod.example`) :
+
+| Variable | Instance de démonstration | Club réel (go-live) |
+|---|---|---|
+| `LEGAL_DEMO_INSTANCE` | `true` | `false` |
+| `CLUB_LEGAL_NAME`, `CLUB_LEGAL_FORM`, `CLUB_REGISTRATION` | vides | raison sociale, forme et capital, RCS ou SIRET |
+| `CLUB_PUBLICATION_DIRECTOR` | vide | nom du directeur de la publication |
+| `CLUB_MEDIATOR` | vide | médiateur de la consommation (C. consom. L612-1) |
+| `HOST_NAME`, `HOST_ADDRESS`, `HOST_PHONE` | OVH SAS, 2 rue Kellermann 59100 Roubaix, 1007 | hébergeur de l'instance |
+| `SOFTWARE_PROVIDER` | nom du logiciel et de son fournisseur | idem |
+
+En mode démonstration, les mentions légales s'appuient sur l'article 1-1, II de la LCEN
+(éditeur non professionnel identifié auprès de l'hébergeur). **Dès qu'une vente réelle a
+lieu (clés Stripe `sk_live_`), cette exception ne s'applique plus** : passer
+`LEGAL_DEMO_INSTANCE=false` et renseigner l'identité complète du club.
+
+Une variable absente n'empêche pas le démarrage : la page affiche « non renseigné par
+l'éditeur de l'instance ».
 
 ---
 

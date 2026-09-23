@@ -1,53 +1,74 @@
 # Plan de soutenance — Equime
 
-> Durée indicative : 30–40 min (démo 15 min, questions 15 min). Adapter au jury CDA.
+> Construit sur le **référentiel d'évaluation officiel** du titre CDA (RE TP-01281 v04 du
+> 13/05/2023, RNCP37873). Projet réalisé en formation : le plan « entreprise » est suivi
+> quand même, parce qu'il couvre toutes les compétences évaluées.
 
-## 1. Introduction (2 min)
+## 1. Déroulé réel de l'épreuve (2 h 15)
 
-- Contexte : refonte d’un outil de gestion de centre équestre (projet CDA RNCP37873).
-- Objectif : centraliser familles, planning, cavalerie, facturation et relation client.
-- Stack : monorepo JS ESM, React + Express + Prisma, Docker, CI GitHub Actions.
-- Statut : Phases 0–7 **terminées** — produit en préprod (`prequime.florianfaucher.dev`) et prod (`equime.florianfaucher.dev`).
+| Ordre | Épreuve | Durée | À savoir |
+|---|---|---|---|
+| 1 | **Questionnaire professionnel** | 30 min | Sur poste, **sans internet**. Documentation technique **en anglais** : 2 QCM en français + **2 questions ouvertes en anglais, réponses rédigées en anglais**. Corrigé par le jury **avant** la présentation. |
+| 2 | **Présentation du projet** | 40 min | Le jury a lu le **dossier imprimé** avant. Il **n'interrompt pas** : personne n'arrête un dépassement, il faut se chronométrer. |
+| 3 | **Entretien technique** | 45 min | Questions sur le dossier et la présentation, puis sur les compétences non couvertes par le projet. Le jury peut demander d'ouvrir l'IDE ou l'application. |
+| 4 | **Entretien final** | 20 min | Échange sur le dossier professionnel (DP). |
 
-## 2. Architecture (5 min)
+**Dossier de projet** : 40 à 60 pages hors garde, sommaire et annexes (schémas compris) ;
+annexes limitées à 40 pages. Il suit le même plan que la présentation ci-dessous.
 
-- Schéma couches API : route → Zod → controller → service → Prisma (`docs/architecture.md`).
-- Auth JWT maison : access 15 min, refresh rotatif cookie httpOnly (`docs/securite.md`).
-- Partage des schémas Zod dans `packages/shared`.
-- Paiement : Stripe Checkout hébergé + webhook signé (ADR 008) — aucune CB dans le DOM.
+## 2. Présentation minutée (40 min)
 
-## 3. Script de démonstration (15 min)
+| Min | Contenu (ordre du plan officiel) | Diapos | Sources |
+|---|---|---|---|
+| 0–4 | Contexte, **expression des besoins**, contraintes, livrables attendus | 3 | `backlog.md` |
+| 4–8 | **Gestion de projet** : planning et suivi, un **retard réel** (quand, ce qui a été décalé, qui a été prévenu), environnement humain et technique, objectifs qualité (CI bloquante, couverture ≥ 70 %) | 4 | `gantt.md`, `traceabilite.md` |
+| 8–16 | **Spécifications fonctionnelles** : architecture en couches, maquettes (1 ou 2 écrans) et **leur enchaînement**, diagramme de cas d'utilisation, **diagramme de séquence** (authentification) | 7 | `architecture.md`, `uml/navigation.md`, `uml/cas-utilisation.md`, `uml/sequence-authentification.md` |
+| 16–20 | **MCD** et **MPD**, extrait de **migration SQL** (script de création) | 3 | `merise/`, `apps/api/prisma/migrations/` |
+| 20–28 | **Réalisations**, capture d'écran et code : une interface, un **composant métier** (attribution des chevaux), un **accès aux données** (verrou `FOR UPDATE` des inscriptions), un contrôleur ou utilitaire (`validate`, `errorHandler`). **Démo courte, 3–4 min au plus**, avec une vidéo de secours | 6 | `horseAssignment.js`, `eventService.js` |
+| 28–32 | **Sécurité** : défense en profondeur par couche, authentification (jetons, rotation), Stripe (aucune carte chez Equime, webhook signé), OWASP Top 10:2025 | 3 | `securite.md` |
+| 32–36 | **Plan de tests** puis **jeu d'essai** de l'attribution : entrée, attendu, obtenu, **analyse des écarts** avant et après correction | 3 | `cahier-de-tests.md` (Module 5, jeu d'essai) |
+| 36–38 | **Veille sécurité** : méthode (exploitabilité avant score), `qs`, Node CERT-FR, nginx en fin de vie, failles trouvées en revue | 2 | `veille-securite.md` |
+| 38–40 | **Synthèse** : satisfactions, difficultés, perspectives (SaaS, application mobile) | 1 | — |
 
-Comptes seed recette (`docs/cahier-de-recette.md`) : admin / moniteur / client — `Recette!2026`.
+Environ **32 diapositives**, plus des diapositives de **réserve** après la conclusion,
+pour l'entretien technique :
+
+- EcoIndex avant/après (`eco-conception.md`) ;
+- table OWASP 2025 complète ;
+- exceptions de `scripts/audit-ci.mjs` ;
+- ADR 009 (règle de niveau) ;
+- pages légales et modèle SaaS (une instance par club) ;
+- compatibilité avec une application mobile.
+
+## 3. Démonstration (dans le créneau 20–28)
+
+Comptes du jeu de recette (`docs/cahier-de-recette.md`) : `admin@recette.equime.local`,
+`moniteur1@recette.equime.local`, `client01@recette.equime.local`, mot de passe
+`Recette!2026`.
 
 | # | Acteur | Écran | Message clé |
 |---|---|---|---|
-| 1 | Visiteur | `/register` puis déconnexion | Inscription sécurisée, famille créée |
-| 2 | Client | Cavaliers → ajout → planning → inscription cours | Parcours E2E-2 |
-| 3 | Moniteur | Planning → appel → attribution chevaux | Algorithme d’attribution (score niveau + affinités + charge) |
-| 4 | Client | Factures → paiement (Checkout test ou simulé) | Cycle facturation E2E-4 / ADR 008 |
-| 5 | Admin | Dashboard / cavalerie / facturation | Vue opérationnelle |
-| 6 | (option) | Messagerie, notifications ou événement | Modules relationnels Phase 5 |
+| 1 | Moniteur | Planning → attribution automatique | Score + règle de niveau (ADR 009), override avec avertissement |
+| 2 | Client | Factures → Payer (Stripe mode test) | Aucune carte dans l'application, webhook signé |
 
-**Plan B** : si réseau indisponible, montrer enregistrement Playwright ou captures + `npm test -w apps/api`.
+**Plan B** : réseau indisponible → vidéo de la démo, ou captures + `npm test -w apps/api`.
 
-## 4. Qualité & conformité (5 min)
+## 4. Entretien technique : préparation
 
-- Tests : unitaires + intégration API (≥ 70 % couverture) + Playwright E2E-1–13.
-- Traçabilité : `docs/traceabilite.md` (toutes les US **Livré**).
-- Recette : journal `docs/cahier-de-recette.md` (clôture 2026-09-23).
-- RGPD : `docs/rgpd.md` (consentement médical, anonymisation, export portabilité).
-- OWASP : tableau `docs/securite.md`.
+- Bien distinguer tests d'**intégration** (composants ensemble), **système** (application
+  déployée) et **d'acceptation** (recette en préproduction).
+- **NoSQL** : Redis (rate limiting, liste noire des JWT, cache du planning).
+- **POO** : domaine anémique assumé, héritage `AppError`, fabriques statiques,
+  polymorphisme du gestionnaire d'erreurs (`uml/classes-domaine.md`). Ne pas prétendre
+  que le code est orienté objet quand il ne l'est pas.
+- **Éco-conception** : EcoIndex 79 / B → 82 / A, images −77 %.
+- **Restauration de la base** : sauvegarde automatique avant chaque déploiement en prod,
+  procédure documentée (`deploiement.md`).
+- Questions probables et réponses : `docs/questions-jury.md`.
 
-## 5. Bilan & perspectives (3 min)
+## 5. Supports à avoir sous la main
 
-- Livré : auth sécurisée, cœur métier, attribution, facturation Stripe, engagement, CI/CD préprod/prod.
-- Hors v1 (assumer à l’oral) : PWA, ML prédictif, multi-tenant, WebSocket, groupes messagerie UI, abonnements Stripe récurrents / SEPA.
-- Pistes post-soutenance : piège de focus tiroir mobile, NVDA natif optionnel, clés Stripe live au go-live.
-
-## 6. Supports à avoir sous la main
-
-- `docs/questions-jury.md`
-- `docs/cahier-de-recette.md` (journal d’exécution signé)
-- Rapport de couverture CI (seuil 70 % API)
-- ADR 002 (JWT) et ADR 008 (Stripe)
+- Dossier de projet imprimé et diaporama
+- `docs/questions-jury.md`, `docs/cahier-de-recette.md`
+- Rapport de couverture CI (seuil 70 %)
+- ADR 002 (JWT), ADR 008 (Stripe), ADR 009 (niveau)
