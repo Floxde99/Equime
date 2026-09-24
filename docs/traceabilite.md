@@ -34,6 +34,7 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 | US-9.1 | Dashboard KPIs | admin | `AdminDashboardPage.jsx`, `adminService.js` | `admin.test.js` T-9.1 | Livré |
 | US-9.2 | Gestion membres (Excel 7.1) | admin | `authService.js` (`createMember`, `updateMemberProfile`), `admin.routes.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.2, `subscription.test.js` | Livré |
 | US-9.3 | Validation documents | admin / riders | `riderService.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.3 | Livré |
+| US-10.1 | Charge hebdo dérivée (ADR 010) | horses | `horseLoad.js`, `weeks.js`, `horseAssignment.js`, `horseService.js`, `adminService.js` | `weeks.test.js`, `horseLoad.test.js`, `horses.test.js`, `phase4.test.js`, `phase5.test.js` (T-5.13 à T-5.15) | Livré |
 | US-9.4 | Inscription forcée admin (Excel 10.4) | courses / events | `courseService.js`, `eventService.js` (`force: true`) | `core.test.js`, `phase5.test.js` | Livré |
 | ADR 009 | Règle de niveau asymétrique (attribution) | horses / events | `horseAssignment.js` (`levelFit`, `candidateWarning`), `InstructorPlanningPage.jsx` | `horseAssignment.test.js` (jeu d'essai) | Livré |
 | Conformité | Pages légales configurables par instance (LCEN, RGPD art. 13, CGV) | legal / public | `legalService.js`, `legalController.js`, `features/legal/` | `publicVitrine.test.js`, `authSurface.test.js`, `public.spec.js` | Livré |

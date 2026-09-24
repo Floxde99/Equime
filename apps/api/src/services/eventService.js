@@ -13,7 +13,6 @@ import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 import { createSentInvoiceForEventRegistration } from './billingService.js';
 import {
   assignHorsesForEvent,
-  durationHoursFromRange,
   listEventHorseOverrideOptions,
   overrideEventAssignedHorse,
 } from './horseAssignment.js';
@@ -296,10 +295,7 @@ export async function overrideHorse(eventId, registrationId, horseId) {
 export async function cancelRegistration(userId, eventId, registrationId, options = {}) {
   const registration = await prisma.eventRegistration.findFirst({
     where: { id: registrationId, eventId },
-    include: {
-      rider: { select: { familyId: true } },
-      event: { select: { startAt: true, endAt: true } },
-    },
+    include: { rider: { select: { familyId: true } } },
   });
   if (!registration) throw AppError.notFound('Inscription introuvable');
 
@@ -317,22 +313,10 @@ export async function cancelRegistration(userId, eventId, registrationId, option
     });
   }
 
-  return prisma.$transaction(async (tx) => {
-    if (registration.horseId) {
-      const durationHours = durationHoursFromRange(
-        registration.event.startAt,
-        registration.event.endAt
-      );
-      await tx.horse.update({
-        where: { id: registration.horseId },
-        data: { weeklyLoadHours: { decrement: durationHours } },
-      });
-    }
-
-    return tx.eventRegistration.update({
-      where: { id: registrationId },
-      data: { status: 'cancelled', horseId: null },
-      include: REGISTRATION_LIST_INCLUDE,
-    });
+  // Libérer la monture suffit : la charge hebdo est dérivée des affectations (ADR 010).
+  return prisma.eventRegistration.update({
+    where: { id: registrationId },
+    data: { status: 'cancelled', horseId: null },
+    include: REGISTRATION_LIST_INCLUDE,
   });
 }

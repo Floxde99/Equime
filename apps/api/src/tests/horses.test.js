@@ -7,12 +7,14 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
+import { isoWeekRange } from '../lib/weeks.js';
 
 import {
   accessTokenFor,
   authHeader,
   createUser,
   familyIdOf,
+  giveHorseLoad,
   resetAuthTables,
   resetCoreTables,
   resetRateLimits,
@@ -238,26 +240,80 @@ describe('Cavalerie — carnet de santé', () => {
 
 describe('Cavalerie — alertes de charge', () => {
   it('ne retourne que les chevaux au-dessus du seuil', async () => {
-    await prisma.horse.create({
-      data: {
-        name: 'Saturé',
-        weeklyLoadHours: 11,
-        alertThresholdHours: 10,
-        maxWeeklyLoadHours: 12,
-      },
+    const sature = await prisma.horse.create({
+      data: { name: 'Saturé', alertThresholdHours: 10, maxWeeklyLoadHours: 12 },
     });
-    await prisma.horse.create({
-      data: {
-        name: 'Léger',
-        weeklyLoadHours: 4,
-        alertThresholdHours: 10,
-        maxWeeklyLoadHours: 12,
-      },
+    const leger = await prisma.horse.create({
+      data: { name: 'Léger', alertThresholdHours: 10, maxWeeklyLoadHours: 12 },
     });
+    await giveHorseLoad({ horseId: sature.id, hours: 11, familyId, instructorId });
+    await giveHorseLoad({ horseId: leger.id, hours: 4, familyId, instructorId });
 
     const res = await request(app).get('/api/v1/horses/load-alerts').set(authHeader(adminToken));
 
     expect(res.status).toBe(200);
     expect(res.body.horses.map((horse) => horse.name)).toEqual(['Saturé']);
+    expect(res.body.horses[0].weeklyLoadHours).toBe(11);
+  });
+});
+
+describe('Cavalerie — charge hebdo dérivée (ADR 010)', () => {
+  /**
+   * Séance d'un cheval, du `startAt` pour `hours` heures.
+   * @param {{ horseId: string, startAt: Date, hours: number, status?: string, attendance?: string }} input
+   */
+  async function slot({ horseId, startAt, hours, status = 'completed', attendance = 'present' }) {
+    const space = await prisma.space.create({
+      data: { name: `Carrière ${startAt.toISOString()}`, type: 'outdoor' },
+    });
+    const course = await prisma.course.create({
+      data: {
+        title: 'Séance',
+        instructorId,
+        spaceId: space.id,
+        startAt,
+        endAt: new Date(startAt.getTime() + hours * 60 * 60 * 1000),
+        capacity: 4,
+        status,
+      },
+    });
+    const rider = await prisma.rider.create({
+      data: { familyId, firstName: 'R', lastName: 'T', birthdate: new Date('2012-01-01') },
+    });
+    await prisma.courseEnrollment.create({
+      data: { courseId: course.id, riderId: rider.id, horseId, attendance },
+    });
+  }
+
+  it('ne compte ni la semaine passée, ni une séance annulée, ni un cavalier excusé', async () => {
+    const horse = await prisma.horse.create({ data: { name: 'Indigo', maxWeeklyLoadHours: 12 } });
+    const weekStart = isoWeekRange(new Date()).start;
+    const hour = 60 * 60 * 1000;
+
+    // Semaine précédente : 11 h. Avec l'ancien compteur, elles pesaient encore.
+    await slot({
+      horseId: horse.id,
+      startAt: new Date(weekStart.getTime() - 3 * 24 * hour),
+      hours: 11,
+    });
+    // Semaine en cours : 1 h retenue, 2 h annulées, 3 h excusées.
+    await slot({ horseId: horse.id, startAt: new Date(weekStart.getTime() + 2 * hour), hours: 1 });
+    await slot({
+      horseId: horse.id,
+      startAt: new Date(weekStart.getTime() + 4 * hour),
+      hours: 2,
+      status: 'cancelled',
+    });
+    await slot({
+      horseId: horse.id,
+      startAt: new Date(weekStart.getTime() + 8 * hour),
+      hours: 3,
+      attendance: 'excused',
+    });
+
+    const res = await request(app).get(`/api/v1/horses/${horse.id}`).set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.horse.weeklyLoadHours).toBe(1);
   });
 });

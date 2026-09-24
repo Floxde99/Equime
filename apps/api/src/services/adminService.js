@@ -4,6 +4,8 @@
  */
 import { prisma } from '../lib/prisma.js';
 
+import { withWeeklyLoad } from './horseLoad.js';
+
 const MEMBER_SELECT = {
   id: true,
   email: true,
@@ -54,9 +56,9 @@ export async function getDashboardKpis() {
       _sum: { totalCents: true },
       _count: true,
     }),
-    prisma.horse.findMany({
-      select: { weeklyLoadHours: true, alertThresholdHours: true },
-    }),
+    prisma.horse
+      .findMany({ select: { id: true, alertThresholdHours: true } })
+      .then((list) => withWeeklyLoad(list)),
     prisma.rider.count({
       where: {
         OR: [{ medicalCertificateStatus: 'pending' }, { licenseStatus: 'pending' }],

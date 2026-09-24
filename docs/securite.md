@@ -109,7 +109,7 @@ Implémentation : compteur Redis par IP + préfixe (`apps/api/src/middlewares/ra
 
 | Mesure | Détail | Fichier |
 |---|---|---|
-| Attribution transactionnelle | Affectation chevaux + charge hebdo dans une unique transaction Prisma, rollback complet sur erreur | `apps/api/src/services/horseAssignment.js` |
+| Attribution transactionnelle | Affectations chevaux dans une unique transaction Prisma, rollback complet sur erreur ; charge hebdo dérivée, sans compteur à désynchroniser (ADR 010) | `apps/api/src/services/horseAssignment.js` |
 | Audit sans écriture | Simulation batch admin sans modification BDD | `apps/api/src/services/horseAssignment.js`, `apps/api/src/routes/admin.routes.js` |
 | Isolation famille factures | Consultation/paiement/PDF client bornés à `family.userId` ; brouillons exclus de la liste et du PDF client | `apps/api/src/services/billingService.js`, `apps/api/src/lib/invoicePdf.js`, `apps/api/src/routes/client.routes.js` |
 | Paiement Stripe Checkout | Aucune CB stockée chez Equime (PCI hors scope) ; Session hébergée Stripe ; confirmation uniquement via webhook | `apps/api/src/services/paymentService.js`, ADR 008 |

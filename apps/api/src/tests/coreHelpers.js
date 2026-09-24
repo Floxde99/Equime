@@ -4,6 +4,7 @@
  */
 import { hashPassword } from '../lib/passwords.js';
 import { prisma } from '../lib/prisma.js';
+import { isoWeekRange } from '../lib/weeks.js';
 import { issueTokenPair } from '../services/tokenService.js';
 
 export { refreshCookieOf, registerPayload, resetAuthTables, resetRateLimits } from './helpers.js';
@@ -71,4 +72,52 @@ export function authHeader(token) {
 export async function familyIdOf(userId) {
   const family = await prisma.family.findUniqueOrThrow({ where: { userId } });
   return family.id;
+}
+
+let loadSlotSeq = 0;
+
+/**
+ * Donne `hours` heures de charge à un cheval sur la semaine de `weekOf` (par défaut
+ * la semaine en cours, ADR 010) : la charge étant dérivée, on crée une séance
+ * terminée le lundi à 1 h (heure de Paris),
+ * avec une inscription montée par ce cheval. Statut `completed` : la séance ne
+ * compte pas dans les KPIs « cours à venir ».
+ * @param {{ horseId: string, hours: number, familyId: string, instructorId: string,
+ *   weekOf?: Date }} input
+ */
+export async function giveHorseLoad({
+  horseId,
+  hours,
+  familyId,
+  instructorId,
+  weekOf = new Date(),
+}) {
+  loadSlotSeq += 1;
+  const startAt = new Date(isoWeekRange(weekOf).start.getTime() + 60 * 60 * 1000);
+  const endAt = new Date(startAt.getTime() + hours * 60 * 60 * 1000);
+  const space = await prisma.space.create({
+    data: { name: `Carrière charge ${loadSlotSeq}`, type: 'outdoor' },
+  });
+  const course = await prisma.course.create({
+    data: {
+      title: `Séance charge ${loadSlotSeq}`,
+      instructorId,
+      spaceId: space.id,
+      startAt,
+      endAt,
+      capacity: 1,
+      status: 'completed',
+    },
+  });
+  const rider = await prisma.rider.create({
+    data: {
+      familyId,
+      firstName: `Charge${loadSlotSeq}`,
+      lastName: 'Test',
+      birthdate: new Date('2010-01-01'),
+    },
+  });
+  await prisma.courseEnrollment.create({
+    data: { courseId: course.id, riderId: rider.id, horseId, horseAssignedAt: startAt },
+  });
 }

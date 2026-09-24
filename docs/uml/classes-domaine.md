@@ -40,7 +40,7 @@ classDiagram
         +StatutCheval statut
         +NiveauCavalier niveauMin
         +NiveauCavalier niveauMax
-        +Float chargeHebdo
+        +Float chargeHebdo(semaine) // dérivée, ADR 010
         +Float chargeMax
     }
 

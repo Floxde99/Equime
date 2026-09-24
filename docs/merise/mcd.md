@@ -105,6 +105,6 @@ erDiagram
 
 1. Un utilisateur de rôle `client` possède exactement une famille ; les moniteurs et admins n'en ont pas.
 2. Un cavalier ne peut être inscrit qu'une fois à une même séance ; un cheval ne peut être attribué qu'à un cavalier par séance.
-3. Seuls les chevaux `en forme` dont la charge hebdo est inférieure au maximum sont éligibles à l'attribution.
+3. Seuls les chevaux `en forme` dont la charge de la semaine de la séance (calculée à partir des affectations, ADR 010) est inférieure au maximum sont éligibles à l’attribution.
 4. Une facture annulée ou payée n'est jamais supprimée (RGPD : anonymisation du compte, conservation des données de facturation).
 5. La révocation d'un jeton de rafraîchissement réutilisé entraîne la révocation de toute sa famille de jetons.

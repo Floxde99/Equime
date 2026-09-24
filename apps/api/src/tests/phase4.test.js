@@ -8,6 +8,7 @@ import { createApp } from '../app.js';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 import { assignmentWriter } from '../services/horseAssignment.js';
+import { getWeeklyLoads } from '../services/horseLoad.js';
 
 import {
   accessTokenFor,
@@ -184,7 +185,6 @@ describe('EPIC 5 — attribution des chevaux', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -205,10 +205,10 @@ describe('EPIC 5 — attribution des chevaux', () => {
     const enrollment = await prisma.courseEnrollment.findUniqueOrThrow({
       where: { courseId_riderId: { courseId: course.id, riderId: rider.id } },
     });
-    const refreshedHorse = await prisma.horse.findUniqueOrThrow({ where: { id: horse.id } });
+    const loads = await getWeeklyLoads({ referenceDate: course.startAt });
 
     expect(enrollment.horseId).toBeNull();
-    expect(refreshedHorse.weeklyLoadHours).toBe(0);
+    expect(loads.get(horse.id)).toBeUndefined();
     spy.mockRestore();
   });
 
@@ -229,7 +229,6 @@ describe('EPIC 5 — attribution des chevaux', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 1,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -239,7 +238,6 @@ describe('EPIC 5 — attribution des chevaux', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 2,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -261,12 +259,10 @@ describe('EPIC 5 — attribution des chevaux', () => {
     expect(res.status).toBe(200);
     expect(res.body.enrollment.horse.id).toBe(horseB.id);
 
-    const [updatedA, updatedB] = await Promise.all([
-      prisma.horse.findUniqueOrThrow({ where: { id: horseA.id } }),
-      prisma.horse.findUniqueOrThrow({ where: { id: horseB.id } }),
-    ]);
-    expect(updatedA.weeklyLoadHours).toBe(0);
-    expect(updatedB.weeklyLoadHours).toBe(3);
+    // Charge dérivée (ADR 010) : l'heure de la séance passe d'Indigo à Jazz.
+    const loads = await getWeeklyLoads({ referenceDate: course.startAt });
+    expect(loads.get(horseA.id)).toBeUndefined();
+    expect(loads.get(horseB.id)).toBe(1);
   });
 
   it('produit un audit batch sans écriture', async () => {
@@ -286,13 +282,10 @@ describe('EPIC 5 — attribution des chevaux', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
     await prisma.courseEnrollment.create({ data: { courseId: course.id, riderId: rider.id } });
-
-    const beforeHorse = await prisma.horse.findFirstOrThrow();
 
     const res = await request(app)
       .post('/api/v1/admin/compatibility-audit')
@@ -303,10 +296,8 @@ describe('EPIC 5 — attribution des chevaux', () => {
     expect(res.body.report).toHaveLength(1);
     expect(res.body.report[0].courseId).toBe(course.id);
 
-    const afterHorse = await prisma.horse.findFirstOrThrow();
     const enrollment = await prisma.courseEnrollment.findFirstOrThrow();
 
-    expect(afterHorse.weeklyLoadHours).toBe(beforeHorse.weeklyLoadHours);
     expect(enrollment.horseId).toBeNull();
   });
 });

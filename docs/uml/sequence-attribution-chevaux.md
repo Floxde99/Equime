@@ -8,13 +8,13 @@
 
 | Règle | Valeur |
 |---|---|
-| Chevaux éligibles | statut `fit` **ET** charge hebdomadaire < maximum |
+| Chevaux éligibles | statut `fit` **ET** charge de la semaine de la séance < maximum |
 | Score : affinité `favorite` | **+10** |
 | Score : niveau cavalier dans la plage du cheval | **+5** |
 | Score : affinité `avoid` | **−15** |
-| Score : charge hebdomadaire | **−5 × heures** déjà travaillées |
+| Score : charge hebdomadaire | **−5 × heures** déjà affectées sur la semaine ISO de la séance (heure de Paris) |
 | Attribution | meilleur cheval disponible, non déjà pris dans la séance |
-| Effet | `weeklyLoadHours` incrémenté de la durée du cours |
+| Charge | **dérivée** des affectations (cours non annulés hors excusés, stages non annulés) — jamais stockée (ADR 010) |
 | Atomicité | tout ou rien — `prisma.$transaction` |
 
 ## Séquence
@@ -41,7 +41,7 @@ sequenceDiagram
     S->>DB: BEGIN prisma.$transaction
     activate DB
     S->>DB: séance + inscriptions sans cheval (avec cavalier)
-    S->>DB: chevaux `fit` AND chargeHebdo < chargeMax
+    S->>DB: chevaux + charge dérivée sur la semaine de la séance (ADR 010)
     S->>DB: affinités des cavaliers concernés
     S->>DB: chevaux déjà attribués dans la séance
 
@@ -51,7 +51,6 @@ sequenceDiagram
         S->>S: trie les candidats, écarte les chevaux<br/>déjà pris dans la séance
         alt un cheval disponible
             S->>DB: UPDATE course_enrollments SET horseId, horseAssignedAt
-            S->>DB: UPDATE horses SET weeklyLoadHours += duréeCours
             S->>S: marque le cheval comme pris (séance)
         else aucun cheval éligible restant
             S->>S: consigne un conflit {inscription, raison}

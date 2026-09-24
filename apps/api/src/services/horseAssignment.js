@@ -1,11 +1,14 @@
 // @ts-check
 /**
  * Attribution des chevaux — scoring pur + orchestration transactionnelle (EPIC 5).
+ * La charge hebdo n'est plus écrite ici : elle est dérivée des affectations,
+ * sur la semaine de la séance attribuée (ADR 010).
  */
 import { AppError } from '../lib/appError.js';
 import { levelIndex } from '../lib/levels.js';
 import { prisma } from '../lib/prisma.js';
 
+import { withWeeklyLoad } from './horseLoad.js';
 import { invalidatePlanningCache } from './planningCache.js';
 
 /**
@@ -199,9 +202,8 @@ export const assignmentWriter = {
    * Persiste une attribution au sein d'une transaction Prisma.
    * @param {typeof prisma} tx
    * @param {{ enrollmentId: string, horse: { id: string } }} assignment
-   * @param {number} durationHours
    */
-  async apply(tx, assignment, durationHours) {
+  async apply(tx, assignment) {
     await tx.courseEnrollment.update({
       where: { id: assignment.enrollmentId },
       data: {
@@ -209,28 +211,41 @@ export const assignmentWriter = {
         horseAssignedAt: new Date(),
       },
     });
-    await tx.horse.update({
-      where: { id: assignment.horse.id },
-      data: { weeklyLoadHours: { increment: durationHours } },
-    });
   },
   /**
    * Persiste une attribution de stage (Excel 11.2).
    * @param {typeof prisma} tx
    * @param {{ enrollmentId: string, horse: { id: string } }} assignment
-   * @param {number} durationHours
    */
-  async applyEvent(tx, assignment, durationHours) {
+  async applyEvent(tx, assignment) {
     await tx.eventRegistration.update({
       where: { id: assignment.enrollmentId },
       data: { horseId: assignment.horse.id },
     });
-    await tx.horse.update({
-      where: { id: assignment.horse.id },
-      data: { weeklyLoadHours: { increment: durationHours } },
-    });
   },
 };
+
+const ASSIGNABLE_HORSE_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  minLevel: true,
+  maxLevel: true,
+  maxWeeklyLoadHours: true,
+};
+
+/**
+ * Chevaux candidats avec leur charge sur la semaine du créneau à pourvoir.
+ * @param {any} db client Prisma ou transactionnel
+ * @param {Date} slotStartAt
+ */
+async function loadCandidateHorses(db, slotStartAt) {
+  const horses = await db.horse.findMany({
+    select: ASSIGNABLE_HORSE_SELECT,
+    orderBy: { name: 'asc' },
+  });
+  return withWeeklyLoad(horses, { referenceDate: slotStartAt, db });
+}
 
 async function loadAssignmentContext(courseId, db = prisma) {
   const course = await db.course.findUnique({
@@ -248,18 +263,7 @@ async function loadAssignmentContext(courseId, db = prisma) {
 
   if (!course) throw AppError.notFound('Cours introuvable');
 
-  const horses = await db.horse.findMany({
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      minLevel: true,
-      maxLevel: true,
-      weeklyLoadHours: true,
-      maxWeeklyLoadHours: true,
-    },
-    orderBy: { name: 'asc' },
-  });
+  const horses = await loadCandidateHorses(db, course.startAt);
 
   const riderIds = course.enrollments.map((enrollment) => enrollment.riderId);
   const affinities =
@@ -282,7 +286,7 @@ export async function assignHorsesForSession(courseId) {
     const simulation = simulateHorseAssignments(context);
 
     for (const assignment of simulation.assignments) {
-      await assignmentWriter.apply(tx, assignment, simulation.durationHours);
+      await assignmentWriter.apply(tx, assignment);
     }
 
     return simulation;
@@ -384,22 +388,6 @@ export async function overrideAssignedHorse(courseId, enrollmentId, horseId) {
     const selected = options.find((option) => option.horseId === horseId);
     if (!selected) throw AppError.badRequest('Cheval non disponible pour cet override');
 
-    const durationHours = durationHoursFromRange(course.startAt, course.endAt);
-
-    if (enrollment.horseId && enrollment.horseId !== horseId) {
-      await tx.horse.update({
-        where: { id: enrollment.horseId },
-        data: { weeklyLoadHours: { decrement: durationHours } },
-      });
-    }
-
-    if (enrollment.horseId !== horseId) {
-      await tx.horse.update({
-        where: { id: horseId },
-        data: { weeklyLoadHours: { increment: durationHours } },
-      });
-    }
-
     return tx.courseEnrollment.update({
       where: { id: enrollmentId },
       data: { horseId, horseAssignedAt: new Date() },
@@ -413,16 +401,6 @@ export async function overrideAssignedHorse(courseId, enrollmentId, horseId) {
   await invalidatePlanningCache();
   return updated;
 }
-
-const EVENT_HORSE_SELECT = {
-  id: true,
-  name: true,
-  status: true,
-  minLevel: true,
-  maxLevel: true,
-  weeklyLoadHours: true,
-  maxWeeklyLoadHours: true,
-};
 
 async function loadEventAssignmentContext(eventId, db = prisma) {
   const event = await db.event.findUnique({
@@ -440,10 +418,7 @@ async function loadEventAssignmentContext(eventId, db = prisma) {
   });
   if (!event) throw AppError.notFound('Événement introuvable');
 
-  const horses = await db.horse.findMany({
-    select: EVENT_HORSE_SELECT,
-    orderBy: { name: 'asc' },
-  });
+  const horses = await loadCandidateHorses(db, event.startAt);
 
   const riderIds = event.registrations.map((registration) => registration.riderId);
   const affinities =
@@ -472,7 +447,7 @@ export async function assignHorsesForEvent(eventId) {
     const simulation = simulateHorseAssignments(context);
 
     for (const assignment of simulation.assignments) {
-      await assignmentWriter.applyEvent(tx, assignment, simulation.durationHours);
+      await assignmentWriter.applyEvent(tx, assignment);
     }
 
     return simulation;
@@ -541,22 +516,6 @@ export async function overrideEventAssignedHorse(eventId, registrationId, horseI
     const options = await listEventHorseOverrideOptions(eventId, registrationId);
     const selected = options.find((option) => option.horseId === horseId);
     if (!selected) throw AppError.badRequest('Cheval non disponible pour cet override');
-
-    const durationHours = durationHoursFromRange(event.startAt, event.endAt);
-
-    if (registration.horseId && registration.horseId !== horseId) {
-      await tx.horse.update({
-        where: { id: registration.horseId },
-        data: { weeklyLoadHours: { decrement: durationHours } },
-      });
-    }
-
-    if (registration.horseId !== horseId) {
-      await tx.horse.update({
-        where: { id: horseId },
-        data: { weeklyLoadHours: { increment: durationHours } },
-      });
-    }
 
     return tx.eventRegistration.update({
       where: { id: registrationId },

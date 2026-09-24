@@ -15,6 +15,7 @@ import {
   authHeader,
   createUser,
   familyIdOf,
+  giveHorseLoad,
   resetAuthTables,
   resetCoreTables,
   resetRateLimits,
@@ -84,9 +85,10 @@ describe('Dashboard KPIs (T-9.1)', () => {
         items: { create: [{ label: 'Test', quantity: 1, unitCents: 5000, totalCents: 5000 }] },
       },
     });
-    await prisma.horse.create({
-      data: { name: 'Orion', weeklyLoadHours: 11, alertThresholdHours: 10, maxWeeklyLoadHours: 12 },
+    const orion = await prisma.horse.create({
+      data: { name: 'Orion', alertThresholdHours: 10, maxWeeklyLoadHours: 12 },
     });
+    await giveHorseLoad({ horseId: orion.id, hours: 11, familyId, instructorId: instructor.id });
 
     const res = await request(app).get('/api/v1/admin/dashboard-kpis').set(authHeader(adminToken));
 

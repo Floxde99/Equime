@@ -253,6 +253,9 @@ async function main() {
   ];
   const horses = [];
   for (const [name, breed, birthYear, status, minLevel, maxLevel] of HORSES) {
+    // Ancien tirage de la charge hebdo (colonne supprimée, ADR 010) : conservé pour
+    // que la suite pseudo-aléatoire, donc le jeu de recette, reste identique.
+    randInt(0, 8);
     horses.push(
       await prisma.horse.create({
         data: /** @type {any} */ ({
@@ -262,7 +265,6 @@ async function main() {
           status,
           minLevel,
           maxLevel,
-          weeklyLoadHours: randInt(0, 8),
         }),
       })
     );

@@ -84,18 +84,21 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-5.1 | Cas nominal | Séance seed : Emma (favori Indigo disponible) | Indigo attribué (+10), charge +1 h | ✅ `horseAssignment.test.js` + phase4 | ✅ |
+| T-5.1 | Cas nominal | Séance seed : Emma (favori Indigo disponible) | Indigo attribué (+10) ; la séance compte 1 h dans la charge de sa semaine | ✅ `horseAssignment.test.js` + phase4 | ✅ |
 | T-5.2 | Affinité avoid | Seul cheval restant : « à éviter » | Attribué en dernier recours ou conflit signalé selon score −15 | ✅ unit | ✅ |
 | T-5.3 | Cheval surchargé | Charge = max | Écarté de l'éligibilité | ✅ unit | ✅ |
 | T-5.4 | Aucun éligible | Tous blessés/repos | 0 attribution, conflit par inscription, transaction propre | ✅ unit + intégration | ✅ |
 | T-5.5 | Égalité de scores | Deux chevaux à score égal | Départage déterministe (documenté), résultat stable | ✅ unit | ✅ |
 | T-5.6 | Cheval déjà pris | 2 cavaliers visent le même favori | Le 2ᵉ reçoit le suivant au classement | ✅ unit | ✅ |
 | T-5.7 | Atomicité | Erreur simulée en cours d'attribution | ROLLBACK complet — aucune écriture partielle | ✅ intégration | ✅ |
-| T-5.8 | Override manuel | Moniteur remplace le cheval | Charges réajustées sur les 2 chevaux | ✅ phase4 / phase5 | ✅ |
+| T-5.8 | Override manuel | Moniteur remplace le cheval | La séance passe dans la charge du nouveau cheval, plus dans celle de l’ancien (dérivée) | ✅ phase4 / phase5 | ✅ |
 | T-5.9 | Audit batch | POST /admin/compatibility-audit | Rapport complet, **aucune écriture** | ✅ phase4 | ✅ |
 | T-5.10 | Cavalier sous le niveau du cheval | Galop 1, seul cheval restant en galop 3–7 | **Non attribué** automatiquement (conflit) ; proposé en override avec avertissement (ADR 009) | ✅ unit | ✅ |
 | T-5.11 | Cavalier au-dessus du niveau du cheval | Galop 4, poney initiation–galop 2 disponible | Pénalité −20 : un cheval adapté passe devant ; avertissement affiché | ✅ unit | ✅ |
 | T-5.12 | Cavalier le plus contraint d'abord | Galop 4 inscrit avant un débutant, un seul poney | Le débutant reçoit le poney, le confirmé le cheval restant ; résultats dans l'ordre d'inscription | ✅ unit | ✅ |
+| T-5.13 | Charge hebdo dérivée (ADR 010) | 11 h la semaine précédente, une séance annulée, un cavalier excusé | Aucune ne compte : la charge ne reprend que les séances actives de la semaine | ✅ `horses.test.js`, `phase5.test.js` | ✅ |
+| T-5.14 | Semaine ISO, heure de Paris | Dimanche 23 h 30 et lundi 0 h 30, semaines de changement d'heure, 31 décembre | Semaine du lundi 00:00 au lundi suivant ; 167 h ou 169 h aux changements d'heure | ✅ `weeks.test.js` | ✅ |
+| T-5.15 | Stage à cheval sur deux semaines | Stage du dimanche au lundi | Seule la part comprise dans chaque semaine est comptée | ✅ `horseLoad.test.js` | ✅ |
 
 ### Jeu d'essai — fonctionnalité la plus représentative : l'attribution des chevaux
 
