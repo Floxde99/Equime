@@ -44,6 +44,8 @@ const ROUTES_PUBLIQUES = [
   '/health',
   '/api/v1/public/plans',
   '/api/v1/public/courses',
+  '/api/v1/public/payment-config',
+  '/api/v1/public/legal',
   '/api/v1/events',
 ];
 

@@ -8,6 +8,7 @@ import { env } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
 import { isLevelInRange } from '../lib/levels.js';
+import { logger } from '../lib/logger.js';
 import { buildSimpleNotificationEmail } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
@@ -42,6 +43,9 @@ const COURSE_SELECT = {
 };
 
 const PUBLIC_COURSE_LIMIT = 12;
+
+/** Notifications envoyées en parallèle par lot (borne la charge SendGrid et BDD). */
+const NOTIFICATION_BATCH_SIZE = 5;
 
 /**
  * Séances à venir pour la vitrine (Excel 1.2) : champs publics seulement,
@@ -272,11 +276,14 @@ export async function cancelCourse(courseId, cancelSeries) {
     },
   });
 
-  for (const enrollment of enrollments) {
+  await invalidatePlanningCache();
+
+  /** @param {(typeof enrollments)[number]} enrollment */
+  const notifyCancellation = (enrollment) => {
     const dateLabel = enrollment.course.startAt.toLocaleDateString('fr-FR');
     const title = enrollment.course.title;
     const firstName = enrollment.rider.family.user.firstName;
-    await dispatchNotification({
+    return dispatchNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.COURSE_CANCELLED,
       title: 'Cours annulé',
@@ -293,9 +300,21 @@ export async function cancelCourse(courseId, cancelSeries) {
         ctaLabel: 'Voir le planning',
       }),
     });
-  }
+  };
 
-  await invalidatePlanningCache();
+  // Envoi par lots parallèles : une annulation de série (des dizaines
+  // d'inscriptions) ne doit pas enchaîner les allers-retours SendGrid un à un.
+  // L'annulation est déjà enregistrée : un échec de notification est tracé,
+  // jamais propagé.
+  for (let i = 0; i < enrollments.length; i += NOTIFICATION_BATCH_SIZE) {
+    const batch = enrollments.slice(i, i + NOTIFICATION_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map(notifyCancellation));
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.error({ err: result.reason, courseId }, "Échec de notification d'annulation");
+      }
+    }
+  }
 }
 
 /**

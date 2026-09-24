@@ -26,7 +26,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 |---|---|---|---|---|---|
 | T-0.1 | Santé de l'API | GET /health | 200, `status: ok`, état Redis | ✅ Supertest | ✅ |
 | T-0.2 | Route inconnue | GET /nope | 404, erreur structurée `NOT_FOUND`, pas de stack | ✅ Supertest | ✅ |
-| T-0.3 | Config invalide | Démarrer l'API sans `DATABASE_URL` | Crash explicite listant la variable manquante | ⬜ | ⬜ |
+| T-0.3 | Config invalide | Démarrer l'API sans `DATABASE_URL` | Crash explicite listant la variable manquante | ✅ `env.test.js` / Zod boot | ✅ |
 | T-0.4 | Vitrine placeholder | Ouvrir http://localhost:5173 | Thème navy/or, polices chargées, un seul CTA or | manuel | ✅ |
 
 ## Module 1 — Authentification (Phase 2)
@@ -39,7 +39,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 | T-1.4 | Connexion OK | Login lina@equime.local | 200, access en mémoire, cookie refresh httpOnly | ✅ intégration | ✅ |
 | T-1.5 | Connexion KO | Login mauvais mot de passe | 401 générique | ✅ intégration | ✅ |
 | T-1.6 | Compte banni | Login utilisateur banni | 403, connexion refusée | ✅ intégration | ✅ |
-| T-1.7 | Rotation du refresh | Attendre expiration access → appel API | Refresh silencieux, requête rejouée, ancien refresh révoqué | ✅ intégration | ⬜ |
+| T-1.7 | Rotation du refresh | Attendre expiration access → appel API | Refresh silencieux, requête rejouée, ancien refresh révoqué | ✅ intégration + `apiClient.test.js` | ✅ |
 | T-1.8 | Réutilisation détectée | Rejouer un refresh déjà rotaté | 401, **toute la famille révoquée**, session légitime déconnectée | ✅ intégration | ✅ |
 | T-1.9 | Route protégée sans token | GET /api/v1/auth/me sans Bearer | 401 | ✅ intégration | ✅ |
 | T-1.10 | Rôle insuffisant | Client sur route admin | 403 | ✅ intégration | ✅ |
@@ -52,58 +52,131 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-2.1 | Ajout cavalier | Client ajoute un cavalier complet | 201, visible dans la liste famille | ✅ intégration | ⬜ |
-| T-2.2 | Isolation famille | Lina tente GET des cavaliers d'Alex | 403/404 — aucune fuite | ⬜ intégration | ⬜ |
-| T-2.3 | Upload certificat | PDF 2 Mo avec consentement coché | Statut « en attente », fichier servi authentifié seulement | ⬜ intégration | ⬜ |
-| T-2.4 | Upload invalide | .exe renommé en .pdf, ou 8 Mo | 400 — MIME réel et taille contrôlés | ⬜ intégration | ⬜ |
-| T-2.5 | Upload sans consentement | Certificat sans consentement | 400, rien n'est stocké | ⬜ intégration | ⬜ |
-| T-2.6 | Affinités | Déclarer favori + à éviter | Persisté, unique par couple, visible en Phase 4 dans les scores | ⬜ intégration | ⬜ |
+| T-2.1 | Ajout cavalier | Client ajoute un cavalier complet | 201, visible dans la liste famille | ✅ intégration | ✅ |
+| T-2.2 | Isolation famille | Lina tente GET des cavaliers d'Alex | 403/404 — aucune fuite | ✅ `core.test.js` | ✅ |
+| T-2.3 | Upload certificat | PDF 2 Mo avec consentement coché | Statut « en attente », fichier servi authentifié seulement | ✅ `core.test.js` | ✅ |
+| T-2.4 | Upload invalide | .exe renommé en .pdf, ou 8 Mo | 400 — MIME réel et taille contrôlés | ✅ `core.test.js` | ✅ |
+| T-2.5 | Upload sans consentement | Certificat sans consentement | 400, rien n'est stocké | ✅ `core.test.js` | ✅ |
+| T-2.6 | Affinités | Déclarer favori + à éviter | Persisté, unique par couple, visible en Phase 4 dans les scores | ✅ `horseAssignment.test.js` | ✅ |
 
 ## Module 3 — Cavalerie & espaces (Phase 3)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-3.1 | CRUD cheval | Admin crée/modifie/supprime | Badges de statut conformes au design system | ✅ intégration | ⬜ |
-| T-3.2 | Changement de statut | Passer Sultan `injured` → `fit` | Historique cohérent, cheval redevenu éligible | ⬜ intégration | ⬜ |
-| T-3.3 | Carnet de santé | Ajouter une entrée vétérinaire | Listée anti-chronologiquement ; moniteur lit, seul admin écrit | ⬜ intégration | ⬜ |
-| T-3.4 | Conflit d'espace | 2 cours simultanés même espace | Refus avec message explicite | ✅ intégration | ⬜ |
+| T-3.1 | CRUD cheval | Admin crée/modifie/supprime | Badges de statut conformes au design system | ✅ `horses.test.js` | ✅ |
+| T-3.2 | Changement de statut | Passer Sultan `injured` → `fit` | Historique cohérent, cheval redevenu éligible | ✅ `horses.test.js` | ✅ |
+| T-3.3 | Carnet de santé | Ajouter une entrée vétérinaire | Listée anti-chronologiquement ; moniteur lit, seul admin écrit | ✅ `horses.test.js` | ✅ |
+| T-3.4 | Conflit d'espace | 2 cours simultanés même espace | Refus avec message explicite | ✅ intégration | ✅ |
 
 ## Module 4 — Cours & planning (Phase 3)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-4.1 | Récurrence 8 semaines | Créer cours hebdo avec date de fin | 8 séances générées rattachées à la série | ✅ unit (recurrence.js) + intégration | ⬜ |
-| T-4.2 | Annulation d'une séance | Annuler séance 3 seulement | Les 7 autres inchangées ; notification `course_cancelled` aux inscrits | ⬜ intégration | ⬜ |
-| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, quota décrémenté | ✅ intégration | ⬜ |
-| T-4.4 | Inscription niveau KO | Lucas (initiation) sur cours G5+ | 400 avec raison | ⬜ intégration | ⬜ |
-| T-4.5 | Cours complet | Inscrire au-delà de la capacité | Refus explicite | ⬜ intégration | ⬜ |
-| T-4.6 | Présences | Moniteur pointe présent/absent/excusé | Persisté ; absence → notification famille | ⬜ intégration | ⬜ |
-| T-4.7 | Cache planning | 2 lectures puis mutation puis relecture | 2ᵉ lecture servie par Redis ; mutation invalide le cache | ⬜ intégration | ⬜ |
+| T-4.1 | Récurrence 8 semaines | Créer cours hebdo avec date de fin | 8 séances générées rattachées à la série | ✅ unit (recurrence.js) + intégration | ✅ |
+| T-4.2 | Annulation d'une séance | Annuler séance 3 seulement | Les 7 autres inchangées ; notification `course_cancelled` aux inscrits | ✅ `core.test.js` | ✅ |
+| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, quota décrémenté | ✅ intégration | ✅ |
+| T-4.4 | Inscription niveau KO | Lucas (initiation) sur cours G5+ | 400 avec raison | ✅ `core.test.js` / courses | ✅ |
+| T-4.5 | Cours complet | Inscrire au-delà de la capacité | Refus explicite | ✅ `core.test.js` / phase5 | ✅ |
+| T-4.6 | Présences | Moniteur pointe présent/absent/excusé | Persisté ; absence → notification famille | ✅ `core.test.js` + E2E-3 | ✅ |
+| T-4.7 | Cache planning | 2 lectures puis mutation puis relecture | 2ᵉ lecture servie par Redis ; mutation invalide le cache | ✅ `core.test.js` / `planningCache.test.js` | ✅ |
 
 ## Module 5 — Attribution des chevaux (Phase 4) ⭐
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-5.1 | Cas nominal | Séance seed : Emma (favori Indigo disponible) | Indigo attribué (+10), charge +1 h | ⬜ unit + intégration | ⬜ |
-| T-5.2 | Affinité avoid | Seul cheval restant : « à éviter » | Attribué en dernier recours ou conflit signalé selon score −15 | ⬜ unit | ⬜ |
-| T-5.3 | Cheval surchargé | Charge = max | Écarté de l'éligibilité | ⬜ unit | ⬜ |
-| T-5.4 | Aucun éligible | Tous blessés/repos | 0 attribution, conflit par inscription, transaction propre | ⬜ unit + intégration | ⬜ |
-| T-5.5 | Égalité de scores | Deux chevaux à score égal | Départage déterministe (documenté), résultat stable | ⬜ unit | ⬜ |
-| T-5.6 | Cheval déjà pris | 2 cavaliers visent le même favori | Le 2ᵉ reçoit le suivant au classement | ⬜ unit | ⬜ |
-| T-5.7 | Atomicité | Erreur simulée en cours d'attribution | ROLLBACK complet — aucune écriture partielle | ⬜ intégration | ⬜ |
-| T-5.8 | Override manuel | Moniteur remplace le cheval | Charges réajustées sur les 2 chevaux | ⬜ intégration | ⬜ |
-| T-5.9 | Audit batch | POST /admin/compatibility-audit | Rapport complet, **aucune écriture** | ⬜ intégration | ⬜ |
+| T-5.1 | Cas nominal | Séance seed : Emma (favori Indigo disponible) | Indigo attribué (+10) ; la séance compte 1 h dans la charge de sa semaine | ✅ `horseAssignment.test.js` + phase4 | ✅ |
+| T-5.2 | Affinité avoid | Seul cheval restant : « à éviter » | Attribué en dernier recours ou conflit signalé selon score −15 | ✅ unit | ✅ |
+| T-5.3 | Cheval surchargé | Charge = max | Écarté de l'éligibilité | ✅ unit | ✅ |
+| T-5.4 | Aucun éligible | Tous blessés/repos | 0 attribution, conflit par inscription, transaction propre | ✅ unit + intégration | ✅ |
+| T-5.5 | Égalité de scores | Deux chevaux à score égal | Départage déterministe (documenté), résultat stable | ✅ unit | ✅ |
+| T-5.6 | Cheval déjà pris | 2 cavaliers visent le même favori | Le 2ᵉ reçoit le suivant au classement | ✅ unit | ✅ |
+| T-5.7 | Atomicité | Erreur simulée en cours d'attribution | ROLLBACK complet — aucune écriture partielle | ✅ intégration | ✅ |
+| T-5.8 | Override manuel | Moniteur remplace le cheval | La séance passe dans la charge du nouveau cheval, plus dans celle de l’ancien (dérivée) | ✅ phase4 / phase5 | ✅ |
+| T-5.9 | Audit batch | POST /admin/compatibility-audit | Rapport complet, **aucune écriture** | ✅ phase4 | ✅ |
+| T-5.10 | Cavalier sous le niveau du cheval | Galop 1, seul cheval restant en galop 3–7 | **Non attribué** automatiquement (conflit) ; proposé en override avec avertissement (ADR 009) | ✅ unit | ✅ |
+| T-5.11 | Cavalier au-dessus du niveau du cheval | Galop 4, poney initiation–galop 2 disponible | Pénalité −20 : un cheval adapté passe devant ; avertissement affiché | ✅ unit | ✅ |
+| T-5.12 | Cavalier le plus contraint d'abord | Galop 4 inscrit avant un débutant, un seul poney | Le débutant reçoit le poney, le confirmé le cheval restant ; résultats dans l'ordre d'inscription | ✅ unit | ✅ |
+| T-5.13 | Charge hebdo dérivée (ADR 010) | 11 h la semaine précédente, une séance annulée, un cavalier excusé | Aucune ne compte : la charge ne reprend que les séances actives de la semaine | ✅ `horses.test.js`, `phase5.test.js` | ✅ |
+| T-5.14 | Semaine ISO, heure de Paris | Dimanche 23 h 30 et lundi 0 h 30, semaines de changement d'heure, 31 décembre | Semaine du lundi 00:00 au lundi suivant ; 167 h ou 169 h aux changements d'heure | ✅ `weeks.test.js` | ✅ |
+| T-5.15 | Stage à cheval sur deux semaines | Stage du dimanche au lundi | Seule la part comprise dans chaque semaine est comptée | ✅ `horseLoad.test.js` | ✅ |
+
+### Jeu d'essai — fonctionnalité la plus représentative : l'attribution des chevaux
+
+> Exigé par le plan du dossier (RE CDA) : données en entrée, attendues, **obtenues**, et
+> **analyse des écarts**. Exécuté sur la fonction réelle `simulateHorseAssignments`
+> (`apps/api/src/services/horseAssignment.js`), sans base de données. Il est automatisé
+> dans `horseAssignment.test.js` (« jeu d'essai »).
+
+**Données en entrée**
+
+| Cheval | Statut | Plage de niveau | Charge semaine | Rôle dans l'essai |
+|---|---|---|---|---|
+| Tornade | apte | galop 3 → galop 7 | 2 h / 10 | cheval confirmé |
+| Caramel | apte | initiation → galop 2 | 1 h / 10 | poney débutant |
+| Éclair | apte | galop 3 → galop 7 | 9 h / 10 | confirmé, très chargé |
+| Brume | **indisponible** | galop 1 → galop 5 | 0 h | doit être écarté |
+| Saphir | apte | galop 1 → galop 4 | **10 h / 10** | au plafond, doit être écarté |
+
+Cavaliers, dans l'ordre d'inscription : **Emma** (galop 4, favori : Éclair), **Tom**
+(galop 1), **Léa** (galop 5, évite Tornade), **Hugo** (initiation). Séance d'une heure.
+
+**Première exécution — règle d'origine (niveau compatible = +5 seulement)**
+
+| Cavalier | Attendu (logique métier) | Obtenu | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Tornade | **Caramel** (−5 ; Tornade aussi à −5) | ❌ Égalité départagée par la charge : un poney débutant pour une cavalière confirmée |
+| Tom, galop 1 | Caramel | **Tornade**, cheval galop 3–7 (−10) | ❌ **Débutant sur un cheval confirmé : risque de sécurité** |
+| Léa, galop 5 | Éclair | Éclair (−40) | ✅ |
+| Hugo, initiation | Caramel ou conflit | Conflit « aucun cheval éligible » | ⚠️ Caramel lui convenait, pris par Emma |
+| Brume, Saphir | Écartés | Écartés | ✅ |
+
+**Analyse des écarts**
+
+1. Le bonus de niveau (+5) vaut exactement une heure de charge (−5) : un cheval
+   inadapté mais moins chargé passe devant un cheval adapté.
+2. L'attribution est gloutonne, dans l'ordre d'inscription : en prenant le poney, Emma
+   prive les deux cavaliers suivants.
+3. L'incompatibilité de niveau ne déclenchait aucun avertissement ; seule l'affinité
+   « à éviter » en déclenchait un.
+
+Le moniteur pouvait corriger à la main, mais l'algorithme proposait un choix dangereux.
+Correction : **règle de niveau asymétrique** (ADR 009).
+
+**Seconde exécution — après correction**
+
+| Cavalier | Attendu | Obtenu | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Tornade | **Tornade** (−5) ; Caramel à −25 avec l'avertissement « Cheval d'un niveau inférieur au cavalier » | ✅ |
+| Tom, galop 1 | Caramel | **Caramel** (0) ; Tornade et Éclair exclus (sous-niveau) | ✅ |
+| Léa, galop 5 | Éclair | **Éclair** (−40) | ✅ |
+| Hugo, initiation | Conflit (3 chevaux éligibles pour 4 cavaliers) | **Conflit** | ✅ inévitable, signalé au moniteur |
+
+Aucune attribution dangereuse. Tom et Hugo n'ont chacun qu'un cheval possible, le même
+poney : à égalité de contrainte, l'ordre d'inscription les départage.
+
+**Troisième correction — le cavalier le plus contraint choisit en premier** (ADR 009)
+
+L'écart 2 (ordre glouton) subsistait dans d'autres configurations. Cas ajouté au jeu
+d'essai : Emma (galop 4) inscrite avant Hugo (initiation) ; Tornade (galop 3–7, 6 h de
+charge) et Caramel (poney, 0 h).
+
+| Cavalier | Avant (ordre d'inscription) | Après (le moins de chevaux possibles d'abord) | Écart |
+|---|---|---|---|
+| Emma, galop 4 | Caramel (−20 contre −25 pour Tornade) | **Tornade** | ✅ |
+| Hugo, initiation | Conflit : Tornade lui est interdite | **Caramel** | ✅ plus de conflit évitable |
+
+Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 
 ## Module 6 — Facturation & abonnements (Phase 4)
 
 | ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
 |---|---|---|---|---|---|
-| T-6.1 | Pricing | Famille 2 cavaliers, plan Classique | Prix = plan − 10 % (règle famille nombreuse) — `pricing.js` pur | ⬜ unit | ⬜ |
-| T-6.2 | Réductions cumulées | Cas 3 cavaliers | Meilleure règle appliquée (15 %), jamais de prix négatif | ⬜ unit | ⬜ |
-| T-6.3 | Cycle de facture | brouillon → envoyée → payée | Numérotation unique ; notifications `invoice_created`, `payment_confirmed` | ⬜ intégration | ⬜ |
-| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ⬜ |
-| T-6.5 | Relance impayé | Relancer FAC-2026-0004 (overdue) | Notification `invoice_reminder` selon préférences | ⬜ intégration | ⬜ |
-| T-6.6 | Isolation | Alex tente GET facture de Lina | 403/404 | ⬜ intégration | ⬜ |
+| T-6.1 | Pricing | Famille 2 cavaliers, plan Classique | Prix = plan − 10 % (règle famille nombreuse) — `pricing.js` pur | ✅ `pricing.test.js` | ✅ |
+| T-6.2 | Réductions cumulées | Cas 3 cavaliers | Meilleure règle appliquée (15 %), jamais de prix négatif | ✅ `pricing.test.js` | ✅ |
+| T-6.3 | Cycle de facture | brouillon → envoyée → payée | Numérotation unique ; notifications `invoice_created`, `payment_confirmed` | ✅ `phase4.test.js` / `payment.test.js` | ✅ |
+| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ✅ |
+| T-6.5 | Relance impayé | Relancer FAC-2026-0004 (overdue) | Notification `invoice_reminder` selon préférences | ✅ `phase4.test.js` | ✅ |
+| T-6.6 | Isolation | Alex tente GET facture de Lina | 403/404 | ✅ `phase4.test.js` | ✅ |
 | T-6.7 | PDF facture | Admin GET `/invoices/:id/pdf` (brouillon OK) ; client GET après envoi ; autre famille 404 | `Content-Type: application/pdf`, magic `%PDF` | ✅ `invoicePdf.test.js`, `phase4.test.js` | ✅ |
 
 ## Module 7 — Événements (Phase 5)
@@ -145,15 +218,15 @@ Les règles métier trop lourdes (upload PDF, reset mot de passe, ban, refresh 1
 | E2E-2 | Client : ajout cavalier + réservation + consultation planning | T-2.1, T-4.3 | `client-flow.spec.js` | ✅ |
 | E2E-3 | Moniteur : accès planning + appel (socle attribution/présences) | T-5.1, T-5.8, T-4.6 | `instructor-flow.spec.js` | ✅ |
 | E2E-4 | Client : paiement facture + contrôle admin | T-6.4 | `billing-flow.spec.js` | ✅ |
-| E2E-5 | Visiteur : vitrine (Accueil, Formules, Cours, CTA Connexion) | T-0.4, T-7.1 | `public.spec.js` | ⬜ |
-| E2E-6 | Isolation des rôles (client hors `/admin`, visiteur hors `/app`) | T-1.9, T-1.10 | `guards.spec.js` | ⬜ |
-| E2E-7 | Client : inscription aux stages | T-7.2 | `client-engagement.spec.js` | ⬜ |
-| E2E-8 | Admin : cavalerie (fiche cheval) | T-3.1 | `admin-flow.spec.js` | ⬜ |
-| E2E-9 | Fumée client : messages, bénévolat, compte, notifications | T-8.1, T-8.4 | `client-engagement.spec.js` | ⬜ |
-| E2E-10 | Fumée moniteur : carnet de santé, incidents | T-3.3, T-8.3 | `instructor-smoke.spec.js` | ⬜ |
-| E2E-11 | Fumée admin : vue d'ensemble, adhérents | T-9.1 | `admin-flow.spec.js` | ⬜ |
-| E2E-12 | Visiteur : page introuvable (404) | T-0.2 | `public.spec.js` | ⬜ |
-| E2E-13 | Visiteur : newsletter vitrine | T-7.1b | `public.spec.js` | ⬜ |
+| E2E-5 | Visiteur : vitrine (Accueil, Formules, Cours, CTA Connexion) | T-0.4, T-7.1 | `public.spec.js` | ✅ |
+| E2E-6 | Isolation des rôles (client hors `/admin`, visiteur hors `/app`) | T-1.9, T-1.10 | `guards.spec.js` | ✅ |
+| E2E-7 | Client : inscription aux stages | T-7.2 | `client-engagement.spec.js` | ✅ |
+| E2E-8 | Admin : cavalerie (fiche cheval) | T-3.1 | `admin-flow.spec.js` | ✅ |
+| E2E-9 | Fumée client : messages, bénévolat, compte, notifications | T-8.1, T-8.4 | `client-engagement.spec.js` | ✅ |
+| E2E-10 | Fumée moniteur : carnet de santé, incidents | T-3.3, T-8.3 | `instructor-smoke.spec.js` | ✅ |
+| E2E-11 | Fumée admin : vue d'ensemble, adhérents | T-9.1 | `admin-flow.spec.js` | ✅ |
+| E2E-12 | Visiteur : page introuvable (404) | T-0.2 | `public.spec.js` | ✅ |
+| E2E-13 | Visiteur : newsletter vitrine | T-7.1b | `public.spec.js` | ✅ |
 
 Socle automatisé ajouté en Phase 6 :
 
@@ -172,11 +245,11 @@ reste couvert par les tests d'intégration API.
 
 ## Transverse — sécurité & accessibilité (audités en Phase 6)
 
-| ID | Scénario | Résultat attendu |
-|---|---|---|
-| T-S.1 | Injection SQL sur champs de recherche | Neutralisée (Prisma paramétré) |
-| T-S.2 | XSS dans un message | Échappé à l'affichage, CSP active |
-| T-S.3 | Headers de sécurité | helmet + Nginx : CSP, X-Frame-Options, HSTS (prod) |
-| T-S.4 | IDOR | Tout ID d'une autre famille → 403/404 |
-| T-A.1 | Navigation clavier complète | Tous les parcours principaux au clavier, focus visible |
-| T-A.2 | Lecteur d'écran | Labels, landmarks, badges avec texte (jamais couleur seule) |
+| ID | Scénario | Résultat attendu | Statut |
+|---|---|---|---|
+| T-S.1 | Injection SQL sur champs de recherche | Neutralisée (Prisma paramétré) | ✅ |
+| T-S.2 | XSS dans un message | Échappé à l'affichage, CSP active | ✅ |
+| T-S.3 | Headers de sécurité | helmet + Caddy/Nginx : CSP, X-Frame-Options, HSTS (préprod/prod) | ✅ |
+| T-S.4 | IDOR | Tout ID d'une autre famille → 403/404 | ✅ |
+| T-A.1 | Navigation clavier complète | Tous les parcours principaux au clavier, focus visible | ✅ |
+| T-A.2 | Lecteur d'écran | Labels, landmarks, badges avec texte (jamais couleur seule) | ✅ |

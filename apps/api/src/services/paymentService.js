@@ -64,6 +64,16 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
 
   const stripe = getStripe();
   const config = getPaymentConfig();
+
+  // Une session encore ouverte est réutilisée : en créer une seconde laisserait
+  // deux sessions payables pour la même facture (double débit possible).
+  if (invoice.stripeCheckoutSessionId) {
+    const existing = await stripe.checkout.sessions.retrieve(invoice.stripeCheckoutSessionId);
+    if (existing.status === 'open' && existing.url) {
+      return { url: existing.url, sessionId: existing.id, mode: config.mode };
+    }
+  }
+
   const successUrl = `${env.APP_URL}/app/factures?paid=1&invoice=${encodeURIComponent(invoice.id)}`;
   const cancelUrl = `${env.APP_URL}/app/factures?cancelled=1&invoice=${encodeURIComponent(invoice.id)}`;
 
@@ -194,12 +204,26 @@ export async function handleStripeWebhookEvent(event) {
     'checkout.session.async_payment_succeeded',
   ]);
 
+  const session = event.data.object;
+
+  // Moyen de paiement différé (SEPA…) en échec : la facture n'a jamais été
+  // marquée payée (voir ci-dessous), elle reste due — on trace seulement.
+  if (event.type === 'checkout.session.async_payment_failed') {
+    logger.warn({ sessionId: session.id }, 'Paiement Stripe différé en échec');
+    return { handled: false };
+  }
+
   if (!payableTypes.has(event.type)) {
     logger.debug({ type: event.type }, 'Événement Stripe ignoré');
     return { handled: false };
   }
 
-  const session = event.data.object;
+  // `completed` arrive aussi pour les moyens différés avec payment_status
+  // `unpaid` : l'encaissement sera confirmé par `async_payment_succeeded`.
+  if (event.type === 'checkout.session.completed' && session.payment_status !== 'paid') {
+    logger.info({ sessionId: session.id }, 'Checkout terminé, paiement en attente');
+    return { handled: false };
+  }
   const metadata =
     session.metadata && typeof session.metadata === 'object'
       ? /** @type {Record<string, string>} */ (session.metadata)

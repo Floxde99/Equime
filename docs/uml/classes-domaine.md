@@ -1,8 +1,10 @@
 # UML — Diagramme de classes du domaine
 
-> Livrable Phase 1. Vue objet du domaine métier (indépendante de la persistance —
-> voir `docs/merise/` pour les modèles de données). Les méthodes listées correspondent
-> aux services métier prévus (`apps/api/src/services/`).
+> Livrable Phase 1, **aligné sur le code livré** (Phase 7). Vue objet du domaine métier
+> (indépendante de la persistance — voir `docs/merise/` pour les modèles de données).
+> Les entités ne portent que des **données** ; les comportements sont portés par les
+> **services** (`<<service>>`), avec les noms réels des fonctions de `apps/api/src/services/`.
+> Ce choix est expliqué en fin de document.
 
 ```mermaid
 classDiagram
@@ -15,15 +17,11 @@ classDiagram
         +String nom
         +Role rôle
         +Boolean banni
-        +estClient() Boolean
-        +peutAccéder(ressource) Boolean
     }
 
     class Famille {
         +String id
         +Int quotaSéances
-        +consommerQuota(n) void
-        +réductionApplicable(règles) RègleRéduction?
     }
 
     class Cavalier {
@@ -33,7 +31,7 @@ classDiagram
         +NiveauCavalier niveau
         +StatutDocument certificatMédical
         +StatutDocument licence
-        +documentsValides() Boolean
+        +String? numéroLicence
     }
 
     class Cheval {
@@ -42,16 +40,12 @@ classDiagram
         +StatutCheval statut
         +NiveauCavalier niveauMin
         +NiveauCavalier niveauMax
-        +Float chargeHebdo
+        +Float chargeHebdo(semaine) // dérivée, ADR 010
         +Float chargeMax
-        +estÉligible() Boolean
-        +niveauCompatible(cavalier) Boolean
-        +enSurcharge() Boolean
     }
 
     class Affinité {
         +TypeAffinité type
-        +score() Int
     }
 
     class Espace {
@@ -69,23 +63,22 @@ classDiagram
         +Int capacité
         +StatutCours statut
         +RègleRécurrence? récurrence
-        +duréeHeures() Float
-        +estComplet() Boolean
-        +expanserRécurrence() Cours[]
     }
 
     class InscriptionCours {
         +StatutPrésence présence
         +DateTime? chevalAttribuéLe
-        +attribuerCheval(cheval) void
-        +marquerPrésence(statut) void
     }
 
     class ServiceAttribution {
         <<service>>
-        +assignHorsesForSession(coursId) RésultatAttribution
-        +scorerCouple(cavalier, cheval, affinité) Int
-        +auditCompatibilité() Rapport
+        +levelFit(niveau, cheval) Adéquation
+        +scoreRiderHorse(cavalier, cheval, affinité) Int
+        +rankCandidateHorses(cavalier, chevaux) Candidat[]
+        +simulateHorseAssignments(cours, inscriptions) Résultat
+        +assignHorsesForSession(coursId) Résultat
+        +runCompatibilityAudit() Rapport
+        +overrideAssignedHorse(coursId, inscriptionId, chevalId)
     }
 
     class Événement {
@@ -93,7 +86,6 @@ classDiagram
         +TypeÉvénement type
         +Int prixCentimes
         +Int capacité
-        +placesRestantes() Int
     }
 
     class InscriptionÉvénement {
@@ -109,16 +101,13 @@ classDiagram
     class RègleRéduction {
         +Int pourcentage
         +Int? minCavaliers
-        +sApplique(famille) Boolean
     }
 
     class Facture {
         +String numéro
         +StatutFacture statut
         +Int totalCentimes
-        +émettre() void
-        +marquerPayée() void
-        +estEnRetard() Boolean
+        +String? stripeCheckoutSessionId
     }
 
     class LigneFacture {
@@ -129,20 +118,20 @@ classDiagram
 
     class ServiceFacturation {
         <<service>>
-        +générerFacture(famille, lignes) Facture
-        +calculerPrix(plan, règles) Int
-        +relancerImpayés() void
+        +generateSubscriptionInvoices() Facture[]
+        +applyBestDiscount(prix, nbCavaliers, règles) Int
+        +sendInvoice(factureId) Facture
+        +remindInvoice(factureId) Facture
+        +markInvoicePaidFromPayment(factureId) Facture
     }
 
     class Incident {
         +Gravité gravité
         +StatutIncident statut
-        +résoudre() void
     }
 
     class Conversation {
         +String? sujet
-        +messagesNonLus(participant) Int
     }
 
     class Message {
@@ -160,16 +149,40 @@ classDiagram
         +String familleId
         +DateTime expireLe
         +DateTime? révoquéLe
-        +estValide() Boolean
     }
 
     class ServiceJetons {
         <<service>>
-        +émettre(utilisateur) PaireJetons
-        +tourner(jeton) PaireJetons
-        +détecterRéutilisation(jeton) Boolean
-        +révoquerFamille(familleId) void
+        +issueTokenPair(utilisateur) PaireJetons
+        +rotateRefreshToken(jeton) PaireJetons
+        +revokeFamily(familleId) void
+        +isBlacklisted(payload) Boolean
     }
+
+    class Error {
+        <<built-in>>
+        +String message
+    }
+
+    class AppError {
+        +Int statusCode
+        +String code
+        +Boolean isOperational
+        +badRequest(message)$ AppError
+        +unauthorized(message)$ AppError
+        +forbidden(message)$ AppError
+        +notFound(message)$ AppError
+        +conflict(message)$ AppError
+    }
+
+    class ApiError {
+        <<front>>
+        +Int status
+        +String code
+    }
+
+    Error <|-- AppError
+    Error <|-- ApiError
 
     Utilisateur "1" --> "0..1" Famille : possède
     Famille "1" --> "1..*" Cavalier : compte
@@ -203,10 +216,47 @@ classDiagram
 
 ## Notes de conception
 
-- Les **services** (stéréotype `<<service>>`) portent la logique transverse à plusieurs entités ;
-  ils sont implémentés en fonctions pures + orchestration transactionnelle (`prisma.$transaction`),
-  sans dépendance à Express (`req`/`res` interdits dans la couche service).
-- `ServiceAttribution.scorerCouple` est une **fonction pure** : entrées (cavalier, cheval, affinité,
-  charge) → score entier, testable unitairement sans base de données.
-- Les énumérations (`Role`, `NiveauCavalier`, `StatutCheval`…) sont définies une seule fois dans
-  `packages/shared/src/constants.js` et réutilisées par le front, l'API et le schéma Prisma.
+### Un domaine « anémique », choisi et assumé
+
+Les entités sont de simples structures de données (objets renvoyés par Prisma) ; toute
+la logique vit dans des **services**. Martin Fowler appelle ce style un *modèle de
+domaine anémique*, par opposition à un *modèle riche* où chaque entité porte ses règles
+(`cheval.estÉligible()`). C'est un choix délibéré :
+
+- les objets manipulés sont ceux de Prisma : les enrichir de méthodes imposerait une
+  couche de conversion à chaque lecture ;
+- l'architecture en couches d'Express (route → validation → contrôleur → service) place
+  naturellement les règles dans les services ;
+- les règles clés sont des **fonctions pures** (`scoreRiderHorse`, `levelFit`,
+  `applyBestDiscount`, `expandWeeklyRecurrence`), testables sans base de données.
+
+Où se trouvent les comportements qu'un modèle riche aurait portés :
+
+| Responsabilité (modèle riche) | Fonction réelle |
+|---|---|
+| `Cheval.estÉligible()`, `niveauCompatible()` | `horseAssignment.isEligibleHorse`, `levelFit` (ADR 009) |
+| `Cavalier.documentsValides()` | `lib/riderDocuments.assertRiderDocumentsApproved` |
+| `Cours.duréeHeures()`, `expanserRécurrence()` | `durationHoursFromRange`, `recurrence.expandWeeklyRecurrence` |
+| `Famille.réductionApplicable()` | `pricing.applyBestDiscount` |
+| `Facture.émettre()`, `marquerPayée()` | `billingService.sendInvoice`, `markInvoicePaidFromPayment` |
+| `JetonRafraîchissement.estValide()` | `tokenService.rotateRefreshToken` |
+| `Utilisateur.peutAccéder()` | middlewares `requireAuth` / `requireRole` |
+
+### Ce qui relève réellement de l'objet
+
+- **Héritage** : `AppError extends Error` (API) et `ApiError extends Error` (front).
+- **Méthodes de fabrique statiques** : `AppError.notFound()`, `AppError.conflict()`… Un seul
+  constructeur, des fabriques qui nomment l'intention et fixent le code HTTP.
+- **Polymorphisme** : le gestionnaire d'erreurs traite toute `AppError` de la même façon
+  (code et message maîtrisés) et toute autre erreur comme un bug (500 générique).
+- **Encapsulation par module** : chaque module n'exporte que son interface publique ; les
+  détails (`isEligibleHorse`, `rotateRefreshTokenUnlocked`, la garde `inflightRotations`)
+  restent privés au module.
+- **Responsabilité unique** : une couche, un rôle ; aucun service ne connaît `req`/`res`.
+
+### Autres points
+
+- Les services (`<<service>>`) sont sans dépendance à Express et orchestrent les écritures
+  dans `prisma.$transaction` quand plusieurs tables changent ensemble.
+- Les énumérations (`Role`, `NiveauCavalier`, `StatutCheval`…) sont définies une seule fois
+  dans `packages/shared/src/constants.js` et réutilisées par le front, l'API et Prisma.

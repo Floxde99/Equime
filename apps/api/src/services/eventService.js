@@ -13,7 +13,6 @@ import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
 import { createSentInvoiceForEventRegistration } from './billingService.js';
 import {
   assignHorsesForEvent,
-  durationHoursFromRange,
   listEventHorseOverrideOptions,
   overrideEventAssignedHorse,
 } from './horseAssignment.js';
@@ -171,8 +170,12 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
     throw AppError.conflict('Ce cavalier est déjà inscrit à cet événement');
   }
 
-  // Capacité + upsert atomiques : recompte dans la transaction pour éviter le surbooking.
+  // Capacité + upsert atomiques. Sous READ COMMITTED, recompter dans la
+  // transaction ne suffit pas : deux inscriptions simultanées liraient le même
+  // compte. Le verrou de ligne sur l'événement sérialise les inscriptions à un
+  // même événement jusqu'au commit.
   const { registration, event } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "events" WHERE id = ${eventId} FOR UPDATE`;
     const eventRow = await tx.event.findUnique({
       where: { id: eventId },
       include: {
@@ -292,10 +295,7 @@ export async function overrideHorse(eventId, registrationId, horseId) {
 export async function cancelRegistration(userId, eventId, registrationId, options = {}) {
   const registration = await prisma.eventRegistration.findFirst({
     where: { id: registrationId, eventId },
-    include: {
-      rider: { select: { familyId: true } },
-      event: { select: { startAt: true, endAt: true } },
-    },
+    include: { rider: { select: { familyId: true } } },
   });
   if (!registration) throw AppError.notFound('Inscription introuvable');
 
@@ -313,22 +313,10 @@ export async function cancelRegistration(userId, eventId, registrationId, option
     });
   }
 
-  return prisma.$transaction(async (tx) => {
-    if (registration.horseId) {
-      const durationHours = durationHoursFromRange(
-        registration.event.startAt,
-        registration.event.endAt
-      );
-      await tx.horse.update({
-        where: { id: registration.horseId },
-        data: { weeklyLoadHours: { decrement: durationHours } },
-      });
-    }
-
-    return tx.eventRegistration.update({
-      where: { id: registrationId },
-      data: { status: 'cancelled', horseId: null },
-      include: REGISTRATION_LIST_INCLUDE,
-    });
+  // Libérer la monture suffit : la charge hebdo est dérivée des affectations (ADR 010).
+  return prisma.eventRegistration.update({
+    where: { id: registrationId },
+    data: { status: 'cancelled', horseId: null },
+    include: REGISTRATION_LIST_INCLUDE,
   });
 }

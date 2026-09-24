@@ -43,7 +43,7 @@
 | `users` | email TEXT, password_hash TEXT, role Role, banned BOOL, anonymized_at TIMESTAMP? | UNIQUE(email) · INDEX(role) |
 | `families` | user_id TEXT, subscription_plan_id TEXT?, session_quota INT | UNIQUE(user_id) · FK users, subscription_plans · INDEX(subscription_plan_id) |
 | `riders` | family_id, birthdate, level RiderLevel, medical_certificate_status, license_status, medical_consent_at? | FK families · INDEX(family_id) |
-| `horses` | status HorseStatus, min_level, max_level, weekly_load_hours FLOAT, max_weekly_load_hours FLOAT, alert_threshold_hours FLOAT | INDEX(status) |
+| `horses` | status HorseStatus, min_level, max_level, max_weekly_load_hours FLOAT (charge courante dérivée, non stockée — ADR 010), alert_threshold_hours FLOAT | INDEX(status) |
 | `horse_affinities` | rider_id, horse_id, affinity AffinityType | UNIQUE(rider_id, horse_id) · FK riders, horses · INDEX(horse_id) |
 | `spaces` | name, type SpaceType, capacity INT? | UNIQUE(name) |
 | `horse_health_logs` | horse_id, author_id?, type HealthLogType, occurred_at | FK horses, users · INDEX(horse_id, occurred_at) |

@@ -34,7 +34,11 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 | US-9.1 | Dashboard KPIs | admin | `AdminDashboardPage.jsx`, `adminService.js` | `admin.test.js` T-9.1 | Livré |
 | US-9.2 | Gestion membres (Excel 7.1) | admin | `authService.js` (`createMember`, `updateMemberProfile`), `admin.routes.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.2, `subscription.test.js` | Livré |
 | US-9.3 | Validation documents | admin / riders | `riderService.js`, `AdminMembersPage.jsx` | `admin.test.js` T-9.3 | Livré |
+| US-10.1 | Charge hebdo dérivée (ADR 010) | horses | `horseLoad.js`, `weeks.js`, `horseAssignment.js`, `horseService.js`, `adminService.js` | `weeks.test.js`, `horseLoad.test.js`, `horses.test.js`, `phase4.test.js`, `phase5.test.js` (T-5.13 à T-5.15) | Livré |
 | US-9.4 | Inscription forcée admin (Excel 10.4) | courses / events | `courseService.js`, `eventService.js` (`force: true`) | `core.test.js`, `phase5.test.js` | Livré |
+| ADR 009 | Règle de niveau asymétrique (attribution) | horses / events | `horseAssignment.js` (`levelFit`, `candidateWarning`), `InstructorPlanningPage.jsx` | `horseAssignment.test.js` (jeu d'essai) | Livré |
+| Conformité | Pages légales configurables par instance (LCEN, RGPD art. 13, CGV) | legal / public | `legalService.js`, `legalController.js`, `features/legal/` | `publicVitrine.test.js`, `authSurface.test.js`, `public.spec.js` | Livré |
+| Éco-conception | Images responsives et chargement différé (EcoIndex 79 → 82) | home | `scripts/optimize-images.mjs`, `HomePage.jsx` | Mesure EcoIndex (`docs/eco-conception.md`) | Livré |
 
 ## Couverture tests automatisés
 
@@ -42,12 +46,28 @@ Légende statut : **Livré** | **Partiel** | **Prévu**
 |---|---|---|
 | Unitaire | `apps/api/src/services/*.test.js`, `apps/api/src/lib/*.test.js` | récurrence, pricing, attribution, documents cavalier |
 | Intégration API | `apps/api/src/tests/core.test.js`, `phase4.test.js`, `phase5.test.js` | parcours métier par phase |
-| E2E | `playwright/e2e/*.spec.js` | 4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13) |
-| CI | `.github/workflows/ci.yml` | lint, tests API, couverture, Playwright |
+| E2E | `playwright/e2e/*.spec.js` | 4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13) — **verts en CI** |
+| CI | `.github/workflows/ci.yml` | lint, tests API, couverture, Playwright, deploy préprod (`develop`) / prod (`main` + approbation) |
+| Recette | `docs/cahier-de-recette.md` | Journal clôturé 2026-09-23 (health, HSTS, T-S/T-A, E2E) |
 
 ## Documents associés
 
 - Recette : `docs/cahier-de-recette.md`
+- Cahier de tests : `docs/cahier-de-tests.md`
+- Soutenance : `docs/soutenance-plan.md`, `docs/questions-jury.md`
+- Sécurité / RGPD : `docs/securite.md` (OWASP Top 10:2025), `docs/rgpd.md`, `docs/veille-securite.md`
+- Éco-conception : `docs/eco-conception.md`
+- Navigation : `docs/uml/navigation.md`
+- Déploiement : `docs/deploiement.md`
+
+## Clôture Phase 6–7 (2026-09-23)
+
+| Élément | Statut |
+|---|---|
+| US fonctionnelles Must/Should/Could | **Livré** (matrice ci-dessus) |
+| Recette préprod + prod | **Terminé** — journal §4 cahier de recette |
+| Déploiements CI | **Terminé** — préprod + prod verts |
+| Dossier jury (soutenance, questions, traçabilité) | **Terminé** |
 - Tests détaillés : `docs/cahier-de-tests.md`
 - Sécurité OWASP : `docs/securite.md`
 - RGPD : `docs/rgpd.md`

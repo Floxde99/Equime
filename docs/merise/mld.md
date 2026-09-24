@@ -24,7 +24,8 @@ cavaliers(#id, famille_id → familles(id), prénom, nom, date_naissance, niveau
           certificat_médical_url?, certificat_médical_statut, licence_url?, licence_statut, consentement_médical_le?)
 
 chevaux(#id, nom, race?, année_naissance?, photo_url?, statut, niveau_min, niveau_max,
-        charge_hebdo_heures, charge_hebdo_max, seuil_alerte_heures)
+        charge_hebdo_max, seuil_alerte_heures)
+        -- charge hebdo courante : dérivée des affectations de la semaine (ADR 010)
 
 affinités_chevaux(#id, cavalier_id → cavaliers(id), cheval_id → chevaux(id), affinité,
                   UNIQUE(cavalier_id, cheval_id))

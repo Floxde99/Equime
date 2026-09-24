@@ -10,12 +10,14 @@ import * as mailer from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 import { createSentInvoiceForEventRegistration } from '../services/billingService.js';
+import { getWeeklyLoads } from '../services/horseLoad.js';
 
 import {
   accessTokenFor,
   authHeader,
   createUser,
   familyIdOf,
+  giveHorseLoad,
   resetAuthTables,
   resetCoreTables,
   resetRateLimits,
@@ -358,6 +360,38 @@ describe('Phase 5 — événements', () => {
     expect(res.status).toBe(409);
   });
 
+  it('deux inscriptions simultanées pour la dernière place : une seule passe', async () => {
+    const event = await prisma.event.create({
+      data: {
+        title: 'Dernière place',
+        type: 'stage',
+        startAt: new Date('2026-11-20T08:00:00.000Z'),
+        endAt: new Date('2026-11-20T18:00:00.000Z'),
+        capacity: 1,
+      },
+    });
+
+    const rider = await createClientRider();
+    const otherRider = await createClientRider({ familyId: otherFamilyId, firstName: 'Tom' });
+
+    const [a, b] = await Promise.all([
+      request(app)
+        .post(`/api/v1/events/${event.id}/registrations`)
+        .set(authHeader(clientToken))
+        .send({ riderId: rider.id }),
+      request(app)
+        .post(`/api/v1/events/${event.id}/registrations`)
+        .set(authHeader(otherClientToken))
+        .send({ riderId: otherRider.id }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    const confirmed = await prisma.eventRegistration.count({
+      where: { eventId: event.id, status: { not: 'cancelled' } },
+    });
+    expect(confirmed).toBe(1);
+  });
+
   it('refuse l’inscription événement sans documents validés et autorise le force admin', async () => {
     const event = await prisma.event.create({
       data: {
@@ -494,14 +528,13 @@ describe('Phase 5 — événements', () => {
     ).toBe(1);
   });
 
-  it('attribue un cheval fit sous charge max et incrémente la charge (Excel 11.2)', async () => {
+  it('attribue un cheval fit sous charge max et compte le stage dans sa charge (Excel 11.2)', async () => {
     const horse = await prisma.horse.create({
       data: {
         name: 'Indigo',
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 1,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -523,8 +556,8 @@ describe('Phase 5 — événements', () => {
     expect(registerRes.status).toBe(201);
     expect(registerRes.body.registration.horse.id).toBe(horse.id);
 
-    const refreshed = await prisma.horse.findUniqueOrThrow({ where: { id: horse.id } });
-    expect(refreshed.weeklyLoadHours).toBe(3);
+    const loads = await getWeeklyLoads({ referenceDate: event.startAt });
+    expect(loads.get(horse.id)).toBe(2);
 
     const adminList = await request(app).get('/api/v1/events/admin').set(authHeader(adminToken));
     expect(adminList.status).toBe(200);
@@ -533,23 +566,21 @@ describe('Phase 5 — événements', () => {
   });
 
   it('n’attribue pas un cheval non fit ou déjà au max de charge', async () => {
-    await prisma.horse.create({
+    const repos = await prisma.horse.create({
       data: {
         name: 'Repos',
         status: 'rest',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
-    await prisma.horse.create({
+    const sature = await prisma.horse.create({
       data: {
         name: 'Saturé',
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 12,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -562,6 +593,14 @@ describe('Phase 5 — événements', () => {
         capacity: 4,
       },
     });
+    // Saturé a déjà ses 12 h sur la semaine du stage (et seulement celle-là)
+    await giveHorseLoad({
+      horseId: sature.id,
+      hours: 12,
+      familyId: clientFamilyId,
+      instructorId: instructor.id,
+      weekOf: event.startAt,
+    });
     const rider = await createClientRider();
 
     const registerRes = await request(app)
@@ -570,12 +609,40 @@ describe('Phase 5 — événements', () => {
       .send({ riderId: rider.id });
     expect(registerRes.status).toBe(201);
     expect(registerRes.body.registration.horse).toBeNull();
-    expect(await prisma.horse.findFirst({ where: { name: 'Repos' } })).toMatchObject({
-      weeklyLoadHours: 0,
+    const loads = await getWeeklyLoads({ referenceDate: event.startAt });
+    expect(loads.get(repos.id)).toBeUndefined();
+    expect(loads.get(sature.id)).toBe(12);
+  });
+
+  it('ne reporte pas la charge d’une autre semaine sur le stage', async () => {
+    const horse = await prisma.horse.create({
+      data: { name: 'Fourbu', status: 'fit', maxWeeklyLoadHours: 12 },
     });
-    expect(await prisma.horse.findFirst({ where: { name: 'Saturé' } })).toMatchObject({
-      weeklyLoadHours: 12,
+    const event = await prisma.event.create({
+      data: {
+        title: 'Stage semaine suivante',
+        type: 'stage',
+        startAt: new Date('2026-10-20T09:00:00.000Z'),
+        endAt: new Date('2026-10-20T11:00:00.000Z'),
+        capacity: 4,
+      },
     });
+    // 12 h la semaine précédente : l'ancien compteur, jamais remis à zéro, l'aurait bloqué
+    await giveHorseLoad({
+      horseId: horse.id,
+      hours: 12,
+      familyId: clientFamilyId,
+      instructorId: instructor.id,
+      weekOf: new Date('2026-10-13T09:00:00.000Z'),
+    });
+    const rider = await createClientRider();
+
+    const registerRes = await request(app)
+      .post(`/api/v1/events/${event.id}/registrations`)
+      .set(authHeader(clientToken))
+      .send({ riderId: rider.id });
+    expect(registerRes.status).toBe(201);
+    expect(registerRes.body.registration.horse.id).toBe(horse.id);
   });
 
   it('retire la charge à l’annulation et permet un override admin', async () => {
@@ -585,7 +652,6 @@ describe('Phase 5 — événements', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -595,7 +661,6 @@ describe('Phase 5 — événements', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -625,12 +690,9 @@ describe('Phase 5 — événements', () => {
     expect(overrideRes.status).toBe(200);
     expect(overrideRes.body.registration.horse.id).toBe(horseB.id);
 
-    const [afterA, afterB] = await Promise.all([
-      prisma.horse.findUniqueOrThrow({ where: { id: horseA.id } }),
-      prisma.horse.findUniqueOrThrow({ where: { id: horseB.id } }),
-    ]);
-    expect(afterA.weeklyLoadHours).toBe(0);
-    expect(afterB.weeklyLoadHours).toBe(3);
+    const afterOverride = await getWeeklyLoads({ referenceDate: event.startAt });
+    expect(afterOverride.get(horseA.id)).toBeUndefined();
+    expect(afterOverride.get(horseB.id)).toBe(3);
 
     const cancelRes = await request(app)
       .post(`/api/v1/events/${event.id}/registrations/${registrationId}/cancel`)
@@ -640,8 +702,8 @@ describe('Phase 5 — événements', () => {
     expect(cancelRes.body.registration.status).toBe('cancelled');
     expect(cancelRes.body.registration.horse).toBeNull();
 
-    const afterCancel = await prisma.horse.findUniqueOrThrow({ where: { id: horseB.id } });
-    expect(afterCancel.weeklyLoadHours).toBe(0);
+    const afterCancel = await getWeeklyLoads({ referenceDate: event.startAt });
+    expect(afterCancel.get(horseB.id)).toBeUndefined();
   });
 
   it('attribue les chevaux restants via le bouton admin', async () => {
@@ -651,7 +713,6 @@ describe('Phase 5 — événements', () => {
         status: 'fit',
         minLevel: 'initiation',
         maxLevel: 'galop_7',
-        weeklyLoadHours: 0,
         maxWeeklyLoadHours: 12,
       },
     });
@@ -681,8 +742,8 @@ describe('Phase 5 — événements', () => {
       where: { id: registration.id },
     });
     expect(updated.horseId).toBe(horse.id);
-    const refreshedHorse = await prisma.horse.findUniqueOrThrow({ where: { id: horse.id } });
-    expect(refreshedHorse.weeklyLoadHours).toBe(1);
+    const loads = await getWeeklyLoads({ referenceDate: event.startAt });
+    expect(loads.get(horse.id)).toBe(1);
   });
 });
 

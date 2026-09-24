@@ -159,27 +159,28 @@ async function main() {
   );
 
   // --- Cavalerie : 15 chevaux ---
-  /** @type {Array<[string, string, number, string, string, string, number]>} */
+  /** @type {Array<[string, string, number, string, string, string]>} */
   const horsesData = [
-    // [nom, race, année, statut, minLevel, maxLevel, charge hebdo]
-    ['Ouragan', 'Selle Français', 2015, 'fit', 'galop_3', 'galop_7', 6],
-    ['Caramel', 'Poney Landais', 2016, 'fit', 'initiation', 'galop_2', 4],
-    ['Tempête', 'Anglo-Arabe', 2013, 'fit', 'galop_4', 'galop_7', 8],
-    ['Réglisse', 'Shetland', 2018, 'fit', 'initiation', 'galop_1', 3],
-    ['Indigo', 'Connemara', 2014, 'fit', 'galop_2', 'galop_5', 5],
-    ['Perle', 'Camargue', 2012, 'rest', 'galop_1', 'galop_4', 0],
-    ['Eclair', 'Selle Français', 2011, 'fit', 'galop_5', 'galop_7', 7],
-    ['Noisette', 'Poney Français de Selle', 2017, 'fit', 'initiation', 'galop_3', 5],
-    ['Baron', 'Trotteur Français', 2010, 'unavailable', 'galop_3', 'galop_6', 0],
-    ['Luna', 'Pottok', 2016, 'fit', 'initiation', 'galop_2', 4],
-    ['Sultan', 'Pur-sang Arabe', 2013, 'injured', 'galop_4', 'galop_7', 0],
-    ['Biscotte', 'Haflinger', 2015, 'fit', 'galop_1', 'galop_4', 6],
-    ['Orion', 'KWPN', 2014, 'fit', 'galop_5', 'galop_7', 9],
-    ['Pompon', 'Shetland', 2019, 'fit', 'initiation', 'galop_1', 2],
-    ['Vénus', 'Lusitanien', 2012, 'fit', 'galop_3', 'galop_6', 5],
+    // [nom, race, année, statut, minLevel, maxLevel] — la charge hebdo découle des
+    // affectations créées plus bas (ADR 010)
+    ['Ouragan', 'Selle Français', 2015, 'fit', 'galop_3', 'galop_7'],
+    ['Caramel', 'Poney Landais', 2016, 'fit', 'initiation', 'galop_2'],
+    ['Tempête', 'Anglo-Arabe', 2013, 'fit', 'galop_4', 'galop_7'],
+    ['Réglisse', 'Shetland', 2018, 'fit', 'initiation', 'galop_1'],
+    ['Indigo', 'Connemara', 2014, 'fit', 'galop_2', 'galop_5'],
+    ['Perle', 'Camargue', 2012, 'rest', 'galop_1', 'galop_4'],
+    ['Eclair', 'Selle Français', 2011, 'fit', 'galop_5', 'galop_7'],
+    ['Noisette', 'Poney Français de Selle', 2017, 'fit', 'initiation', 'galop_3'],
+    ['Baron', 'Trotteur Français', 2010, 'unavailable', 'galop_3', 'galop_6'],
+    ['Luna', 'Pottok', 2016, 'fit', 'initiation', 'galop_2'],
+    ['Sultan', 'Pur-sang Arabe', 2013, 'injured', 'galop_4', 'galop_7'],
+    ['Biscotte', 'Haflinger', 2015, 'fit', 'galop_1', 'galop_4'],
+    ['Orion', 'KWPN', 2014, 'fit', 'galop_5', 'galop_7'],
+    ['Pompon', 'Shetland', 2019, 'fit', 'initiation', 'galop_1'],
+    ['Vénus', 'Lusitanien', 2012, 'fit', 'galop_3', 'galop_6'],
   ];
   const horses = [];
-  for (const [name, breed, birthYear, status, minLevel, maxLevel, weeklyLoadHours] of horsesData) {
+  for (const [name, breed, birthYear, status, minLevel, maxLevel] of horsesData) {
     horses.push(
       await prisma.horse.create({
         data: /** @type {any} */ ({
@@ -189,7 +190,6 @@ async function main() {
           status,
           minLevel,
           maxLevel,
-          weeklyLoadHours,
         }),
       })
     );

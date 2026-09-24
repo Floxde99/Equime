@@ -247,8 +247,8 @@ model Horse {
   /// Plage de niveaux cavalier compatibles (score d'attribution +5)
   minLevel           RiderLevel  @default(initiation)
   maxLevel           RiderLevel  @default(galop_7)
-  /// Charge de travail courante sur la semaine (heures)
-  weeklyLoadHours    Float       @default(0)
+  /// Plafond de charge hebdo (heures). La charge elle-même est dérivée des
+  /// affectations de la semaine (services/horseLoad.js), jamais stockée — ADR 010.
   maxWeeklyLoadHours Float       @default(12)
   /// Seuil d'alerte de charge affiché sur le dashboard admin
   alertThresholdHours Float      @default(10)

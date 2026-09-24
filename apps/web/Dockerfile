@@ -24,7 +24,9 @@ COPY . .
 RUN npm run build --workspace apps/web
 
 # ---------- Prod : Nginx sert le build statique ----------
-FROM nginx:1.27-alpine AS prod
+# Branche stable courante : la 1.27 est en fin de vie depuis le 24/06/2025 et ne
+# reçoit plus de correctifs de sécurité (docs/veille-securite.md).
+FROM nginx:1.30-alpine AS prod
 COPY docker/nginx/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
