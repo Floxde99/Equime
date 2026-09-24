@@ -18,6 +18,16 @@
 | CDC | Conformité Excel | Écarts Must/Should : profil, absences, staff, documents, vitrine, factures batch | ✅ Terminé |
 | S6 | Phase 6 | Application recettée, déployée en préprod puis prod | ✅ Terminé |
 | S7 | Phase 7 | Dossier professionnel consolidé | ✅ Terminé |
+| S8 | v1.1 | Prêt pour le club pilote : zéro irritant, fonctions attendues du marché (EPIC 10) | 🔄 En cours |
+| S9 | v1.2 | Différenciation : PWA, suivi pédagogique, bien-être de la cavalerie (EPIC 11) | ⏳ À venir |
+| S10 | v1.3 | Prêt pour le SaaS commercial : multi-club, SEPA, e-facture, FFE (EPIC 12) | ⏳ À venir |
+
+> **Roadmap post-certification (2026-09-24).** Objectif : lancement commercial, en
+> commençant par un club pilote. Les EPIC 10 à 12 découlent d'une analyse
+> concurrentielle (Kavalog, Equimondo, Equirank, Mes-écuries, Céléris…) : combler
+> les fonctions attendues du marché (rattrapages, cartes, liste d'attente, facture
+> conforme), puis miser sur ce qui distingue Equime, l'attribution intelligente
+> des chevaux et le bien-être de la cavalerie.
 
 ---
 
@@ -190,12 +200,12 @@ Critères d'acceptation :
 **En tant que** moniteur, **je veux** attribuer automatiquement les chevaux d'une séance **afin de** gagner du temps et d'optimiser les couples cavalier/cheval.
 
 Critères d'acceptation :
-- [x] Éligibilité : statut `fit` ET charge hebdo < max.
+- [x] Éligibilité : statut `fit` ET charge de la semaine de la séance < max (charge dérivée, ADR 010 — US-10.1).
 - [x] Score : favori +10 · niveau compatible +5 · à éviter −15 · charge −5 × heures.
 - [x] Règle de niveau asymétrique (ADR 009) : cavalier sous le niveau minimum du cheval → exclu de l'attribution automatique ; au-dessus du maximum → −20 et avertissement.
 - [x] Ordre de traitement : le cavalier qui a le moins de chevaux possibles est servi en premier (ADR 009).
 - [x] Un cheval n'est jamais attribué deux fois dans la même séance.
-- [x] Charge hebdo incrémentée de la durée du cours ; tout est transactionnel (échec = aucune écriture).
+- [x] La séance attribuée compte dans la charge de sa semaine (dérivée des affectations, ADR 010) ; tout est transactionnel (échec = aucune écriture).
 - [x] Les inscriptions sans solution sont listées comme conflits avec la raison.
 - [x] Tests unitaires : nominal, avoid, surcharge, aucun éligible, égalité de scores, cheval déjà pris.
 - [x] Stages : `EventRegistration.horseId`, même scoring, incrément de `(endAt - startAt)`, bouton admin, décrément à l'annulation (Excel 11.2 / 11.6).
@@ -285,7 +295,7 @@ Critères d'acceptation :
 - [x] Notification `registration_confirmed` à la confirmation.
 - [x] Inscription refusée si le certificat médical ou la licence n'est pas `approved` **ou si la date de validité est échue** (Excel 7.2).
 - [x] Si `priceCents > 0`, facture **envoyée** (1 ligne cavalier + titre) ; pas de facture si prix 0 ; idempotente via `InvoiceItem.eventRegistrationId` unique (Excel 12.1).
-- [x] Monture affectée (auto à la confirmation ou bouton admin) ; charge hebdo incrémentée de la durée du stage ; retirée à l'annulation ; override admin ; uniquement chevaux `fit` sous le max (Excel 11.2).
+- [x] Monture affectée (auto à la confirmation ou bouton admin) ; stage compté dans la charge de sa semaine, plus compté après annulation (ADR 010) ; override admin ; uniquement chevaux `fit` sous le max (Excel 11.2).
 
 ### US-7.3 — Gérer les événements `M`
 **En tant qu'** admin, **je veux** créer et gérer les événements **afin d'** animer le centre. (CRUD, types stage/compétition interne/externe.)
@@ -353,16 +363,104 @@ Critères d'acceptation :
 
 ---
 
+## EPIC 10 — v1.1 : prêt pour le club pilote (Sprint 8)
+
+### US-10.1 — Charge hebdomadaire fiable `M` ✅
+**En tant que** moniteur, **je veux** que la charge d'un cheval corresponde aux séances réellement prévues sur la semaine **afin que** l'attribution automatique fonctionne encore au bout de plusieurs semaines.
+
+Critères d'acceptation :
+- [x] Charge **dérivée** des affectations (cours non annulés hors cavaliers excusés, stages non annulés), plus stockée ; colonne `horses.weeklyLoadHours` supprimée (ADR 010).
+- [x] Semaine ISO du lundi 00:00 au lundi suivant, **heure de Paris**, changements d'heure gérés (`lib/weeks.js`).
+- [x] Attribution, override et audit : charge de la **semaine de la séance** ; fiches, alertes et dashboard : semaine en cours.
+- [x] La charge d'une semaine passée ne bloque plus un cheval ; une séance annulée ou un cavalier excusé ne comptent plus.
+- [x] Contrat d'API inchangé (`weeklyLoadHours` toujours exposé) ; tests unitaires (semaines, agrégation) et d'intégration.
+
+### US-10.2 — Tâches automatiques `M`
+**En tant qu'** admin, **je veux** que les relances et échéances se déclenchent seules **afin de** ne rien oublier sans y passer du temps.
+
+Critères d'acceptation :
+- [ ] Ordonnanceur `apps/api/src/jobs/` avec verrou Redis (`SET NX PX`) : une seule exécution même avec plusieurs instances.
+- [ ] Facture `sent` dont l'échéance est passée → `overdue` automatiquement ; relance à J+7 (notification `invoice_reminder`).
+- [ ] Alerte à la famille et à l'admin à J−30 et J−7 avant l'expiration du certificat médical ou de la licence.
+- [ ] Journal d'exécution (pino) et test d'intégration « exécutée une seule fois sous verrou ».
+
+### US-10.3 — Rattrapages `M`
+**En tant que** parent, **je veux** récupérer une séance excusée à temps **afin de** ne pas payer une séance manquée.
+
+Critères d'acceptation :
+- [ ] Modèle `SessionCredit` (famille, origine : absence excusée ou annulation par le club, `expiresAt`).
+- [ ] Absence excusée avant le délai limite (paramétrable, 24 h par défaut) → 1 crédit ; séance annulée par le club → 1 crédit par inscrit.
+- [ ] Le parent choisit un créneau compatible avec le niveau du cavalier ; le crédit expiré n'est plus utilisable.
+- [ ] Parcours E2E « absence excusée → crédit → rattrapage ».
+
+### US-10.4 — Liste d'attente `S`
+**En tant que** parent, **je veux** m'inscrire en liste d'attente sur un cours ou un stage complet **afin d'** obtenir une place qui se libère.
+
+Critères d'acceptation :
+- [ ] Modèle `CourseWaitlist` (et équivalent stage), ordre d'arrivée.
+- [ ] Place libérée → notification `waitlist_spot_available` et fenêtre de confirmation de 12 h, puis passage au suivant.
+- [ ] Promotion automatique optionnelle (réglage du club).
+
+### US-10.5 — Cartes de séances `M`
+**En tant qu'** admin, **je veux** vendre des cartes (ex. 10 séances) en plus des abonnements **afin de** proposer les formules habituelles des clubs.
+
+Critères d'acceptation :
+- [ ] `SubscriptionPlan.kind` : `subscription` | `card`, avec `sessionsCount` et durée de validité.
+- [ ] Décompte automatique à l'inscription, solde et expiration visibles par le parent sur son tableau de bord.
+
+### US-10.6 — Facture conforme `M`
+**En tant qu'** admin, **je veux** des factures avec TVA et mentions légales **afin de** pouvoir les remettre à mes clients et à mon comptable.
+
+Critères d'acceptation :
+- [ ] TVA par ligne (`vatRateBps`), totaux HT / TVA / TTC en centimes ; taux par formule (à valider avec l'expert-comptable du club pilote).
+- [ ] Mentions : SIRET, TVA intracommunautaire, pénalités de retard, indemnité forfaitaire de recouvrement.
+- [ ] Export CSV du journal des ventes.
+
+### US-10.7 — Import des données du club `S`
+**En tant qu'** admin, **je veux** importer mes familles, cavaliers et chevaux depuis un fichier CSV **afin de** démarrer sans tout ressaisir.
+
+Critères d'acceptation :
+- [ ] Validation Zod ligne par ligne, rapport d'erreurs téléchargeable, import tout ou rien.
+- [ ] Checklist de démarrage sur le dashboard admin (formules, espaces, chevaux, moniteurs, premier cours).
+
+---
+
+## EPIC 11 — v1.2 : différenciation (Sprint 9)
+
+| US | Priorité | Résumé |
+|---|---|---|
+| US-11.1 — PWA et notifications push | `M` | Installable sur mobile (`vite-plugin-pwa`, stratégie `injectManifest`), Web Push VAPID, canal `push` dans les préférences, planning du jour et feuille d'appel consultables hors ligne |
+| US-11.2 — Suivi pédagogique Galops | `M` | Référentiel des compétences par Galop, validation par le moniteur depuis l'appel, carnet de progression et commentaire de séance pour les parents |
+| US-11.3 — « Cheval du jour » | `S` | Le cavalier voit sa monture (fiche, photo) avant la séance, notification à l'attribution |
+| US-11.4 — Bien-être de la cavalerie | `S` | Rappels de soins périodiques (vaccins, maréchal, vermifuge, dentiste), charge sur 4 semaines, jours de repos |
+| US-11.5 — Relance de rétention | `S` | Email automatique après N semaines sans venue, liste des familles à risque sur le dashboard |
+| US-11.6 — Messagerie temps réel et annonces | `C` | SSE + pub/sub Redis à la place du polling, annonces du club à tous ou par groupe de cours |
+
+---
+
+## EPIC 12 — v1.3 : prêt pour le SaaS commercial (Sprint 10)
+
+| US | Priorité | Résumé |
+|---|---|---|
+| US-12.1 — Multi-club | `M` | Modèle `Club`, `clubId` sur les agrégats, filtrage centralisé (extension Prisma + `AsyncLocalStorage`), sous-domaine par club, configuration en base |
+| US-12.2 — Stripe Connect et prélèvement SEPA | `M` | Chaque club encaisse sur son compte ; abonnements `sepa_debit`, portail client, webhooks `invoice.paid` / `invoice.payment_failed` |
+| US-12.3 — Facture électronique | `M` | Factur-X (PDF/A-3 + XML CII), puis plateforme agréée ; émission obligatoire au 1er septembre 2027 pour les clubs assujettis à la TVA |
+| US-12.4 — Pont FFE | `S` | Import / export CSV des licenciés, rapprochement par `licenseNumber` ; démarche d'agrément FFE en parallèle |
+| US-12.5 — Inscription d'un club en autonomie | `S` | Essai 30 jours, abonnement à la plateforme (gratuit ≤ 30 cavaliers, 39 € ≤ 150, 69 € au-delà), sans commission sur le CA |
+| US-12.6 — Assistant IA pour les parents | `C` | Réponses sur places, soldes et règles du club ; aucune donnée de santé transmise |
+
+---
+
 ## Won't (hors périmètre v1, consigné pour l'oral)
 
 | Sujet | Raison |
 |---|---|
-| Paiement Stripe (Checkout) | Livré (ADR 008) — clés test autorisées jusqu’au go-live ; abonnements Stripe / SEPA / remboursements auto hors v1 |
-| WebSocket temps réel | Polling TanStack Query suffisant à cette échelle ; perspective d'évolution |
-| PWA / mode hors-ligne (Excel 4.7) | Cible CDA = web responsive ; pas de service worker en v1 |
+| Paiement Stripe (Checkout) | Livré (ADR 008) — clés test autorisées jusqu’au go-live ; abonnements Stripe / SEPA planifiés en v1.3 (US-12.2), remboursements auto hors roadmap |
+| WebSocket temps réel | Polling TanStack Query suffisant à cette échelle ; SSE planifié en v1.2 (US-11.6) |
+| PWA / mode hors-ligne (Excel 4.7) | Cible CDA = web responsive ; planifié en v1.2 (US-11.1) |
 | Stats prédictives / ML (Excel 5.1) | Dashboard KPIs = analyse (occupation, charge, CA), pas de prédiction |
 | Application mobile native | Cible web responsive mobile-first |
-| Multi-centres (multi-tenant) | Un seul centre ; l'architecture n'y fait pas obstacle |
+| Multi-centres (multi-tenant) | Un seul centre en v1 ; planifié en v1.3 (US-12.1) |
 | Groupes de plus de 2 dans l'UI messagerie v1 | Le modèle supporte les groupes ; l'UI v1 reste 1-à-1 |
 
 ## Traçabilité
