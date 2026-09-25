@@ -16,7 +16,14 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
 
-import { addMinutes, addWeeks, hashPassword, nextWeekday, resetDatabase } from './seed-helpers.js';
+import {
+  addMinutes,
+  addWeeks,
+  createSeasonSubscription,
+  hashPassword,
+  nextWeekday,
+  resetDatabase,
+} from './seed-helpers.js';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -27,24 +34,24 @@ async function main() {
   await resetDatabase(prisma);
   const passwordHash = await hashPassword(PASSWORD);
 
-  // --- Abonnements & réductions ---
+  // --- Forfaits de saison & réductions (ADR 011 : prix de la saison) ---
   const [planDecouverte, planClassique] = await Promise.all(
     [
       {
         name: 'Découverte',
-        priceCents: 4900,
+        priceCents: 49000,
         sessionsPerWeek: 1,
         description: '1 séance par semaine',
       },
       {
         name: 'Classique',
-        priceCents: 8900,
+        priceCents: 89000,
         sessionsPerWeek: 2,
         description: '2 séances par semaine',
       },
       {
         name: 'Intensif',
-        priceCents: 12900,
+        priceCents: 129000,
         sessionsPerWeek: 3,
         description: '3 séances par semaine',
       },
@@ -94,7 +101,7 @@ async function main() {
       firstName: 'Lina',
       lastName: 'Moreau',
       role: 'client',
-      family: { create: { subscriptionPlanId: planClassique.id, sessionQuota: 8 } },
+      family: { create: {} },
     },
     include: { family: true },
   });
@@ -105,7 +112,7 @@ async function main() {
       firstName: 'Alex',
       lastName: 'Fontaine',
       role: 'client',
-      family: { create: { subscriptionPlanId: planDecouverte.id, sessionQuota: 4 } },
+      family: { create: {} },
     },
     include: { family: true },
   });
@@ -146,6 +153,33 @@ async function main() {
       licenseStatus: 'pending',
       medicalConsentAt: new Date(),
     },
+  });
+
+  // --- Forfaits par cavalier : factures de saison et échéanciers ---
+  await createSeasonSubscription(prisma, {
+    familyId: linaFamily.id,
+    rider: emma,
+    plan: planClassique,
+    paymentSchedule: 'ten_installments',
+    number: 'FAC-2026-0006',
+    paidInstallments: 1,
+  });
+  await createSeasonSubscription(prisma, {
+    familyId: linaFamily.id,
+    rider: lucas,
+    plan: planDecouverte,
+    paymentSchedule: 'quarterly',
+    number: 'FAC-2026-0007',
+    discount: { label: 'Famille nombreuse', percentage: 10 },
+    paidInstallments: 1,
+  });
+  await createSeasonSubscription(prisma, {
+    familyId: alexFamily.id,
+    rider: chloe,
+    plan: planDecouverte,
+    paymentSchedule: 'ten_installments',
+    number: 'FAC-2026-0008',
+    overdue: true,
   });
 
   // --- Espaces ---
@@ -370,16 +404,16 @@ async function main() {
       family: linaFamily,
       number: 'FAC-2026-0001',
       status: 'paid',
-      label: 'Abonnement Classique — juin',
-      total: 8010,
+      label: 'Licence FFE 2026 — Emma',
+      total: 4600,
       paidAt: addWeeks(new Date(), -3),
     },
     {
       family: linaFamily,
       number: 'FAC-2026-0002',
       status: 'sent',
-      label: 'Abonnement Classique — juillet',
-      total: 8010,
+      label: 'Licence FFE 2027 — Emma',
+      total: 2500,
       paidAt: null,
     },
     {
@@ -394,7 +428,7 @@ async function main() {
       family: alexFamily,
       number: 'FAC-2026-0004',
       status: 'overdue',
-      label: 'Abonnement Découverte — juin',
+      label: 'Cotisation annuelle club — Chloé',
       total: 4900,
       paidAt: null,
     },
@@ -408,20 +442,36 @@ async function main() {
     },
   ]);
   for (const def of invoiceDefs) {
-    await prisma.invoice.create({
+    const dueAt = addWeeks(new Date(), def.status === 'sent' ? 3 : -1);
+    const invoice = await prisma.invoice.create({
       data: {
         familyId: def.family.id,
         number: def.number,
         status: def.status,
         issuedAt: def.status === 'draft' ? null : addWeeks(new Date(), -4),
-        dueAt: def.status === 'draft' ? null : addWeeks(new Date(), -1),
+        dueAt,
         totalCents: def.total,
         paidAt: def.paidAt,
         items: {
           create: [{ label: def.label, quantity: 1, unitCents: def.total, totalCents: def.total }],
         },
+        installments: {
+          create: [{ sequence: 1, dueAt, amountCents: def.total, paidAt: def.paidAt }],
+        },
       },
+      include: { installments: true },
     });
+    if (def.paidAt) {
+      await prisma.payment.create({
+        data: {
+          invoiceId: invoice.id,
+          installmentId: invoice.installments[0].id,
+          method: 'card_onsite',
+          amountCents: def.total,
+          paidAt: def.paidAt,
+        },
+      });
+    }
   }
 
   // --- Incident, bénévolat, messagerie ---

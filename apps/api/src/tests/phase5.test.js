@@ -18,7 +18,9 @@ import {
   createUser,
   familyIdOf,
   giveHorseLoad,
+  giveSubscription,
   resetAuthTables,
+  resetBillingTables,
   resetCoreTables,
   resetRateLimits,
 } from './coreHelpers.js';
@@ -47,8 +49,7 @@ async function resetPhase5Tables() {
   await prisma.notificationPreference.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.incident.deleteMany();
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
+  await resetBillingTables();
   await prisma.discountRule.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
   await resetCoreTables();
@@ -103,7 +104,7 @@ afterAll(async () => {
 });
 
 async function createClientRider(overrides = {}) {
-  return prisma.rider.create({
+  const rider = await prisma.rider.create({
     data: {
       familyId: clientFamilyId,
       firstName: 'Emma',
@@ -115,6 +116,8 @@ async function createClientRider(overrides = {}) {
       ...overrides,
     },
   });
+  await giveSubscription({ riderId: rider.id });
+  return rider;
 }
 
 describe('Phase 5 — notifications & préférences', () => {
@@ -133,12 +136,6 @@ describe('Phase 5 — notifications & préférences', () => {
 
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.preference.emailEnabled).toBe(false);
-
-    const plan = await prisma.subscriptionPlan.findFirstOrThrow({ where: { name: 'Classique' } });
-    await prisma.family.update({
-      where: { id: clientFamilyId },
-      data: { subscriptionPlanId: plan.id },
-    });
 
     const invoice = await prisma.invoice.create({
       data: {
@@ -217,13 +214,12 @@ describe('Phase 5 — notifications & préférences', () => {
     const enrollmentId = enrollRes.body.enrollment.id;
     emailSpy.mockClear();
 
-    const excuseRes = await request(app)
-      .patch(`/api/v1/courses/${course.id}/enrollments/${enrollmentId}/attendance`)
-      .set(authHeader(clientToken))
-      .send({ attendance: 'excused' });
-    expect(excuseRes.status).toBe(200);
+    const cancelRes = await request(app)
+      .delete(`/api/v1/courses/${course.id}/enrollments/${enrollmentId}`)
+      .set(authHeader(clientToken));
+    expect(cancelRes.status).toBe(200);
     expect(emailSpy).toHaveBeenCalled();
-    expect(emailSpy.mock.calls[0][0].subject).toMatch(/Absence signalée/i);
+    expect(emailSpy.mock.calls[0][0].subject).toMatch(/Annulation/i);
 
     const readAllRes = await request(app)
       .post('/api/v1/notifications/read-all')

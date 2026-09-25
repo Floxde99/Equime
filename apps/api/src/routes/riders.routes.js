@@ -6,11 +6,14 @@ import {
   documentUploadFieldsSchema,
   riderIdParamSchema,
   ROLES,
+  subscribeRiderSchema,
+  subscriptionPreviewQuerySchema,
   updateRiderSchema,
   upsertAffinitySchema,
 } from '@equime/shared';
 import { Router } from 'express';
 
+import * as billingController from '../controllers/billingController.js';
 import * as riderController from '../controllers/riderController.js';
 import { riderDocumentUpload } from '../lib/uploads.js';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
@@ -29,6 +32,20 @@ router.patch(
   riderController.updateRider
 );
 router.delete('/:id', validate(riderIdParamSchema, 'params'), riderController.deleteRider);
+
+// Forfait de saison du cavalier (ADR 011)
+router.get(
+  '/:id/subscription-preview',
+  validate(riderIdParamSchema, 'params'),
+  validate(subscriptionPreviewQuerySchema, 'query'),
+  billingController.previewSubscription
+);
+router.post(
+  '/:id/subscriptions',
+  validate(riderIdParamSchema, 'params'),
+  validate(subscribeRiderSchema),
+  billingController.subscribeRider
+);
 
 router.post(
   '/:id/documents/:docType',

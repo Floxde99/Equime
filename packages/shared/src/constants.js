@@ -148,3 +148,51 @@ export const NOTIFICATION_TYPES = Object.freeze({
   RIDER_ABSENCE: 'rider_absence',
 });
 export const NOTIFICATION_TYPE_VALUES = values(NOTIFICATION_TYPES);
+
+/** Inscription à une séance : active, ou annulée (place libérée) — ADR 011. */
+export const ENROLLMENT_STATUS = Object.freeze({
+  ACTIVE: 'active',
+  CANCELLED: 'cancelled',
+});
+export const ENROLLMENT_STATUS_VALUES = values(ENROLLMENT_STATUS);
+
+/** Droit consommé par une inscription. */
+export const ENROLLMENT_ENTITLEMENTS = Object.freeze({
+  SUBSCRIPTION: 'subscription',
+  MAKEUP: 'makeup',
+  FORCED: 'forced',
+});
+export const ENROLLMENT_ENTITLEMENT_VALUES = values(ENROLLMENT_ENTITLEMENTS);
+
+/** Échéancier d'un forfait de saison. */
+export const PAYMENT_SCHEDULES = Object.freeze({
+  QUARTERLY: 'quarterly',
+  TEN_INSTALLMENTS: 'ten_installments',
+});
+export const PAYMENT_SCHEDULE_VALUES = values(PAYMENT_SCHEDULES);
+
+export const RIDER_SUBSCRIPTION_STATUS = Object.freeze({
+  ACTIVE: 'active',
+  ENDED: 'ended',
+});
+export const RIDER_SUBSCRIPTION_STATUS_VALUES = values(RIDER_SUBSCRIPTION_STATUS);
+
+/** Origine d'un crédit de rattrapage. */
+export const SESSION_CREDIT_SOURCES = Object.freeze({
+  CANCELLED_IN_TIME: 'cancelled_in_time',
+  CLUB_CANCELLATION: 'club_cancellation',
+});
+export const SESSION_CREDIT_SOURCE_VALUES = values(SESSION_CREDIT_SOURCES);
+
+/** Modes de règlement (en ligne et au club). */
+export const PAYMENT_METHODS = Object.freeze({
+  CARD_ONLINE: 'card_online',
+  CARD_ONSITE: 'card_onsite',
+  CASH: 'cash',
+  CHEQUE: 'cheque',
+  TRANSFER: 'transfer',
+  ANCV: 'ancv',
+  PASS_SPORT: 'pass_sport',
+  OTHER: 'other',
+});
+export const PAYMENT_METHOD_VALUES = values(PAYMENT_METHODS);

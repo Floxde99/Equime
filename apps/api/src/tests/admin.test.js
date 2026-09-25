@@ -75,6 +75,19 @@ describe('Dashboard KPIs (T-9.1)', () => {
       },
     });
     await prisma.courseEnrollment.create({ data: { courseId: course.id, riderId: rider.id } });
+    // Une inscription annulée libère sa place : elle ne compte pas dans l'occupation.
+    const cancelledRider = await prisma.rider.create({
+      data: { familyId, firstName: 'Léo', lastName: 'Test', birthdate: new Date('2012-01-01') },
+    });
+    await prisma.courseEnrollment.create({
+      data: {
+        courseId: course.id,
+        riderId: cancelledRider.id,
+        status: 'cancelled',
+        cancelledAt: new Date(),
+      },
+    });
+    // Le CA du mois additionne les règlements reçus (ADR 011).
     await prisma.invoice.create({
       data: {
         familyId,
@@ -83,6 +96,7 @@ describe('Dashboard KPIs (T-9.1)', () => {
         totalCents: 5000,
         paidAt: new Date(),
         items: { create: [{ label: 'Test', quantity: 1, unitCents: 5000, totalCents: 5000 }] },
+        payments: { create: [{ method: 'cheque', amountCents: 5000, paidAt: new Date() }] },
       },
     });
     const orion = await prisma.horse.create({

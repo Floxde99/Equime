@@ -3,8 +3,10 @@
  * Service cours — création récurrente, inscriptions, présences, planning (EPIC 4).
  */
 import {
-  ATTENDANCE_STATUS,
   COURSE_STATUS,
+  ENROLLMENT_ENTITLEMENTS,
+  ENROLLMENT_STATUS,
+  formatDate,
   formatDateTime,
   NOTIFICATION_TYPES,
   ROLES,
@@ -18,7 +20,14 @@ import { logger } from '../lib/logger.js';
 import { buildSimpleNotificationEmail } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 import { assertRiderDocumentsApproved } from '../lib/riderDocuments.js';
+import { isoWeekRange } from '../lib/weeks.js';
 
+import {
+  cancellationDeadline,
+  creditExpiry,
+  isCancelledInTime,
+  resolveEntitlement,
+} from './entitlementService.js';
 import {
   assignHorsesForSession,
   listHorseOverrideOptions,
@@ -27,6 +36,7 @@ import {
 import { dispatchNotification } from './notificationService.js';
 import { getPlanningCached, invalidatePlanningCache } from './planningCache.js';
 import { expandWeeklyRecurrence } from './recurrence.js';
+import { getClubSettings } from './settingsService.js';
 import { assertNoSpaceConflict, assertRidingSpace } from './spaceService.js';
 
 const COURSE_SELECT = {
@@ -50,6 +60,10 @@ const COURSE_SELECT = {
 
 const PUBLIC_COURSE_LIMIT = 12;
 
+/** Inscriptions qui occupent une place : ni annulées, ni excusées (ADR 011). */
+const SEAT_TAKEN = { status: ENROLLMENT_STATUS.ACTIVE, attendance: { not: 'excused' } };
+const SEAT_COUNT = { _count: { select: { enrollments: { where: SEAT_TAKEN } } } };
+
 /** Notifications envoyées en parallèle par lot (borne la charge SendGrid et BDD). */
 const NOTIFICATION_BATCH_SIZE = 5;
 
@@ -71,7 +85,7 @@ export async function listPublicCourses() {
       endAt: true,
       capacity: true,
       space: { select: { type: true } },
-      _count: { select: { enrollments: true } },
+      ...SEAT_COUNT,
     },
     orderBy: { startAt: 'asc' },
     take: PUBLIC_COURSE_LIMIT,
@@ -194,7 +208,7 @@ export async function getCourse(courseId, viewer) {
       ...COURSE_SELECT,
       instructor: { select: { id: true, firstName: true, lastName: true } },
       space: { select: { id: true, name: true, type: true } },
-      _count: { select: { enrollments: true } },
+      ...SEAT_COUNT,
     },
   });
   if (!course) throw AppError.notFound('Cours introuvable');
@@ -266,8 +280,9 @@ export async function cancelCourse(courseId, cancelSeries) {
   }
 
   const enrollments = await prisma.courseEnrollment.findMany({
-    where: { courseId: { in: cancelledCourseIds } },
+    where: { courseId: { in: cancelledCourseIds }, status: ENROLLMENT_STATUS.ACTIVE },
     include: {
+      creditUsed: { select: { id: true, expiresAt: true } },
       rider: {
         include: {
           family: {
@@ -282,6 +297,8 @@ export async function cancelCourse(courseId, cancelSeries) {
     },
   });
 
+  const credited = await grantClubCancellationCredits(enrollments);
+
   await invalidatePlanningCache();
 
   /** @param {(typeof enrollments)[number]} enrollment */
@@ -289,17 +306,24 @@ export async function cancelCourse(courseId, cancelSeries) {
     const dateLabel = formatDateTime(enrollment.course.startAt);
     const title = enrollment.course.title;
     const firstName = enrollment.rider.family.user.firstName;
+    const expiresAt = credited.get(enrollment.id);
+    const creditLine = expiresAt
+      ? `Un rattrapage est offert à ${enrollment.rider.firstName}, à utiliser avant le ${formatDate(expiresAt)}.`
+      : null;
     return dispatchNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.COURSE_CANCELLED,
       title: 'Cours annulé',
-      body: `Le cours « ${title} » du ${dateLabel} a été annulé`,
+      body: [`Le cours « ${title} » du ${dateLabel} a été annulé.`, creditLine]
+        .filter(Boolean)
+        .join(' '),
       linkUrl: '/app/planning',
       email: buildSimpleNotificationEmail({
         firstName,
         subject: `Equime — Cours annulé : ${title}`,
         paragraphs: [
           `Le cours « ${title} » du ${dateLabel} a été annulé.`,
+          ...(creditLine ? [creditLine] : []),
           'Consultez le planning pour les prochaines séances.',
         ],
         ctaUrl: `${env.APP_URL}/app/planning`,
@@ -324,6 +348,54 @@ export async function cancelCourse(courseId, cancelSeries) {
 }
 
 /**
+ * Séance annulée par le club (ADR 011) : un crédit par inscrit. Un rattrapage
+ * annulé rend le crédit consommé (prolongé si besoin) au lieu d'en créer un autre.
+ * Idempotent : un seul crédit par inscription (`sourceEnrollmentId` unique).
+ *
+ * @param {Array<{ id: string, riderId: string, entitlement: string,
+ *   course: { startAt: Date }, creditUsed: { id: string, expiresAt: Date } | null }>} enrollments
+ * @returns {Promise<Map<string, Date>>} expiration du crédit par inscription
+ */
+async function grantClubCancellationCredits(enrollments) {
+  /** @type {Map<string, Date>} */
+  const credited = new Map();
+  const eligible = enrollments.filter(
+    (e) => e.entitlement !== ENROLLMENT_ENTITLEMENTS.FORCED && e.course.startAt > new Date()
+  );
+  if (eligible.length === 0) return credited;
+
+  const { makeupValidityDays } = await getClubSettings();
+  await prisma.$transaction(async (tx) => {
+    for (const enrollment of eligible) {
+      const expiresAt = creditExpiry(enrollment.course.startAt, makeupValidityDays);
+      if (enrollment.entitlement === ENROLLMENT_ENTITLEMENTS.MAKEUP && enrollment.creditUsed) {
+        const restoredExpiry =
+          enrollment.creditUsed.expiresAt > expiresAt ? enrollment.creditUsed.expiresAt : expiresAt;
+        await tx.sessionCredit.update({
+          where: { id: enrollment.creditUsed.id },
+          data: { usedAt: null, usedByEnrollmentId: null, expiresAt: restoredExpiry },
+        });
+        credited.set(enrollment.id, restoredExpiry);
+        continue;
+      }
+      const { count } = await tx.sessionCredit.createMany({
+        data: [
+          {
+            riderId: enrollment.riderId,
+            source: 'club_cancellation',
+            sourceEnrollmentId: enrollment.id,
+            expiresAt,
+          },
+        ],
+        skipDuplicates: true,
+      });
+      if (count > 0) credited.set(enrollment.id, expiresAt);
+    }
+  });
+  return credited;
+}
+
+/**
  * @param {{ from: Date, to: Date, scope: string, userId: string, role: string }} params
  */
 export async function getPlanningEvents(params) {
@@ -333,7 +405,10 @@ export async function getPlanningEvents(params) {
       : params.scope === 'mine' && params.role === 'client'
         ? {
             enrollments: {
-              some: { rider: { family: { userId: params.userId } } },
+              some: {
+                status: ENROLLMENT_STATUS.ACTIVE,
+                rider: { family: { userId: params.userId } },
+              },
             },
           }
         : {};
@@ -380,80 +455,188 @@ export async function getPlanningEvents(params) {
   );
 }
 
+const RIDER_WITH_FAMILY = {
+  family: {
+    select: {
+      userId: true,
+      user: { select: { firstName: true } },
+    },
+  },
+};
+
 /**
+ * Cavalier visible par l'acteur : toute la cavalerie pour l'admin, sa famille pour un client.
+ * @param {string} userId
+ * @param {string} riderId
+ * @param {string | undefined} role
+ */
+async function findRiderForActor(userId, riderId, role) {
+  const rider =
+    role === ROLES.ADMIN
+      ? await prisma.rider.findUnique({ where: { id: riderId }, include: RIDER_WITH_FAMILY })
+      : await prisma.rider.findFirst({
+          where: { id: riderId, familyId: await getFamilyIdForUser(userId) },
+          include: RIDER_WITH_FAMILY,
+        });
+  if (!rider) throw AppError.notFound('Cavalier introuvable');
+  return rider;
+}
+
+/**
+ * Droit à consommer pour réactiver une inscription annulée à la même séance.
+ * Une annulation tardive n'a rien rendu : le droit d'origine est repris tel quel.
+ * Un crédit produit et encore disponible est retiré (retour à l'état d'avant).
+ *
+ * @param {any} tx
+ * @param {{ id: string, entitlement: string,
+ *   creditProduced: { id: string, usedAt: Date | null } | null,
+ *   creditUsed: { id: string } | null }} existing
+ * @returns {Promise<string | null>} droit repris, ou null pour appliquer les règles normales
+ */
+async function reclaimEntitlement(tx, existing) {
+  const produced = existing.creditProduced;
+  if (produced && !produced.usedAt) {
+    await tx.sessionCredit.delete({ where: { id: produced.id } });
+    return existing.entitlement;
+  }
+  if (!produced && existing.entitlement === ENROLLMENT_ENTITLEMENTS.SUBSCRIPTION) {
+    return ENROLLMENT_ENTITLEMENTS.SUBSCRIPTION;
+  }
+  if (existing.entitlement === ENROLLMENT_ENTITLEMENTS.MAKEUP && existing.creditUsed) {
+    return ENROLLMENT_ENTITLEMENTS.MAKEUP;
+  }
+  return null;
+}
+
+/**
+ * Inscription d'un cavalier à une séance (ADR 011).
+ * Consomme une séance du forfait (droit hebdomadaire) ou, au-delà, un crédit de
+ * rattrapage. `force` (admin uniquement, Excel 10.4) contourne documents et droits,
+ * jamais la capacité ; il est tracé dans le journal d'audit.
+ *
  * @param {string} userId
  * @param {string} courseId
  * @param {string} riderId
- * @param {{ role: string, force?: boolean }} [options] `force` n'est honoré que pour un admin (Excel 10.4).
+ * @param {{ role: string, force?: boolean }} [options]
  */
 export async function enrollRider(userId, courseId, riderId, options = {}) {
   const force = options.role === ROLES.ADMIN && options.force === true;
-  const riderInclude = {
-    family: {
-      select: {
-        userId: true,
-        user: { select: { firstName: true } },
-      },
-    },
-  };
+  const rider = await findRiderForActor(userId, riderId, options.role);
 
-  const rider =
-    options.role === ROLES.ADMIN
-      ? await prisma.rider.findUnique({ where: { id: riderId }, include: riderInclude })
-      : await prisma.rider.findFirst({
-          where: { id: riderId, familyId: await getFamilyIdForUser(userId) },
-          include: riderInclude,
-        });
-  if (!rider) throw AppError.notFound('Cavalier introuvable');
-
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-  });
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course || course.status === COURSE_STATUS.CANCELLED) {
     throw AppError.notFound('Cours introuvable');
+  }
+  if (course.status === COURSE_STATUS.DRAFT) {
+    throw AppError.badRequest("Ce cours n'est pas encore ouvert aux inscriptions");
+  }
+  if (course.startAt <= new Date()) {
+    throw AppError.badRequest('Cette séance a déjà commencé');
   }
   // Documents valables à la date de la séance, pas seulement au jour de l'inscription
   if (!force) {
     assertRiderDocumentsApproved(rider, course.startAt);
   }
-  if (course.status === COURSE_STATUS.DRAFT) {
-    throw AppError.badRequest("Ce cours n'est pas encore ouvert aux inscriptions");
-  }
   if (!isLevelInRange(rider.level, course.minLevel, course.maxLevel)) {
     throw AppError.badRequest("Le niveau du cavalier n'est pas compatible avec ce cours");
   }
 
-  const existing = await prisma.courseEnrollment.findUnique({
-    where: { courseId_riderId: { courseId, riderId } },
-  });
-  if (existing) throw AppError.conflict('Ce cavalier est déjà inscrit à ce cours');
-
   const enrollment = await prisma.$transaction(async (tx) => {
-    const lockedCourse = await tx.course.findUnique({
-      where: { id: courseId },
-      include: { _count: { select: { enrollments: true } } },
+    // Verrous : la séance (dernière place) puis le cavalier (droit de la semaine).
+    await tx.$queryRaw`SELECT id FROM "courses" WHERE id = ${courseId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "riders" WHERE id = ${riderId} FOR UPDATE`;
+
+    const existing = await tx.courseEnrollment.findUnique({
+      where: { courseId_riderId: { courseId, riderId } },
+      include: {
+        creditProduced: { select: { id: true, usedAt: true } },
+        creditUsed: { select: { id: true } },
+      },
     });
-    if (!lockedCourse || lockedCourse._count.enrollments >= lockedCourse.capacity) {
+    if (existing?.status === ENROLLMENT_STATUS.ACTIVE) {
+      throw AppError.conflict('Ce cavalier est déjà inscrit à ce cours');
+    }
+
+    const overlapping = await tx.courseEnrollment.findFirst({
+      where: {
+        riderId,
+        status: ENROLLMENT_STATUS.ACTIVE,
+        courseId: { not: courseId },
+        course: {
+          status: { not: COURSE_STATUS.CANCELLED },
+          startAt: { lt: course.endAt },
+          endAt: { gt: course.startAt },
+        },
+      },
+      select: { course: { select: { title: true } } },
+    });
+    if (overlapping) {
+      throw AppError.conflict(
+        `${rider.firstName} est déjà inscrit(e) sur ce créneau (« ${overlapping.course.title} »)`
+      );
+    }
+
+    const seatsTaken = await tx.courseEnrollment.count({ where: { courseId, ...SEAT_TAKEN } });
+    if (seatsTaken >= course.capacity) {
       throw AppError.conflict('Ce cours est complet');
     }
 
+    /** @type {string} */
+    let entitlement = ENROLLMENT_ENTITLEMENTS.FORCED;
+    /** @type {string | null} */
+    let creditId = null;
     if (!force) {
-      const quota = await tx.family.updateMany({
-        where: { id: rider.familyId, sessionQuota: { gt: 0 } },
-        data: { sessionQuota: { decrement: 1 } },
-      });
-      if (quota.count !== 1) {
-        throw AppError.badRequest('Quota de séances épuisé sur votre abonnement');
+      const reclaimed = existing ? await reclaimEntitlement(tx, existing) : null;
+      if (reclaimed) {
+        entitlement = reclaimed;
+      } else {
+        const decision = await resolveEntitlement(tx, {
+          rider,
+          courseStartAt: course.startAt,
+          excludeEnrollmentId: existing?.id,
+        });
+        entitlement = decision.entitlement;
+        creditId = 'creditId' in decision ? decision.creditId : null;
       }
     }
 
-    return tx.courseEnrollment.create({
-      data: { courseId, riderId },
-      include: { rider: { select: { firstName: true, lastName: true } } },
-    });
+    const data = {
+      status: ENROLLMENT_STATUS.ACTIVE,
+      entitlement,
+      cancelledAt: null,
+      attendance: 'pending',
+      horseId: null,
+      horseAssignedAt: null,
+    };
+    const include = { rider: { select: { firstName: true, lastName: true } } };
+    const saved = existing
+      ? await tx.courseEnrollment.update({ where: { id: existing.id }, data, include })
+      : await tx.courseEnrollment.create({ data: { courseId, riderId, ...data }, include });
+
+    if (creditId) {
+      await tx.sessionCredit.update({
+        where: { id: creditId },
+        data: { usedAt: new Date(), usedByEnrollmentId: saved.id },
+      });
+    }
+    if (force) {
+      await tx.adminAuditLog.create({
+        data: {
+          adminId: userId,
+          action: 'enrollment_forced',
+          riderId,
+          details: `Inscription forcée au cours « ${course.title} » du ${formatDateTime(course.startAt)}`,
+        },
+      });
+    }
+    return saved;
   });
 
-  const body = `${rider.firstName} est inscrit(e) au cours « ${course.title} »`;
+  const detail =
+    enrollment.entitlement === ENROLLMENT_ENTITLEMENTS.MAKEUP
+      ? ' (rattrapage : 1 crédit utilisé)'
+      : '';
+  const body = `${rider.firstName} est inscrit(e) au cours « ${course.title} » du ${formatDateTime(course.startAt)}${detail}`;
   await dispatchNotification({
     userId: rider.family.userId,
     type: NOTIFICATION_TYPES.COURSE_ENROLLED,
@@ -474,12 +657,119 @@ export async function enrollRider(userId, courseId, riderId, options = {}) {
 }
 
 /**
+ * Annulation d'une inscription par la famille ou le secrétariat (ADR 011).
+ * La place est libérée. Dans le délai du club, une séance du forfait devient un
+ * crédit de rattrapage et un rattrapage rend son crédit ; après le délai, rien
+ * n'est rendu. Une inscription forcée ne rend jamais de crédit.
+ *
+ * @param {{ id: string, role: string }} actor
+ * @param {string} courseId
+ * @param {string} enrollmentId
+ */
+export async function cancelEnrollment(actor, courseId, enrollmentId) {
+  const enrollment = await prisma.courseEnrollment.findFirst({
+    where: { id: enrollmentId, courseId },
+    include: {
+      rider: { include: RIDER_WITH_FAMILY },
+      course: { select: { title: true, startAt: true, status: true } },
+      creditUsed: { select: { id: true } },
+    },
+  });
+  const isOwner = enrollment?.rider.family.userId === actor.id;
+  if (!enrollment || (actor.role !== ROLES.ADMIN && !isOwner)) {
+    throw AppError.notFound('Inscription introuvable');
+  }
+  if (enrollment.status === ENROLLMENT_STATUS.CANCELLED) {
+    throw AppError.conflict('Cette inscription est déjà annulée');
+  }
+  if (enrollment.course.status === COURSE_STATUS.CANCELLED) {
+    throw AppError.badRequest('Cette séance a été annulée par le club');
+  }
+  const now = new Date();
+  if (enrollment.course.startAt <= now) {
+    throw AppError.badRequest('Cette séance a déjà commencé');
+  }
+
+  const settings = await getClubSettings();
+  const inTime = isCancelledInTime(
+    enrollment.course.startAt,
+    settings.cancellationDeadlineHours,
+    now
+  );
+
+  const credit = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.courseEnrollment.updateMany({
+      where: { id: enrollment.id, status: ENROLLMENT_STATUS.ACTIVE },
+      data: {
+        status: ENROLLMENT_STATUS.CANCELLED,
+        cancelledAt: now,
+        horseId: null,
+        horseAssignedAt: null,
+      },
+    });
+    if (count === 0) throw AppError.conflict('Cette inscription est déjà annulée');
+    if (!inTime) return null;
+
+    if (enrollment.entitlement === ENROLLMENT_ENTITLEMENTS.SUBSCRIPTION) {
+      return tx.sessionCredit.create({
+        data: {
+          riderId: enrollment.riderId,
+          source: 'cancelled_in_time',
+          sourceEnrollmentId: enrollment.id,
+          expiresAt: creditExpiry(enrollment.course.startAt, settings.makeupValidityDays),
+        },
+        select: { id: true, expiresAt: true },
+      });
+    }
+    if (enrollment.entitlement === ENROLLMENT_ENTITLEMENTS.MAKEUP && enrollment.creditUsed) {
+      return tx.sessionCredit.update({
+        where: { id: enrollment.creditUsed.id },
+        data: { usedAt: null, usedByEnrollmentId: null },
+        select: { id: true, expiresAt: true },
+      });
+    }
+    return null;
+  });
+
+  await invalidatePlanningCache();
+
+  const { title, startAt } = enrollment.course;
+  const outcome = credit
+    ? `Un rattrapage est disponible jusqu'au ${formatDate(credit.expiresAt)}.`
+    : inTime
+      ? null
+      : `L'annulation a lieu moins de ${settings.cancellationDeadlineHours} h avant la séance : elle ne donne pas droit à un rattrapage.`;
+  const body = [
+    `L'inscription de ${enrollment.rider.firstName} au cours « ${title} » du ${formatDateTime(startAt)} est annulée.`,
+    outcome,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  await dispatchNotification({
+    userId: enrollment.rider.family.userId,
+    type: NOTIFICATION_TYPES.RIDER_ABSENCE,
+    title: 'Séance annulée',
+    body,
+    linkUrl: '/app/planning',
+    email: buildSimpleNotificationEmail({
+      firstName: enrollment.rider.family.user.firstName,
+      subject: `Equime — Annulation : ${title}`,
+      paragraphs: [body],
+      ctaUrl: `${env.APP_URL}/app/planning`,
+      ctaLabel: 'Voir le planning',
+    }),
+  });
+
+  return { enrollmentId: enrollment.id, inTime, credit };
+}
+
+/**
  * @param {string} courseId
  */
 export async function listEnrollments(courseId) {
   await getCourse(courseId);
   return prisma.courseEnrollment.findMany({
-    where: { courseId },
+    where: { courseId, status: ENROLLMENT_STATUS.ACTIVE },
     include: {
       rider: { select: { id: true, firstName: true, lastName: true, level: true } },
       horse: { select: { id: true, name: true, photoUrl: true } },
@@ -492,9 +782,8 @@ export async function listEnrollments(courseId) {
  * @param {string} courseId
  * @param {string} enrollmentId
  * @param {string} attendance
- * @param {{ id: string, role: string }} actor
  */
-export async function updateAttendance(courseId, enrollmentId, attendance, actor) {
+export async function updateAttendance(courseId, enrollmentId, attendance) {
   const enrollment = await prisma.courseEnrollment.findFirst({
     where: { id: enrollmentId, courseId },
     include: {
@@ -511,18 +800,8 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
       course: { select: { title: true, startAt: true } },
     },
   });
-  if (!enrollment) throw AppError.notFound('Inscription introuvable');
-
-  if (actor.role === ROLES.CLIENT) {
-    if (enrollment.rider.family.userId !== actor.id) {
-      throw AppError.notFound('Inscription introuvable');
-    }
-    if (attendance !== ATTENDANCE_STATUS.EXCUSED) {
-      throw AppError.forbidden('Vous pouvez uniquement signaler une absence (excusé)');
-    }
-    if (enrollment.course.startAt <= new Date()) {
-      throw AppError.badRequest('Seules les séances à venir peuvent être excusées');
-    }
+  if (!enrollment || enrollment.status !== ENROLLMENT_STATUS.ACTIVE) {
+    throw AppError.notFound('Inscription introuvable');
   }
 
   const previous = enrollment.attendance;
@@ -535,15 +814,8 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
     },
   });
 
-  const clientExcuse = actor.role === ROLES.CLIENT && attendance === ATTENDANCE_STATUS.EXCUSED;
-  const instructorAbsence = attendance === ATTENDANCE_STATUS.ABSENT;
-  if (
-    (clientExcuse && previous !== ATTENDANCE_STATUS.EXCUSED) ||
-    (instructorAbsence && previous !== ATTENDANCE_STATUS.ABSENT)
-  ) {
-    const body = clientExcuse
-      ? `${enrollment.rider.firstName} sera absent(e) au cours « ${enrollment.course.title} »`
-      : `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`;
+  if (attendance === 'absent' && previous !== 'absent') {
+    const body = `${enrollment.rider.firstName} a été marqué(e) absent(e) au cours « ${enrollment.course.title} »`;
     await dispatchNotification({
       userId: enrollment.rider.family.userId,
       type: NOTIFICATION_TYPES.RIDER_ABSENCE,
@@ -564,13 +836,15 @@ export async function updateAttendance(courseId, enrollmentId, attendance, actor
 }
 
 /**
- * Inscriptions à venir de la famille (pour signaler une absence, Excel 3.7).
+ * Inscriptions à venir de la famille, avec la limite d'annulation avec rattrapage.
  * @param {string} userId
  */
 export async function listFamilyUpcomingEnrollments(userId) {
   const familyId = await getFamilyIdForUser(userId);
+  const { cancellationDeadlineHours } = await getClubSettings();
   const rows = await prisma.courseEnrollment.findMany({
     where: {
+      status: ENROLLMENT_STATUS.ACTIVE,
       rider: { familyId },
       course: {
         startAt: { gt: new Date() },
@@ -579,6 +853,7 @@ export async function listFamilyUpcomingEnrollments(userId) {
     },
     include: {
       rider: { select: { id: true, firstName: true, lastName: true } },
+      horse: { select: { id: true, name: true } },
       course: {
         select: {
           id: true,
@@ -597,6 +872,9 @@ export async function listFamilyUpcomingEnrollments(userId) {
     id: row.id,
     courseId: row.courseId,
     attendance: row.attendance,
+    entitlement: row.entitlement,
+    cancellationDeadline: cancellationDeadline(row.course.startAt, cancellationDeadlineHours),
+    horse: row.horse,
     rider: row.rider,
     course: {
       id: row.course.id,
@@ -636,48 +914,125 @@ export async function overrideHorse(courseId, enrollmentId, horseId) {
   return overrideAssignedHorse(courseId, enrollmentId, horseId);
 }
 
+/** Fenêtre de réservation affichée à la famille. */
+const ENROLLABLE_WINDOW_MS = 8 * 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Cours ouverts aux inscriptions pour un client (niveau compatible, places disponibles).
- * @param {string} userId
+ * Droit qui serait consommé pour chaque séance (indication, recalculée à l'inscription).
+ * @param {string} riderId
+ * @param {Array<{ startAt: Date }>} courses
+ * @param {Date} now
  */
-export async function listEnrollableCourses(userId) {
+async function entitlementHints(riderId, courses, now) {
+  if (courses.length === 0) return () => ({ entitlement: null, refusal: null });
+  const windowStart = isoWeekRange(now).start;
+  const windowEnd = courses[courses.length - 1].startAt;
+
+  const [subscriptions, weekSessions, credits] = await Promise.all([
+    prisma.riderSubscription.findMany({
+      where: {
+        riderId,
+        seasonEnd: { gt: now },
+        OR: [{ status: 'active' }, { endedAt: { gt: now } }],
+      },
+      select: {
+        seasonStart: true,
+        seasonEnd: true,
+        endedAt: true,
+        plan: { select: { sessionsPerWeek: true } },
+      },
+    }),
+    prisma.courseEnrollment.findMany({
+      where: {
+        riderId,
+        entitlement: ENROLLMENT_ENTITLEMENTS.SUBSCRIPTION,
+        course: { startAt: { gte: windowStart, lte: windowEnd } },
+      },
+      select: { course: { select: { startAt: true } } },
+    }),
+    prisma.sessionCredit.findMany({
+      where: { riderId, usedAt: null, expiresAt: { gt: now } },
+      select: { expiresAt: true },
+    }),
+  ]);
+
+  /** @type {Map<number, number>} */
+  const usedByWeek = new Map();
+  for (const { course } of weekSessions) {
+    const key = isoWeekRange(course.startAt).start.getTime();
+    usedByWeek.set(key, (usedByWeek.get(key) ?? 0) + 1);
+  }
+
+  /** @param {{ startAt: Date }} course */
+  return (course) => {
+    const subscription = subscriptions.find(
+      (s) =>
+        s.seasonStart <= course.startAt &&
+        s.seasonEnd > course.startAt &&
+        (!s.endedAt || s.endedAt > course.startAt)
+    );
+    const used = usedByWeek.get(isoWeekRange(course.startAt).start.getTime()) ?? 0;
+    if (subscription && used < subscription.plan.sessionsPerWeek) {
+      return { entitlement: ENROLLMENT_ENTITLEMENTS.SUBSCRIPTION, refusal: null };
+    }
+    if (credits.some((c) => c.expiresAt > course.startAt)) {
+      return { entitlement: ENROLLMENT_ENTITLEMENTS.MAKEUP, refusal: null };
+    }
+    return { entitlement: null, refusal: subscription ? 'week_full' : 'no_subscription' };
+  };
+}
+
+/**
+ * Séances ouvertes à la réservation sur les 8 prochaines semaines (ADR 011).
+ * Avec `riderId` : séances du niveau du cavalier, hors celles où il est déjà
+ * inscrit, avec le droit qui serait consommé. Sans : toute la famille.
+ *
+ * @param {string} userId
+ * @param {string} [riderId]
+ */
+export async function listEnrollableCourses(userId, riderId) {
   const familyId = await getFamilyIdForUser(userId);
   const riders = await prisma.rider.findMany({
-    where: { familyId },
+    where: { familyId, ...(riderId ? { id: riderId } : {}) },
     select: { id: true, level: true },
   });
+  if (riderId && riders.length === 0) throw AppError.notFound('Cavalier introuvable');
   if (riders.length === 0) return [];
 
   const now = new Date();
   const courses = await prisma.course.findMany({
     where: {
       status: COURSE_STATUS.SCHEDULED,
-      startAt: { gt: now },
+      startAt: { gt: now, lt: new Date(now.getTime() + ENROLLABLE_WINDOW_MS) },
+      ...(riderId ? { enrollments: { none: { riderId, status: ENROLLMENT_STATUS.ACTIVE } } } : {}),
     },
     include: {
-      _count: { select: { enrollments: true } },
+      ...SEAT_COUNT,
       space: { select: { name: true } },
+      instructor: { select: { firstName: true, lastName: true } },
     },
     orderBy: { startAt: 'asc' },
   });
 
-  return courses
-    .filter((c) => {
-      const hasCompatibleRider = riders.some((r) =>
-        isLevelInRange(r.level, c.minLevel, c.maxLevel)
-      );
-      const hasCapacity = c._count.enrollments < c.capacity;
-      return hasCompatibleRider && hasCapacity;
-    })
-    .map((c) => ({
-      id: c.id,
-      title: c.title,
-      startAt: c.startAt,
-      endAt: c.endAt,
-      minLevel: c.minLevel,
-      maxLevel: c.maxLevel,
-      capacity: c.capacity,
-      enrolledCount: c._count.enrollments,
-      spaceName: c.space.name,
-    }));
+  const open = courses.filter(
+    (c) =>
+      c._count.enrollments < c.capacity &&
+      riders.some((r) => isLevelInRange(r.level, c.minLevel, c.maxLevel))
+  );
+  const hint = riderId ? await entitlementHints(riderId, open, now) : null;
+
+  return open.map((c) => ({
+    id: c.id,
+    title: c.title,
+    startAt: c.startAt,
+    endAt: c.endAt,
+    minLevel: c.minLevel,
+    maxLevel: c.maxLevel,
+    capacity: c.capacity,
+    enrolledCount: c._count.enrollments,
+    remainingSpots: c.capacity - c._count.enrollments,
+    spaceName: c.space.name,
+    instructorName: `${c.instructor.firstName} ${c.instructor.lastName}`,
+    ...(hint ? hint(c) : {}),
+  }));
 }

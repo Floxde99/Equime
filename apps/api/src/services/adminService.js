@@ -60,10 +60,15 @@ export async function searchFamilies(query) {
       id: true,
       user: { select: { id: true, firstName: true, lastName: true, email: true, banned: true } },
       riders: {
-        select: { id: true, firstName: true, lastName: true, level: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          level: true,
+          subscriptions: activeSubscriptionSelect(),
+        },
         orderBy: { firstName: 'asc' },
       },
-      subscriptionPlan: { select: { id: true, name: true, priceCents: true } },
     },
   });
   // Conserve l'ordre alphabétique calculé en SQL
@@ -71,7 +76,22 @@ export async function searchFamilies(query) {
   return rows.map((row) => byId.get(row.id)).filter(Boolean);
 }
 
-const MEMBER_SELECT = {
+/** Forfait de saison en cours ou à venir d'un cavalier (ADR 011). */
+const activeSubscriptionSelect = () => ({
+  where: { status: /** @type {const} */ ('active'), seasonEnd: { gt: new Date() } },
+  select: {
+    id: true,
+    seasonStart: true,
+    seasonEnd: true,
+    paymentSchedule: true,
+    invoiceId: true,
+    plan: { select: { id: true, name: true, sessionsPerWeek: true } },
+  },
+  orderBy: { seasonStart: /** @type {const} */ ('asc') },
+  take: 1,
+});
+
+const memberSelect = () => ({
   id: true,
   email: true,
   firstName: true,
@@ -85,18 +105,19 @@ const MEMBER_SELECT = {
   family: {
     select: {
       id: true,
-      sessionQuota: true,
-      subscriptionPlanId: true,
-      subscriptionPlan: {
-        select: { id: true, name: true, sessionsPerWeek: true, priceCents: true },
-      },
       riders: {
-        select: { id: true, firstName: true, lastName: true, level: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          level: true,
+          subscriptions: activeSubscriptionSelect(),
+        },
         orderBy: { firstName: 'asc' },
       },
     },
   },
-};
+});
 
 /**
  * Indicateurs du tableau de bord admin (occupation, CA, charge cavalerie).
@@ -120,11 +141,16 @@ export async function getDashboardKpis() {
         startAt: { gte: now, lte: weekAhead },
         status: { in: ['scheduled', 'ongoing'] },
       },
-      include: { _count: { select: { enrollments: true } } },
+      include: {
+        _count: {
+          select: { enrollments: { where: { status: 'active', attendance: { not: 'excused' } } } },
+        },
+      },
     }),
-    prisma.invoice.aggregate({
-      where: { status: 'paid', paidAt: { gte: startOfMonth } },
-      _sum: { totalCents: true },
+    // Encaissements du mois (ADR 011) : règlements reçus, pas factures soldées.
+    prisma.payment.aggregate({
+      where: { paidAt: { gte: startOfMonth } },
+      _sum: { amountCents: true },
       _count: true,
     }),
     prisma.horse
@@ -152,7 +178,7 @@ export async function getDashboardKpis() {
   return {
     courseOccupancyPercent,
     upcomingCoursesCount: upcomingCourses.length,
-    revenueCents: revenueAgg._sum.totalCents ?? 0,
+    revenueCents: revenueAgg._sum.amountCents ?? 0,
     paidInvoicesCount: revenueAgg._count,
     horsesInLoadAlert,
     pendingDocumentsCount,
@@ -169,7 +195,7 @@ export async function listMembers() {
       role: { in: ['client', 'instructor'] },
       anonymizedAt: null,
     },
-    select: MEMBER_SELECT,
+    select: memberSelect(),
     orderBy: [{ role: 'asc' }, { lastName: 'asc' }],
   });
 }

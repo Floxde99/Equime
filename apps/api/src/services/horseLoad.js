@@ -59,6 +59,7 @@ export async function getWeeklyLoads({ referenceDate = new Date(), horseIds, db 
     db.courseEnrollment.findMany({
       where: {
         horseId: horseFilter,
+        status: 'active',
         attendance: { not: 'excused' },
         course: { ...overlapsWeek, status: { not: 'cancelled' } },
       },

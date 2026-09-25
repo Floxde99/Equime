@@ -165,7 +165,8 @@ describe('Routes protégées', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.user.email).toBe('client@test.fr');
-    expect(res.body.user.sessionQuota).toBe(0);
+    // Les droits aux séances sont servis par /client/entitlements (ADR 011)
+    expect(res.body.user).not.toHaveProperty('sessionQuota');
   });
 
   it('un utilisateur banni est rejeté immédiatement, même avec un access token encore valide', async () => {
@@ -485,7 +486,6 @@ describe('PATCH /api/v1/auth/me', () => {
       lastName: 'Dupont',
       phone: '06 12 34 56 78',
       role: 'client',
-      sessionQuota: 0,
     });
     expect(res.body.user.passwordHash).toBeUndefined();
 
@@ -612,9 +612,10 @@ describe('GET /api/v1/auth/me/export', () => {
       .set('Authorization', `Bearer ${reg.body.accessToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.format).toBe('equime-portability-v1');
+    expect(res.body.format).toBe('equime-portability-v2');
     expect(res.body.profile.email).toBe('client@test.fr');
     expect(res.body.family).not.toBeNull();
+    expect(res.body.family).not.toHaveProperty('sessionQuota');
   });
 });
 

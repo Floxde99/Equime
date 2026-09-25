@@ -1,10 +1,13 @@
 // @ts-check
 /**
  * Helpers communs aux seeds dev et recette.
- * Volontairement autonomes (aucune dépendance à src/) : les seeds
- * s'exécutent hors du cycle de vie de l'API.
+ * Autonomes vis-à-vis de l'API (ni services ni client Prisma de src/) : les seeds
+ * s'exécutent hors de son cycle de vie. Seule exception, la logique pure des
+ * saisons et échéanciers (src/lib/seasons.js), pour des dates identiques à l'API.
  */
 import argon2 from 'argon2';
+
+import { buildInstallments, scheduleDueDates, seasonAt, seasonLabel } from '../src/lib/seasons.js';
 
 /**
  * Hash argon2id (mêmes paramètres que le service auth de la Phase 2).
@@ -82,6 +85,10 @@ export async function resetDatabase(prisma) {
   await prisma.volunteerSignup.deleteMany();
   await prisma.volunteerMission.deleteMany();
   await prisma.incident.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.invoiceInstallment.deleteMany();
+  await prisma.sessionCredit.deleteMany();
+  await prisma.riderSubscription.deleteMany();
   await prisma.invoiceItem.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.eventRegistration.deleteMany();
@@ -100,4 +107,104 @@ export async function resetDatabase(prisma) {
   await prisma.refreshToken.deleteMany();
   await prisma.newsletterSubscription.deleteMany();
   await prisma.user.deleteMany();
+}
+
+/** Paramètres de saison par défaut du club (ClubSettings). */
+const DEFAULT_SEASON_SETTINGS = {
+  seasonStart: '09-01',
+  seasonEnd: '06-30',
+  installmentDay: 5,
+  quarterDueDates: ['09-05', '01-05', '04-05'],
+};
+
+/**
+ * Forfait de saison d'un cavalier, souscrit en début de saison, avec sa facture
+ * et son échéancier (ADR 011). Les `paidInstallments` premières échéances sont
+ * réglées par chèque.
+ *
+ * @param {import('../generated/prisma/client.js').PrismaClient} prisma
+ * @param {{ familyId: string, rider: { id: string, firstName: string, lastName: string },
+ *   plan: { id: string, name: string, priceCents: number },
+ *   paymentSchedule: 'quarterly' | 'ten_installments', number: string,
+ *   discount?: { label: string, percentage: number }, paidInstallments?: number,
+ *   overdue?: boolean, now?: Date }} input
+ */
+export async function createSeasonSubscription(prisma, input) {
+  const now = input.now ?? new Date();
+  const season = seasonAt(now, DEFAULT_SEASON_SETTINGS);
+  const discountCents = input.discount
+    ? Math.round((input.plan.priceCents * input.discount.percentage) / 100)
+    : 0;
+  const totalCents = input.plan.priceCents - discountCents;
+  const installments = buildInstallments({
+    totalCents,
+    dueDates: scheduleDueDates(input.paymentSchedule, season, DEFAULT_SEASON_SETTINGS),
+    now: new Date(season.start.getTime() - 1),
+  });
+  const paidCount = input.paidInstallments ?? 0;
+  const paidAtOf = (/** @type {Date} */ dueAt) => (dueAt < now ? dueAt : now);
+  const issuedAt = season.start < now ? season.start : now;
+
+  const items = [
+    {
+      label: `Forfait ${input.plan.name} — ${input.rider.firstName} ${input.rider.lastName} — saison ${seasonLabel(season)}`,
+      quantity: 1,
+      unitCents: input.plan.priceCents,
+      totalCents: input.plan.priceCents,
+    },
+  ];
+  if (input.discount) {
+    items.push({
+      label: `Réduction ${input.discount.label} (${input.discount.percentage} %)`,
+      quantity: 1,
+      unitCents: -discountCents,
+      totalCents: -discountCents,
+    });
+  }
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      familyId: input.familyId,
+      number: input.number,
+      status: input.overdue ? 'overdue' : 'sent',
+      issuedAt,
+      dueAt: installments[0].dueAt,
+      totalCents,
+      items: { create: items },
+      installments: {
+        create: installments.map((installment, index) => ({
+          ...installment,
+          paidAt: index < paidCount ? paidAtOf(installment.dueAt) : null,
+        })),
+      },
+    },
+    include: { installments: { orderBy: { sequence: 'asc' } } },
+  });
+
+  for (const installment of invoice.installments.slice(0, paidCount)) {
+    await prisma.payment.create({
+      data: {
+        invoiceId: invoice.id,
+        installmentId: installment.id,
+        method: 'cheque',
+        amountCents: installment.amountCents,
+        paidAt: paidAtOf(installment.dueAt),
+        reference: `CHQ ${String(4_200_000 + installment.sequence)}`,
+      },
+    });
+  }
+
+  return prisma.riderSubscription.create({
+    data: {
+      riderId: input.rider.id,
+      planId: input.plan.id,
+      seasonStart: season.start,
+      seasonEnd: season.end,
+      startsAt: season.start,
+      paymentSchedule: input.paymentSchedule,
+      priceCents: input.plan.priceCents,
+      discountPercent: input.discount?.percentage ?? 0,
+      invoiceId: invoice.id,
+    },
+  });
 }

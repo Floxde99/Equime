@@ -7,13 +7,21 @@ import { prisma } from '../lib/prisma.js';
 import { isoWeekRange } from '../lib/weeks.js';
 import { issueTokenPair } from '../services/tokenService.js';
 
-export { refreshCookieOf, registerPayload, resetAuthTables, resetRateLimits } from './helpers.js';
+export {
+  refreshCookieOf,
+  registerPayload,
+  resetAuthTables,
+  resetBillingTables,
+  resetRateLimits,
+} from './helpers.js';
 
 /**
  * Vide les tables métier Phase 3 (ordre FK).
  */
 export async function resetCoreTables() {
   await prisma.adminAuditLog.deleteMany();
+  await prisma.sessionCredit.deleteMany();
+  await prisma.riderSubscription.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.eventRegistration.deleteMany();
   await prisma.event.deleteMany();
@@ -44,9 +52,7 @@ export async function createUser(opts = {}) {
   });
 
   if (user.role === 'client') {
-    await prisma.family.create({
-      data: { userId: user.id, sessionQuota: 10 },
-    });
+    await prisma.family.create({ data: { userId: user.id } });
   }
 
   return user;
@@ -119,5 +125,32 @@ export async function giveHorseLoad({
   });
   await prisma.courseEnrollment.create({
     data: { courseId: course.id, riderId: rider.id, horseId, horseAssignedAt: startAt },
+  });
+}
+
+let planSeq = 0;
+
+/**
+ * Forfait actif couvrant les six mois passés et l'année à venir (ADR 011), sans
+ * facture : ouvre le droit hebdomadaire d'un cavalier dans les tests.
+ * @param {{ riderId: string, sessionsPerWeek?: number }} input
+ */
+export async function giveSubscription({ riderId, sessionsPerWeek = 2 }) {
+  planSeq += 1;
+  const plan = await prisma.subscriptionPlan.create({
+    data: { name: `Forfait test ${planSeq}-${riderId}`, priceCents: 50_000, sessionsPerWeek },
+  });
+  const day = 24 * 60 * 60 * 1000;
+  const seasonStart = new Date(Date.now() - 180 * day);
+  return prisma.riderSubscription.create({
+    data: {
+      riderId,
+      planId: plan.id,
+      seasonStart,
+      seasonEnd: new Date(Date.now() + 365 * day),
+      startsAt: seasonStart,
+      paymentSchedule: 'ten_installments',
+      priceCents: plan.priceCents,
+    },
   });
 }

@@ -3,6 +3,7 @@
  * Paiement Stripe Checkout (ADR 008).
  * Services purs : pas de req/res.
  */
+import { PAYMENT_METHODS } from '@equime/shared';
 import Stripe from 'stripe';
 
 import { env, getPaymentConfig, isStripeConfigured } from '../config/env.js';
@@ -38,7 +39,21 @@ export function getPublicPaymentConfig() {
 }
 
 /**
- * Crée une Session Checkout pour une facture client (sent | overdue).
+ * Identifiant du PaymentIntent d'une session (chaîne ou objet développé).
+ * @param {unknown} paymentIntent
+ * @returns {string | null}
+ */
+function paymentIntentIdOf(paymentIntent) {
+  if (typeof paymentIntent === 'string') return paymentIntent;
+  if (paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent) {
+    return String(/** @type {{ id: string }} */ (paymentIntent).id);
+  }
+  return null;
+}
+
+/**
+ * Crée une Session Checkout pour l'échéance suivante d'une facture client
+ * (sent | overdue). Une session encore ouverte pour le même montant est reprise.
  *
  * @param {string} userId
  * @param {string} invoiceId
@@ -58,21 +73,33 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
   if (invoice.status !== 'sent' && invoice.status !== 'overdue') {
     throw AppError.badRequest('Cette facture ne peut pas être payée');
   }
-  if (invoice.totalCents <= 0) {
+  const next = invoice.nextInstallment;
+  if (!next || next.amountCents <= 0) {
     throw AppError.badRequest('Le montant de la facture est invalide');
   }
 
   const stripe = getStripe();
   const config = getPaymentConfig();
 
-  // Une session encore ouverte est réutilisée : en créer une seconde laisserait
-  // deux sessions payables pour la même facture (double débit possible).
-  if (invoice.stripeCheckoutSessionId) {
-    const existing = await stripe.checkout.sessions.retrieve(invoice.stripeCheckoutSessionId);
-    if (existing.status === 'open' && existing.url) {
+  // Une session encore ouverte pour cette échéance est réutilisée : en créer une
+  // seconde laisserait deux sessions payables (double débit possible). Si le reste
+  // dû a changé (règlement au club entre-temps), une nouvelle session est créée.
+  const installment = await prisma.invoiceInstallment.findUniqueOrThrow({
+    where: { id: next.id },
+    select: { stripeCheckoutSessionId: true },
+  });
+  if (installment.stripeCheckoutSessionId) {
+    const existing = await stripe.checkout.sessions.retrieve(installment.stripeCheckoutSessionId);
+    if (existing.status === 'open' && existing.url && existing.amount_total === next.amountCents) {
       return { url: existing.url, sessionId: existing.id, mode: config.mode };
     }
   }
+
+  const count = invoice.installments.length;
+  const productName =
+    count > 1
+      ? `Facture ${invoice.number} — échéance ${next.sequence}/${count}`
+      : `Facture ${invoice.number}`;
 
   const successUrl = `${env.APP_URL}/app/factures?paid=1&invoice=${encodeURIComponent(invoice.id)}`;
   const cancelUrl = `${env.APP_URL}/app/factures?cancelled=1&invoice=${encodeURIComponent(invoice.id)}`;
@@ -82,6 +109,7 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
     client_reference_id: invoice.id,
     metadata: {
       invoiceId: invoice.id,
+      installmentId: next.id,
       familyId: invoice.family.id,
     },
     line_items: [
@@ -89,9 +117,9 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
         quantity: 1,
         price_data: {
           currency: env.STRIPE_CURRENCY,
-          unit_amount: invoice.totalCents,
+          unit_amount: next.amountCents,
           product_data: {
-            name: `Facture ${invoice.number}`,
+            name: productName,
           },
         },
       },
@@ -104,8 +132,8 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
     throw AppError.serviceUnavailable('Stripe n’a pas renvoyé d’URL de paiement');
   }
 
-  await prisma.invoice.update({
-    where: { id: invoice.id },
+  await prisma.invoiceInstallment.update({
+    where: { id: next.id },
     data: { stripeCheckoutSessionId: session.id },
   });
 
@@ -117,12 +145,44 @@ export async function createInvoiceCheckoutSession(userId, invoiceId) {
 }
 
 /**
+ * Enregistre le règlement d'une session Checkout payée (idempotent par PaymentIntent).
+ * @param {{ id: string, amount_total?: number | null, payment_intent?: unknown,
+ *   metadata?: Record<string, string> | null }} session
+ * @param {string} invoiceId
+ */
+async function recordCheckoutPayment(session, invoiceId) {
+  const paymentIntentId = paymentIntentIdOf(session.payment_intent);
+  if (!paymentIntentId) {
+    logger.error({ sessionId: session.id }, 'Session Stripe payée sans PaymentIntent');
+    return null;
+  }
+  const installmentId = session.metadata?.installmentId ?? null;
+  // Stripe fournit toujours `amount_total` ; à défaut, l'échéance suivante.
+  const amountCents =
+    typeof session.amount_total === 'number'
+      ? session.amount_total
+      : ((await billingService.getAdminInvoice(invoiceId)).nextInstallment?.amountCents ?? 0);
+  if (amountCents <= 0) {
+    logger.error({ sessionId: session.id, invoiceId }, 'Session Stripe payée sans montant');
+    return null;
+  }
+
+  return billingService.recordPayment({
+    invoiceId,
+    installmentId,
+    method: PAYMENT_METHODS.CARD_ONLINE,
+    amountCents,
+    stripePaymentIntentId: paymentIntentId,
+  });
+}
+
+/**
  * Confirme un Checkout après retour success_url (?paid=1).
  * Interroge Stripe (pas de confiance client) ; idempotent avec le webhook.
  *
  * @param {string} userId
  * @param {string} invoiceId
- * @returns {Promise<{ invoice: Awaited<ReturnType<typeof billingService.getClientInvoice>>, confirmed: boolean }>}
+ * @returns {Promise<{ invoice: object, confirmed: boolean }>}
  */
 export async function confirmInvoiceCheckout(userId, invoiceId) {
   if (!isStripeConfigured) {
@@ -130,35 +190,31 @@ export async function confirmInvoiceCheckout(userId, invoiceId) {
   }
 
   const invoice = await billingService.getClientInvoice(userId, invoiceId);
-
   if (invoice.status === 'paid') {
     return { invoice, confirmed: false };
   }
 
-  if (!invoice.stripeCheckoutSessionId) {
+  const pending = await prisma.invoiceInstallment.findMany({
+    where: { invoiceId, paidAt: null, stripeCheckoutSessionId: { not: null } },
+    select: { stripeCheckoutSessionId: true },
+    orderBy: { sequence: 'asc' },
+  });
+  if (pending.length === 0) {
     throw AppError.badRequest('Aucune session Checkout associée à cette facture');
   }
 
   const stripe = getStripe();
-  const session = await stripe.checkout.sessions.retrieve(invoice.stripeCheckoutSessionId);
-
-  if (session.payment_status !== 'paid') {
-    return { invoice, confirmed: false };
+  let confirmed = false;
+  for (const { stripeCheckoutSessionId } of pending) {
+    const session = await stripe.checkout.sessions.retrieve(
+      /** @type {string} */ (stripeCheckoutSessionId)
+    );
+    if (session.payment_status !== 'paid') continue;
+    const result = await recordCheckoutPayment(/** @type {any} */ (session), invoiceId);
+    if (result?.recorded) confirmed = true;
   }
 
-  const paymentIntent = session.payment_intent;
-  const paymentIntentId =
-    typeof paymentIntent === 'string'
-      ? paymentIntent
-      : paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent
-        ? String(/** @type {{ id: string }} */ (paymentIntent).id)
-        : null;
-
-  const paid = await billingService.markInvoicePaidFromPayment(invoice.id, {
-    paymentIntentId,
-  });
-
-  return { invoice: paid, confirmed: true };
+  return { invoice: await billingService.getClientInvoice(userId, invoiceId), confirmed };
 }
 
 /**
@@ -237,14 +293,6 @@ export async function handleStripeWebhookEvent(event) {
     return { handled: false };
   }
 
-  const paymentIntent = session.payment_intent;
-  const paymentIntentId =
-    typeof paymentIntent === 'string'
-      ? paymentIntent
-      : paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent
-        ? String(/** @type {{ id: string }} */ (paymentIntent).id)
-        : null;
-
-  await billingService.markInvoicePaidFromPayment(invoiceId, { paymentIntentId });
+  await recordCheckoutPayment(/** @type {any} */ (session), invoiceId);
   return { handled: true };
 }

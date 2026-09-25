@@ -252,6 +252,7 @@ async function loadAssignmentContext(courseId, db = prisma) {
     where: { id: courseId },
     include: {
       enrollments: {
+        where: { status: 'active' },
         include: {
           rider: { select: { id: true, firstName: true, lastName: true, level: true } },
           horse: { select: { id: true, name: true, photoUrl: true } },
@@ -373,6 +374,7 @@ export async function overrideAssignedHorse(courseId, enrollmentId, horseId) {
       where: { id: courseId },
       include: {
         enrollments: {
+          where: { status: 'active' },
           include: {
             rider: { select: { id: true, firstName: true, lastName: true, level: true } },
           },

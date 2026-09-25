@@ -16,6 +16,7 @@ import {
   createUser,
   familyIdOf,
   resetAuthTables,
+  resetBillingTables,
   resetCoreTables,
   resetRateLimits,
 } from './coreHelpers.js';
@@ -46,8 +47,7 @@ let _otherClientId;
 let _otherFamilyId;
 
 async function resetPhase4Tables() {
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
+  await resetBillingTables();
   await prisma.discountRule.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
   await resetCoreTables();
@@ -303,39 +303,27 @@ describe('EPIC 5 — attribution des chevaux', () => {
 });
 
 describe('EPIC 6 — facturation & abonnements', () => {
-  it('crée, envoie puis paie une facture avec notifications', async () => {
-    await prisma.rider.createMany({
-      data: [
-        {
-          familyId: clientFamilyId,
-          firstName: 'Emma',
-          lastName: 'Martin',
-          birthdate: new Date('2012-01-10'),
-          level: 'galop_2',
-        },
-        {
-          familyId: clientFamilyId,
-          firstName: 'Tom',
-          lastName: 'Martin',
-          birthdate: new Date('2010-06-10'),
-          level: 'galop_1',
-        },
-      ],
-    });
-    const plan = await prisma.subscriptionPlan.findFirstOrThrow({ where: { name: 'Classique' } });
-    await prisma.family.update({
-      where: { id: clientFamilyId },
-      data: { subscriptionPlanId: plan.id },
-    });
-
+  it('crée, envoie puis paie une facture libre avec notifications', async () => {
     const createRes = await request(app)
       .post('/api/v1/admin/invoices')
       .set(authHeader(adminToken))
-      .send({ familyId: clientFamilyId });
+      .send({
+        familyId: clientFamilyId,
+        items: [
+          { label: 'Licence FFE 2027', quantity: 1, unitCents: 2500 },
+          { label: 'Location de casque', quantity: 2, unitCents: 500 },
+        ],
+      });
 
     expect(createRes.status).toBe(201);
     expect(createRes.body.invoice.number).toMatch(/^FAC-2026-\d{4}$/);
-    expect(createRes.body.invoice.totalCents).toBe(8010);
+    expect(createRes.body.invoice.totalCents).toBe(3500);
+    // Une facture libre porte une seule échéance, à 30 jours par défaut (ADR 011)
+    expect(createRes.body.invoice.installments).toHaveLength(1);
+    expect(createRes.body.invoice.installments[0].amountCents).toBe(3500);
+    const dueInDays =
+      (new Date(createRes.body.invoice.installments[0].dueAt).getTime() - Date.now()) / 86400000;
+    expect(Math.round(dueInDays)).toBe(30);
 
     const sendRes = await request(app)
       .post(`/api/v1/admin/invoices/${createRes.body.invoice.id}/send`)
@@ -353,6 +341,8 @@ describe('EPIC 6 — facturation & abonnements', () => {
 
     expect(payRes.status).toBe(200);
     expect(payRes.body.invoice.status).toBe('paid');
+    expect(payRes.body.invoice.payments).toHaveLength(1);
+    expect(payRes.body.invoice.remainingCents).toBe(0);
 
     const notifications = await prisma.notification.findMany({
       where: { userId: clientId },
@@ -425,52 +415,13 @@ describe('EPIC 6 — facturation & abonnements', () => {
     expect(payRes.status).toBe(400);
   });
 
-  it("génère les factures d'abonnement du mois sans doublon", async () => {
-    const plan = await prisma.subscriptionPlan.findFirstOrThrow({ where: { name: 'Découverte' } });
-    await prisma.family.update({
-      where: { id: clientFamilyId },
-      data: { subscriptionPlanId: plan.id },
-    });
-
-    const first = await request(app)
-      .post('/api/v1/admin/invoices/generate-subscriptions')
+  it('refuse une facture sans ligne : les forfaits sont facturés à la souscription', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/invoices')
       .set(authHeader(adminToken))
-      .send({});
-
-    expect(first.status).toBe(200);
-    expect(first.body.createdCount).toBe(1);
-    expect(first.body.skippedCount).toBe(0);
-    expect(first.body.invoices).toHaveLength(1);
-    expect(first.body.invoices[0].family.id).toBe(clientFamilyId);
-    expect(first.body.invoices[0].status).toBe('draft');
-    expect(first.body.invoices[0].totalCents).toBe(4900);
-
-    await prisma.family.update({
-      where: { id: _otherFamilyId },
-      data: { subscriptionPlanId: plan.id },
-    });
-
-    const second = await request(app)
-      .post('/api/v1/admin/invoices/generate-subscriptions')
-      .set(authHeader(adminToken))
-      .send({});
-
-    expect(second.status).toBe(200);
-    expect(second.body.createdCount).toBe(1);
-    expect(second.body.skippedCount).toBe(1);
-    expect(second.body.invoices[0].family.id).toBe(_otherFamilyId);
-
-    const third = await request(app)
-      .post('/api/v1/admin/invoices/generate-subscriptions')
-      .set(authHeader(adminToken))
-      .send({});
-
-    expect(third.status).toBe(200);
-    expect(third.body.createdCount).toBe(0);
-    expect(third.body.skippedCount).toBe(2);
-
-    const invoices = await prisma.invoice.findMany();
-    expect(invoices).toHaveLength(2);
+      .send({ familyId: clientFamilyId });
+    expect(res.status).toBe(400);
+    expect(await prisma.invoice.count()).toBe(0);
   });
 
   it('liste les brouillons côté admin et les masque au client', async () => {
@@ -606,11 +557,11 @@ describe('EPIC 6 — facturation & abonnements', () => {
     expect(otherPdf.status).toBe(404);
   });
 
-  it('interdit la génération batch aux non-admins', async () => {
+  it('réserve la saisie des règlements au secrétariat', async () => {
     const res = await request(app)
-      .post('/api/v1/admin/invoices/generate-subscriptions')
+      .post('/api/v1/admin/invoices/any-id/payments')
       .set(authHeader(clientToken))
-      .send({});
+      .send({ method: 'cheque', amountCents: 1000 });
     expect(res.status).toBe(403);
   });
 });

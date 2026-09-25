@@ -1,6 +1,5 @@
 // @ts-check
 import {
-  adminChangeFamilySubscriptionSchema,
   adminRiderDocumentParamSchema,
   adminUploadLicenseFieldsSchema,
   compatibilityAuditSchema,
@@ -8,12 +7,15 @@ import {
   createInvoiceSchema,
   createMemberSchema,
   createSubscriptionPlanSchema,
-  familyIdParamSchema,
   familySearchQuerySchema,
   invoiceIdParamSchema,
+  recordPaymentSchema,
   reviewDocumentSchema,
   riderDocumentReviewParamSchema,
   ROLES,
+  subscribeRiderSchema,
+  subscriptionIdParamSchema,
+  subscriptionPreviewQuerySchema,
   updateDiscountRuleSchema,
   updateMemberProfileSchema,
   updateSubscriptionPlanSchema,
@@ -70,11 +72,22 @@ router.post(
   adminController.uploadLicense
 );
 
-router.patch(
-  '/families/:id/subscription',
-  validate(familyIdParamSchema, 'params'),
-  validate(adminChangeFamilySubscriptionSchema),
-  billingController.adminChangeFamilySubscription
+router.get(
+  '/riders/:riderId/subscription-preview',
+  validate(riderDocumentReviewParamSchema, 'params'),
+  validate(subscriptionPreviewQuerySchema, 'query'),
+  billingController.previewSubscription
+);
+router.post(
+  '/riders/:riderId/subscriptions',
+  validate(riderDocumentReviewParamSchema, 'params'),
+  validate(subscribeRiderSchema),
+  billingController.subscribeRider
+);
+router.post(
+  '/subscriptions/:id/end',
+  validate(subscriptionIdParamSchema, 'params'),
+  billingController.endSubscription
 );
 
 router.post('/compatibility-audit', validate(compatibilityAuditSchema), billingController.runAudit);
@@ -112,7 +125,6 @@ router
   .get(billingController.listAdminInvoices)
   .post(validate(createInvoiceSchema), billingController.createInvoice);
 
-router.post('/invoices/generate-subscriptions', billingController.generateSubscriptionInvoices);
 router.get(
   '/invoices/:id/pdf',
   validate(invoiceIdParamSchema, 'params'),
@@ -127,6 +139,12 @@ router.post(
   '/invoices/:id/send',
   validate(invoiceIdParamSchema, 'params'),
   billingController.sendInvoice
+);
+router.post(
+  '/invoices/:id/payments',
+  validate(invoiceIdParamSchema, 'params'),
+  validate(recordPaymentSchema),
+  billingController.recordPayment
 );
 router.post(
   '/invoices/:id/remind',

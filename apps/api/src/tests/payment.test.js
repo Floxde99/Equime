@@ -1,5 +1,5 @@
 /**
- * Tests paiement Stripe Checkout + webhook (mocks — pas d’appel réseau).
+ * Tests paiement Stripe Checkout par échéance, webhook et règlements au club (ADR 011).
  */
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -52,30 +52,31 @@ import {
   createUser,
   familyIdOf,
   resetAuthTables,
+  resetBillingTables,
   resetCoreTables,
   resetRateLimits,
 } from './coreHelpers.js';
 
 const app = createApp();
 
+let adminToken;
+let adminId;
 let clientToken;
 let clientId;
 let clientFamilyId;
-
-async function resetPaymentTables() {
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
-  await resetCoreTables();
-}
 
 beforeEach(async () => {
   stripeMocks.constructEvent.mockReset();
   stripeMocks.sessionsCreate.mockReset();
   stripeMocks.sessionsRetrieve.mockReset();
-  await resetPaymentTables();
+  await resetBillingTables();
+  await resetCoreTables();
   await resetAuthTables();
   await resetRateLimits();
 
+  const admin = await createUser({ email: 'admin-pay@test.fr', role: 'admin' });
+  adminToken = await accessTokenFor(admin);
+  adminId = admin.id;
   const client = await createUser({
     email: 'client-pay@test.fr',
     role: 'client',
@@ -91,6 +92,65 @@ afterAll(async () => {
   redis.disconnect();
 });
 
+/**
+ * Facture de test avec son échéancier (une échéance par défaut, ADR 011).
+ * @param {{ number: string, status?: string, amounts?: number[], sessionId?: string,
+ *   paid?: boolean }} input
+ */
+async function createInvoice({ number, status = 'sent', amounts = [2500], sessionId, paid }) {
+  const totalCents = amounts.reduce((sum, amount) => sum + amount, 0);
+  const now = new Date();
+  return prisma.invoice.create({
+    data: {
+      familyId: clientFamilyId,
+      number,
+      status,
+      issuedAt: status === 'draft' ? null : now,
+      paidAt: paid ? now : null,
+      totalCents,
+      items: {
+        create: [{ label: 'Stage', quantity: 1, unitCents: totalCents, totalCents }],
+      },
+      installments: {
+        create: amounts.map((amountCents, index) => ({
+          sequence: index + 1,
+          dueAt: new Date(now.getTime() + index * 30 * 86400000),
+          amountCents,
+          paidAt: paid ? now : null,
+          stripeCheckoutSessionId: index === 0 ? (sessionId ?? null) : null,
+        })),
+      },
+    },
+    include: { installments: { orderBy: { sequence: 'asc' } } },
+  });
+}
+
+/** @param {string} invoiceId */
+function paymentsOf(invoiceId) {
+  return prisma.payment.findMany({ where: { invoiceId }, orderBy: { createdAt: 'asc' } });
+}
+
+/**
+ * Événement webhook Checkout payé.
+ * @param {{ invoiceId: string, installmentId?: string, amount: number, paymentIntent: string }} input
+ */
+function paidSessionEvent({ invoiceId, installmentId, amount, paymentIntent }) {
+  return {
+    id: `evt_${paymentIntent}`,
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: `cs_${paymentIntent}`,
+        client_reference_id: invoiceId,
+        metadata: { invoiceId, installmentId, familyId: clientFamilyId },
+        payment_status: 'paid',
+        amount_total: amount,
+        payment_intent: paymentIntent,
+      },
+    },
+  };
+}
+
 describe('GET /api/v1/public/payment-config', () => {
   it('expose provider stripe en mode test', async () => {
     const res = await request(app).get('/api/v1/public/payment-config');
@@ -100,19 +160,8 @@ describe('GET /api/v1/public/payment-config', () => {
 });
 
 describe('POST /api/v1/client/invoices/:id/checkout', () => {
-  it('crée une session Checkout et persiste stripeCheckoutSessionId', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7001',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 4900,
-        items: {
-          create: [{ label: 'Abonnement', quantity: 1, unitCents: 4900, totalCents: 4900 }],
-        },
-      },
-    });
+  it('crée une session pour l’échéance suivante et la mémorise sur l’échéance', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7001', amounts: [4900] });
 
     stripeMocks.sessionsCreate.mockResolvedValue({
       id: 'cs_test_session_abc',
@@ -129,24 +178,50 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
     expect(res.body.sessionId).toBe('cs_test_session_abc');
     expect(res.body.mode).toBe('test');
     expect(stripeMocks.sessionsCreate).toHaveBeenCalledOnce();
+    const params = stripeMocks.sessionsCreate.mock.calls[0][0];
+    expect(params.line_items[0].price_data.unit_amount).toBe(4900);
+    expect(params.line_items[0].price_data.product_data.name).toBe('Facture FAC-2026-7001');
+    expect(params.metadata.installmentId).toBe(invoice.installments[0].id);
 
-    const updated = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
-    expect(updated.stripeCheckoutSessionId).toBe('cs_test_session_abc');
+    const installment = await prisma.invoiceInstallment.findUniqueOrThrow({
+      where: { id: invoice.installments[0].id },
+    });
+    expect(installment.stripeCheckoutSessionId).toBe('cs_test_session_abc');
+  });
+
+  it('facture au trimestre : la session règle le reste de l’échéance suivante', async () => {
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7021',
+      amounts: [33_334, 33_333, 33_333],
+    });
+    // Premier trimestre réglé au club, plus un acompte de 10 € sur le deuxième
+    await prisma.payment.createMany({
+      data: [
+        { invoiceId: invoice.id, method: 'cheque', amountCents: 33_334, paidAt: new Date() },
+        { invoiceId: invoice.id, method: 'cash', amountCents: 1_000, paidAt: new Date() },
+      ],
+    });
+    stripeMocks.sessionsCreate.mockResolvedValue({
+      id: 'cs_test_q2',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_q2',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(201);
+    const params = stripeMocks.sessionsCreate.mock.calls[0][0];
+    expect(params.line_items[0].price_data.unit_amount).toBe(32_333);
+    expect(params.line_items[0].price_data.product_data.name).toBe(
+      'Facture FAC-2026-7021 — échéance 2/3'
+    );
+    expect(params.metadata.installmentId).toBe(invoice.installments[1].id);
   });
 
   it('refuse le paiement simulé lorsque Stripe est configuré (410)', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7002',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1000,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1000, totalCents: 1000 }],
-        },
-      },
-    });
+    const invoice = await createInvoice({ number: 'FAC-2026-7002', amounts: [1000] });
 
     const res = await request(app)
       .post(`/api/v1/client/invoices/${invoice.id}/pay`)
@@ -157,18 +232,11 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
   });
 
   it('refuse checkout si facture déjà payée', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7010',
-        status: 'paid',
-        issuedAt: new Date(),
-        paidAt: new Date(),
-        totalCents: 1000,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1000, totalCents: 1000 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7010',
+      status: 'paid',
+      amounts: [1000],
+      paid: true,
     });
 
     const res = await request(app)
@@ -181,15 +249,7 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
   });
 
   it('refuse checkout si montant invalide', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7011',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 0,
-      },
-    });
+    const invoice = await createInvoice({ number: 'FAC-2026-7011', amounts: [] });
 
     const res = await request(app)
       .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
@@ -201,23 +261,13 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
   });
 
   it('répond 503 si Stripe ne renvoie pas d’URL', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7012',
-        status: 'overdue',
-        issuedAt: new Date(),
-        totalCents: 2000,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 2000, totalCents: 2000 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7012',
+      status: 'overdue',
+      amounts: [2000],
     });
 
-    stripeMocks.sessionsCreate.mockResolvedValue({
-      id: 'cs_test_no_url',
-      url: null,
-    });
+    stripeMocks.sessionsCreate.mockResolvedValue({ id: 'cs_test_no_url', url: null });
 
     const res = await request(app)
       .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
@@ -228,23 +278,16 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
   });
 
   it('réutilise la session encore ouverte au lieu d’en créer une seconde', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7017',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 2100,
-        stripeCheckoutSessionId: 'cs_test_open',
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 2100, totalCents: 2100 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7017',
+      amounts: [2100],
+      sessionId: 'cs_test_open',
     });
 
     stripeMocks.sessionsRetrieve.mockResolvedValue({
       id: 'cs_test_open',
       status: 'open',
+      amount_total: 2100,
       url: 'https://checkout.stripe.com/c/pay/cs_test_open',
     });
 
@@ -258,19 +301,44 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
     expect(stripeMocks.sessionsCreate).not.toHaveBeenCalled();
   });
 
+  it('crée une nouvelle session si le reste dû a changé depuis la session ouverte', async () => {
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7022',
+      amounts: [2100],
+      sessionId: 'cs_test_stale_amount',
+    });
+    await prisma.payment.create({
+      data: { invoiceId: invoice.id, method: 'cash', amountCents: 100, paidAt: new Date() },
+    });
+
+    stripeMocks.sessionsRetrieve.mockResolvedValue({
+      id: 'cs_test_stale_amount',
+      status: 'open',
+      amount_total: 2100,
+      url: 'https://checkout.stripe.com/c/pay/cs_test_stale_amount',
+    });
+    stripeMocks.sessionsCreate.mockResolvedValue({
+      id: 'cs_test_new_amount',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_new_amount',
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/client/invoices/${invoice.id}/checkout`)
+      .set(authHeader(clientToken))
+      .send({});
+
+    expect(res.status).toBe(201);
+    expect(res.body.sessionId).toBe('cs_test_new_amount');
+    expect(stripeMocks.sessionsCreate.mock.calls[0][0].line_items[0].price_data.unit_amount).toBe(
+      2000
+    );
+  });
+
   it('crée une nouvelle session si la précédente a expiré', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7018',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 2200,
-        stripeCheckoutSessionId: 'cs_test_expired',
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 2200, totalCents: 2200 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7018',
+      amounts: [2200],
+      sessionId: 'cs_test_expired',
     });
 
     stripeMocks.sessionsRetrieve.mockResolvedValue({
@@ -290,8 +358,10 @@ describe('POST /api/v1/client/invoices/:id/checkout', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.sessionId).toBe('cs_test_fresh');
-    const updated = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
-    expect(updated.stripeCheckoutSessionId).toBe('cs_test_fresh');
+    const installment = await prisma.invoiceInstallment.findUniqueOrThrow({
+      where: { id: invoice.installments[0].id },
+    });
+    expect(installment.stripeCheckoutSessionId).toBe('cs_test_fresh');
   });
 });
 
@@ -321,87 +391,95 @@ describe('POST /api/v1/webhooks/stripe', () => {
     expect(stripeMocks.constructEvent).not.toHaveBeenCalled();
   });
 
-  it('marque la facture payée une seule fois (double delivery idempotente)', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7003',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 2500,
-        items: {
-          create: [{ label: 'Abonnement', quantity: 1, unitCents: 2500, totalCents: 2500 }],
-        },
-      },
+  it('enregistre un seul règlement en cas de double livraison', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7003', amounts: [2500] });
+    const event = paidSessionEvent({
+      invoiceId: invoice.id,
+      installmentId: invoice.installments[0].id,
+      amount: 2500,
+      paymentIntent: 'pi_test_intent_1',
     });
-
-    const event = {
-      id: 'evt_test_1',
-      type: 'checkout.session.completed',
-      data: {
-        object: {
-          id: 'cs_test_paid',
-          client_reference_id: invoice.id,
-          metadata: { invoiceId: invoice.id, familyId: clientFamilyId },
-          payment_status: 'paid',
-          payment_intent: 'pi_test_intent_1',
-        },
-      },
-    };
-
     stripeMocks.constructEvent.mockReturnValue(event);
-
     const payload = Buffer.from(JSON.stringify(event));
 
-    const first = await request(app)
-      .post('/api/v1/webhooks/stripe')
-      .set('Content-Type', 'application/json')
-      .set('Stripe-Signature', 't=1,v1=ok')
-      .send(payload);
-
-    expect(first.status).toBe(200);
-    expect(first.body.handled).toBe(true);
-
-    const second = await request(app)
-      .post('/api/v1/webhooks/stripe')
-      .set('Content-Type', 'application/json')
-      .set('Stripe-Signature', 't=1,v1=ok')
-      .send(payload);
-
-    expect(second.status).toBe(200);
-    expect(second.body.handled).toBe(true);
+    for (let delivery = 0; delivery < 2; delivery += 1) {
+      const res = await request(app)
+        .post('/api/v1/webhooks/stripe')
+        .set('Content-Type', 'application/json')
+        .set('Stripe-Signature', 't=1,v1=ok')
+        .send(payload);
+      expect(res.status).toBe(200);
+      expect(res.body.handled).toBe(true);
+    }
 
     const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(paid.status).toBe('paid');
-    expect(paid.stripePaymentIntentId).toBe('pi_test_intent_1');
     expect(paid.paidAt).not.toBeNull();
+
+    const payments = await paymentsOf(invoice.id);
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({
+      method: 'card_online',
+      amountCents: 2500,
+      stripePaymentIntentId: 'pi_test_intent_1',
+      installmentId: invoice.installments[0].id,
+    });
 
     const notifications = await prisma.notification.findMany({
       where: { userId: clientId, type: 'payment_confirmed' },
     });
     expect(notifications).toHaveLength(1);
   });
+
+  it('une échéance payée en ligne ne solde pas la facture de saison', async () => {
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7023',
+      amounts: [30_000, 30_000, 30_000],
+    });
+    stripeMocks.constructEvent.mockReturnValue(
+      paidSessionEvent({
+        invoiceId: invoice.id,
+        installmentId: invoice.installments[0].id,
+        amount: 30_000,
+        paymentIntent: 'pi_first_quarter',
+      })
+    );
+
+    const res = await request(app)
+      .post('/api/v1/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .set('Stripe-Signature', 't=1,v1=ok')
+      .send('{}');
+    expect(res.status).toBe(200);
+
+    const stored = await prisma.invoice.findUniqueOrThrow({
+      where: { id: invoice.id },
+      include: { installments: { orderBy: { sequence: 'asc' } } },
+    });
+    expect(stored.status).toBe('sent');
+    expect(stored.installments.map((i) => Boolean(i.paidAt))).toEqual([true, false, false]);
+
+    const notification = await prisma.notification.findFirst({
+      where: { userId: clientId, type: 'payment_confirmed' },
+    });
+    expect(notification?.body).toMatch(/Reste dû : 600,00/);
+  });
 });
 
 describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
-  it('marque la facture payée quand la session Stripe est paid', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7005',
-        status: 'overdue',
-        issuedAt: new Date(),
-        totalCents: 3200,
-        stripeCheckoutSessionId: 'cs_test_confirm_paid',
-        items: {
-          create: [{ label: 'Abonnement', quantity: 1, unitCents: 3200, totalCents: 3200 }],
-        },
-      },
+  it('enregistre le règlement quand la session Stripe est payée', async () => {
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7005',
+      status: 'overdue',
+      amounts: [3200],
+      sessionId: 'cs_test_confirm_paid',
     });
 
     stripeMocks.sessionsRetrieve.mockResolvedValue({
       id: 'cs_test_confirm_paid',
       payment_status: 'paid',
+      amount_total: 3200,
+      metadata: { invoiceId: invoice.id, installmentId: invoice.installments[0].id },
       payment_intent: 'pi_test_confirm_1',
     });
 
@@ -413,29 +491,20 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
     expect(res.status).toBe(200);
     expect(res.body.confirmed).toBe(true);
     expect(res.body.invoice.status).toBe('paid');
+    expect(res.body.invoice.remainingCents).toBe(0);
     expect(stripeMocks.sessionsRetrieve).toHaveBeenCalledWith('cs_test_confirm_paid');
 
-    const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
-    expect(paid.status).toBe('paid');
-    expect(paid.stripePaymentIntentId).toBe('pi_test_confirm_1');
-    expect(paid.paidAt).not.toBeNull();
+    const payments = await paymentsOf(invoice.id);
+    expect(payments.map((p) => p.stripePaymentIntentId)).toEqual(['pi_test_confirm_1']);
   });
 
   it('no-op si la facture est déjà payée (idempotent)', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7006',
-        status: 'paid',
-        issuedAt: new Date(),
-        paidAt: new Date(),
-        totalCents: 1500,
-        stripeCheckoutSessionId: 'cs_test_already_paid',
-        stripePaymentIntentId: 'pi_existing',
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1500, totalCents: 1500 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7006',
+      status: 'paid',
+      amounts: [1500],
+      sessionId: 'cs_test_already_paid',
+      paid: true,
     });
 
     const res = await request(app)
@@ -450,18 +519,7 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
   });
 
   it('refuse confirm sans session Checkout associée', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7013',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1100,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1100, totalCents: 1100 }],
-        },
-      },
-    });
+    const invoice = await createInvoice({ number: 'FAC-2026-7013', amounts: [1100] });
 
     const res = await request(app)
       .post(`/api/v1/client/invoices/${invoice.id}/confirm-checkout`)
@@ -473,18 +531,10 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
   });
 
   it('ne confirme pas si payment_status Stripe n’est pas paid', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7014',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1200,
-        stripeCheckoutSessionId: 'cs_test_unpaid',
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1200, totalCents: 1200 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7014',
+      amounts: [1200],
+      sessionId: 'cs_test_unpaid',
     });
 
     stripeMocks.sessionsRetrieve.mockResolvedValue({
@@ -502,26 +552,20 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
     expect(res.body.confirmed).toBe(false);
     const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(stored.status).toBe('sent');
+    expect(await paymentsOf(invoice.id)).toHaveLength(0);
   });
 
   it('extrait payment_intent objet lors du confirm', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7015',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1300,
-        stripeCheckoutSessionId: 'cs_test_pi_obj',
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1300, totalCents: 1300 }],
-        },
-      },
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7015',
+      amounts: [1300],
+      sessionId: 'cs_test_pi_obj',
     });
 
     stripeMocks.sessionsRetrieve.mockResolvedValue({
       id: 'cs_test_pi_obj',
       payment_status: 'paid',
+      amount_total: 1300,
       payment_intent: { id: 'pi_from_object' },
     });
 
@@ -532,8 +576,8 @@ describe('POST /api/v1/client/invoices/:id/confirm-checkout', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.confirmed).toBe(true);
-    const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
-    expect(paid.stripePaymentIntentId).toBe('pi_from_object');
+    const [payment] = await paymentsOf(invoice.id);
+    expect(payment.stripePaymentIntentId).toBe('pi_from_object');
   });
 });
 
@@ -555,18 +599,7 @@ describe('handleStripeWebhookEvent (unit)', () => {
   });
 
   it('ne marque pas payée une session completed au paiement différé (unpaid)', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7019',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1400,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1400, totalCents: 1400 }],
-        },
-      },
-    });
+    const invoice = await createInvoice({ number: 'FAC-2026-7019', amounts: [1400] });
 
     const result = await paymentService.handleStripeWebhookEvent({
       type: 'checkout.session.completed',
@@ -593,19 +626,8 @@ describe('handleStripeWebhookEvent (unit)', () => {
     expect(result.handled).toBe(false);
   });
 
-  it('accepte async_payment_succeeded via client_reference_id et payment_intent objet', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7016',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1800,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1800, totalCents: 1800 }],
-        },
-      },
-    });
+  it('accepte async_payment_succeeded via client_reference_id (montant de l’échéance)', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7016', amounts: [1800] });
 
     const result = await paymentService.handleStripeWebhookEvent({
       type: 'checkout.session.async_payment_succeeded',
@@ -621,57 +643,116 @@ describe('handleStripeWebhookEvent (unit)', () => {
     expect(result.handled).toBe(true);
     const paid = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(paid.status).toBe('paid');
-    expect(paid.stripePaymentIntentId).toBe('pi_async_obj');
+    const [payment] = await paymentsOf(invoice.id);
+    expect(payment).toMatchObject({ amountCents: 1800, stripePaymentIntentId: 'pi_async_obj' });
   });
 
-  it('est idempotent via markInvoicePaidFromPayment', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7004',
-        status: 'overdue',
-        issuedAt: new Date(),
-        totalCents: 990,
-        items: {
-          create: [{ label: 'Relance', quantity: 1, unitCents: 990, totalCents: 990 }],
-        },
-      },
+  it('un second paiement Stripe sur une facture soldée est enregistré (trop-perçu)', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7004', amounts: [990] });
+    const input = { invoiceId: invoice.id, method: 'card_online', amountCents: 990 };
+
+    const first = await billingService.recordPayment({
+      ...input,
+      stripePaymentIntentId: 'pi_first',
+    });
+    const again = await billingService.recordPayment({
+      ...input,
+      stripePaymentIntentId: 'pi_second',
     });
 
-    await billingService.markInvoicePaidFromPayment(invoice.id, {
-      paymentIntentId: 'pi_first',
-    });
-    const again = await billingService.markInvoicePaidFromPayment(invoice.id, {
-      paymentIntentId: 'pi_second',
-    });
-
-    expect(again.status).toBe('paid');
-    const stored = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
-    expect(stored.stripePaymentIntentId).toBe('pi_first');
+    expect(first.recorded).toBe(true);
+    expect(again.recorded).toBe(true);
+    expect(again.invoice.status).toBe('paid');
+    // L'argent a bien été reçu : le trop-perçu reste visible pour être remboursé
+    expect((await paymentsOf(invoice.id)).map((p) => p.stripePaymentIntentId)).toEqual([
+      'pi_first',
+      'pi_second',
+    ]);
   });
 
-  it('webhook et confirm simultanés : une seule notification de paiement', async () => {
-    const invoice = await prisma.invoice.create({
-      data: {
-        familyId: clientFamilyId,
-        number: 'FAC-2026-7020',
-        status: 'sent',
-        issuedAt: new Date(),
-        totalCents: 1600,
-        items: {
-          create: [{ label: 'Stage', quantity: 1, unitCents: 1600, totalCents: 1600 }],
-        },
-      },
-    });
+  it('webhook et confirm simultanés : un seul règlement et une seule notification', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7020', amounts: [1600] });
+    const input = {
+      invoiceId: invoice.id,
+      method: 'card_online',
+      amountCents: 1600,
+      stripePaymentIntentId: 'pi_race',
+    };
 
-    await Promise.all([
-      billingService.markInvoicePaidFromPayment(invoice.id, { paymentIntentId: 'pi_race' }),
-      billingService.markInvoicePaidFromPayment(invoice.id, { paymentIntentId: 'pi_race' }),
+    const results = await Promise.all([
+      billingService.recordPayment(input),
+      billingService.recordPayment(input),
     ]);
 
+    expect(results.filter((r) => r.recorded)).toHaveLength(1);
+    expect(await paymentsOf(invoice.id)).toHaveLength(1);
     const notifications = await prisma.notification.findMany({
       where: { userId: clientId, type: 'payment_confirmed' },
     });
     expect(notifications).toHaveLength(1);
+  });
+});
+
+describe('POST /api/v1/admin/invoices/:id/payments (règlements au club)', () => {
+  /** @param {string} invoiceId @param {object} body */
+  const record = (invoiceId, body) =>
+    request(app)
+      .post(`/api/v1/admin/invoices/${invoiceId}/payments`)
+      .set(authHeader(adminToken))
+      .send(body);
+
+  it('encaisse un chèque partiel puis le solde, échéance par échéance', async () => {
+    const invoice = await createInvoice({
+      number: 'FAC-2026-7030',
+      amounts: [30_000, 30_000, 30_000],
+    });
+
+    const first = await record(invoice.id, {
+      method: 'cheque',
+      amountCents: 30_000,
+      reference: 'CHQ 1234567',
+    });
+    expect(first.status).toBe(201);
+    expect(first.body.invoice.status).toBe('sent');
+    expect(first.body.invoice.remainingCents).toBe(60_000);
+    expect(first.body.invoice.nextInstallment.sequence).toBe(2);
+    expect(first.body.invoice.payments[0]).toMatchObject({
+      method: 'cheque',
+      reference: 'CHQ 1234567',
+    });
+
+    const ancv = await record(invoice.id, { method: 'ancv', amountCents: 60_000 });
+    expect(ancv.status).toBe(201);
+    expect(ancv.body.invoice.status).toBe('paid');
+    expect(ancv.body.invoice.installments.every((i) => i.paidAt)).toBe(true);
+
+    const [payment] = await paymentsOf(invoice.id);
+    expect(payment.recordedById).toBe(adminId);
+  });
+
+  it('refuse un règlement supérieur au reste dû, en ligne ou sur un brouillon', async () => {
+    const invoice = await createInvoice({ number: 'FAC-2026-7031', amounts: [5_000] });
+
+    const tooMuch = await record(invoice.id, { method: 'cash', amountCents: 5_001 });
+    expect(tooMuch.status).toBe(400);
+    expect(tooMuch.body.error.message).toMatch(/reste dû \(50,00/);
+
+    const online = await record(invoice.id, { method: 'card_online', amountCents: 1_000 });
+    expect(online.status).toBe(400);
+
+    const draft = await createInvoice({
+      number: 'FAC-2026-7032',
+      status: 'draft',
+      amounts: [5_000],
+    });
+    expect((await record(draft.id, { method: 'cash', amountCents: 1_000 })).status).toBe(400);
+
+    const future = await record(invoice.id, {
+      method: 'cash',
+      amountCents: 1_000,
+      paidAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+    });
+    expect(future.status).toBe(400);
+    expect(await paymentsOf(invoice.id)).toHaveLength(0);
   });
 });

@@ -4,6 +4,7 @@ import {
   courseIdParamSchema,
   createCourseSchema,
   enrollRiderSchema,
+  enrollableQuerySchema,
   enrollmentIdParamSchema,
   forceQuerySchema,
   overrideHorseSchema,
@@ -24,7 +25,12 @@ router.use(requireAuth);
 
 router.get('/planning', validate(planningQuerySchema, 'query'), courseController.getPlanning);
 
-router.get('/enrollable', requireRole(ROLES.CLIENT), courseController.listEnrollable);
+router.get(
+  '/enrollable',
+  requireRole(ROLES.CLIENT),
+  validate(enrollableQuerySchema, 'query'),
+  courseController.listEnrollable
+);
 router.get('/my-enrollments', requireRole(ROLES.CLIENT), courseController.listMyEnrollments);
 
 router.post(
@@ -65,9 +71,16 @@ router.get(
   courseController.listEnrollments
 );
 
+router.delete(
+  '/:id/enrollments/:enrollmentId',
+  requireRole(ROLES.CLIENT, ROLES.ADMIN),
+  validate(enrollmentIdParamSchema, 'params'),
+  courseController.cancelEnrollment
+);
+
 router.patch(
   '/:id/enrollments/:enrollmentId/attendance',
-  requireRole(ROLES.INSTRUCTOR, ROLES.ADMIN, ROLES.CLIENT),
+  requireRole(ROLES.INSTRUCTOR, ROLES.ADMIN),
   validate(enrollmentIdParamSchema, 'params'),
   validate(updateAttendanceSchema),
   courseController.updateAttendance

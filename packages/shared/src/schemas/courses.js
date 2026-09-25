@@ -99,6 +99,11 @@ export const forceQuerySchema = z.object({
     .transform((value) => value === true || value === 'true'),
 });
 
+/** Cours ouverts à un cavalier donné (ADR 011) — sans riderId, la famille entière. */
+export const enrollableQuerySchema = z.object({
+  riderId: z.string().min(1).optional(),
+});
+
 export const updateAttendanceSchema = z.object({
   attendance: z.enum(ATTENDANCE_STATUS_VALUES),
 });
