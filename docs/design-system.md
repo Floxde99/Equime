@@ -124,6 +124,15 @@ Icône lucide en `muted-on-card`, une phrase d'invitation, bouton `primary` si u
 ### Skeleton
 Blocs `bg-surface-raised animate-pulse rounded-lg` reproduisant la forme du contenu. Jamais de spinner plein écran. Respecter `prefers-reduced-motion`.
 
+### Recherche (Combobox)
+`components/ui/combobox.jsx` — motif WAI-ARIA « combobox » : champ avec icône loupe, liste `listbox` sous le champ, navigation ↑ ↓, Entrée pour choisir, Échap pour fermer. Chargement à la frappe (temporisé 250 ms, au moins 2 caractères). L'option choisie devient une puce `paper` avec un bouton « Changer ». À utiliser dès qu'on désigne une famille, un cavalier ou tout élément d'une liste longue — **jamais de saisie d'identifiant**.
+
+### Montant (MoneyInput)
+`components/ui/money-input.jsx` — saisie en euros (« 49 », « 49,90 »), suffixe « € », clavier décimal sur mobile, reformatage au blur. Les montants restent stockés et échangés en **centimes entiers** ; seul ce champ parle en euros. Affichage : toujours `formatEuroCents` (`@equime/shared`).
+
+### Retours d'action
+`useFeedback()` + `<FeedbackAlert>` : succès ou erreur **typés** explicitement, jamais déduits du texte du message. Chaque mutation affiche son erreur. Dans une liste, l'état de chargement ne concerne que la ligne en cours.
+
 ### Modale / Toast
 Modale : `card`, titre semibold, actions alignées à droite (secondaire à gauche du primaire), fermeture Échap + clic overlay. Toast : succès `success`, erreur `danger`, auto-dismiss 4 s.
 
