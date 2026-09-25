@@ -16,7 +16,7 @@ import {
 } from './formatters.js';
 
 // Intl insère des espaces insécables : on les normalise pour comparer.
-const plain = (text) => text.replace(/[  ]/g, ' ');
+const plain = (text) => text.replace(/[\u00a0\u202f]/g, ' ');
 
 describe('parseEurosToCents', () => {
   it.each([
@@ -26,7 +26,7 @@ describe('parseEurosToCents', () => {
     ['49.90', 4990],
     ['0', 0],
     ['1 234,50', 123450],
-    ['1 234,50 €', 123450],
+    ['1\u202f234,50 €', 123450],
     [' 12 ', 1200],
     [12.5, 1250],
   ])('%s → %s centimes', (input, expected) => {

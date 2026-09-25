@@ -35,7 +35,7 @@ export function parseEurosToCents(input) {
     return Number.isFinite(input) && input >= 0 ? Math.round(input * 100) : null;
   }
   const cleaned = String(input)
-    .replace(/[\s  ]/g, '')
+    .replace(/[\s\u00a0\u202f]/g, '')
     .replace(/€$/, '')
     .replace(',', '.');
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
