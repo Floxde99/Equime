@@ -30,12 +30,27 @@ export function createSubscriptionPlan(body) {
   return api.post('/admin/subscription-plans', body).then((r) => r.plan);
 }
 
+/** @param {string} id @param {object} body */
+export function updateSubscriptionPlan(id, body) {
+  return api.patch(`/admin/subscription-plans/${id}`, body).then((r) => r.plan);
+}
+
 export function fetchDiscountRules() {
   return api.get('/admin/discount-rules').then((r) => r.rules);
 }
 
 export function createDiscountRule(body) {
   return api.post('/admin/discount-rules', body).then((r) => r.rule);
+}
+
+/** @param {string} id @param {object} body */
+export function updateDiscountRule(id, body) {
+  return api.patch(`/admin/discount-rules/${id}`, body).then((r) => r.rule);
+}
+
+/** @param {string} id */
+export function deleteDiscountRule(id) {
+  return api.delete(`/admin/discount-rules/${id}`);
 }
 
 export function fetchAdminInvoices() {

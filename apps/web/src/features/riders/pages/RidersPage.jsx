@@ -34,6 +34,7 @@ import {
   uploadRiderDocument,
   upsertRiderAffinity,
 } from '@/features/riders/api.js';
+import { formatDate } from '@/lib/dates.js';
 import { useDocumentViewer } from '@/lib/useDocumentViewer.js';
 
 const DOC_VARIANT = {
@@ -261,8 +262,7 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
         {docBadge(rider.medicalCertificateStatus)}
         {rider.medicalCertificateExpiresAt ? (
           <span className="font-sans text-xs text-muted">
-            (valide jusqu’au{' '}
-            {new Date(rider.medicalCertificateExpiresAt).toLocaleDateString('fr-FR')})
+            (valide jusqu’au {formatDate(rider.medicalCertificateExpiresAt)})
           </span>
         ) : null}
         {rider.medicalCertificateStatus === 'rejected' &&
@@ -294,7 +294,7 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
         ) : null}
         {rider.licenseExpiresAt ? (
           <span className="font-sans text-xs text-muted">
-            (valide jusqu’au {new Date(rider.licenseExpiresAt).toLocaleDateString('fr-FR')})
+            (valide jusqu’au {formatDate(rider.licenseExpiresAt)})
           </span>
         ) : null}
         {rider.licenseStatus === 'rejected' && rider.licenseRejectionReason ? (

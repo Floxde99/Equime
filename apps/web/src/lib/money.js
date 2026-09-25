@@ -1,12 +1,10 @@
 /**
- * Formatage monétaire FR — vitrine et compte famille.
- * @param {number} cents
+ * Formatage monétaire FR — vitrine, espaces client et admin.
+ * Le formatage de base vient de `@equime/shared` (même rendu dans les e-mails et PDF).
  */
-export function formatEuroCents(cents) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
-    (Number(cents) || 0) / 100
-  );
-}
+import { formatEuroCents } from '@equime/shared';
+
+export { formatCentsForInput, formatEuroCents, parseEurosToCents } from '@equime/shared';
 
 /**
  * Prix d'événement public : montant ou « Gratuit » si 0.

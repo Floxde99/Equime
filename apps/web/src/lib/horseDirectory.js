@@ -1,3 +1,5 @@
+import { formatDateTime } from '@equime/shared';
+
 /**
  * Filtre l’annuaire cavalerie par nom (insensible à la casse et aux accents).
  * @param {string} value
@@ -32,14 +34,12 @@ export function filterHealthLogs(logs, type) {
   return list.filter((log) => log.type === type);
 }
 
-const logDateTime = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
-
 /** @param {string | Date | null | undefined} value */
 export function formatHealthLogDate(value) {
   if (!value) return '—';
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return logDateTime.format(date);
+  return formatDateTime(date);
 }
 
 /** @param {{ weeklyLoadHours?: number, maxWeeklyLoadHours?: number }} horse */

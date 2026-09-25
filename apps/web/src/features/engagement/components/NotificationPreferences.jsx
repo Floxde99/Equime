@@ -35,11 +35,10 @@ export function NotificationPreferences() {
               <p className="font-sans text-sm font-semibold text-text">
                 {NOTIFICATION_TYPE_LABELS[pref.type]}
               </p>
-              <p className="font-sans text-xs text-muted">{pref.type}</p>
             </div>
             <div className="flex gap-2">
               <ToggleButton
-                label="In-app"
+                label="Dans l’application"
                 active={pref.inAppEnabled}
                 onClick={() =>
                   updateMutation.mutate({

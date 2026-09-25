@@ -1,17 +1,11 @@
+import { formatSlot } from '@equime/shared';
+
 /**
  * Horaires publics d'une séance vitrine (Excel 1.2).
  * @param {{ startAt: string | Date, endAt: string | Date }} course
  */
 export function formatCourseHours(course) {
-  const start = new Date(course.startAt);
-  const end = new Date(course.endAt);
-  const day = start.toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-  const time = (date) => date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return `${day} · ${time(start)} – ${time(end)}`;
+  return formatSlot(course.startAt, course.endAt);
 }
 
 /**

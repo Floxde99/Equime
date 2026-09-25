@@ -140,6 +140,7 @@ export function Dialog({ open, onClose, title, children, footer, className }) {
  *   title: string,
  *   confirmLabel?: string,
  *   loading?: boolean,
+ *   description?: import('react').ReactNode,
  * }} props
  */
 export function ConfirmDialog({
@@ -149,6 +150,7 @@ export function ConfirmDialog({
   title,
   confirmLabel = 'Confirmer',
   loading = false,
+  description,
 }) {
   return (
     <Dialog
@@ -175,6 +177,8 @@ export function ConfirmDialog({
           </button>
         </>
       }
-    />
+    >
+      {description ? <p className="font-sans text-sm text-muted-on-card">{description}</p> : null}
+    </Dialog>
   );
 }

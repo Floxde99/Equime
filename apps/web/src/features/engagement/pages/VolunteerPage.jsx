@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { Alert } from '@/components/ui/alert.jsx';
+import { FeedbackAlert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { ConfirmDialog } from '@/components/ui/dialog.jsx';
@@ -19,8 +19,10 @@ import {
   signupVolunteerMission,
   updateVolunteerMission,
 } from '@/features/engagement/api.js';
+import { formatSlot } from '@/lib/dates.js';
 import { missionPhotoSrc } from '@/lib/demoPhotos.js';
 import { blankToUndefined, toDatetimeLocalValue } from '@/lib/formValues.js';
+import { useFeedback } from '@/lib/useFeedback.js';
 import { useSpaceEyebrow } from '@/lib/useSpaceEyebrow.js';
 
 const initialForm = {
@@ -49,7 +51,7 @@ function VolunteerPageView({ isAdmin }) {
   const eyebrow = useSpaceEyebrow();
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState(null);
-  const [status, setStatus] = useState('');
+  const feedback = useFeedback();
   const [pendingDelete, setPendingDelete] = useState(null);
   const missionForm = useForm({
     resolver: zodResolver(createVolunteerMissionSchema),
@@ -65,9 +67,9 @@ function VolunteerPageView({ isAdmin }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
       missionForm.reset(initialForm);
-      setStatus('Mission créée.');
+      feedback.success('Mission créée.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, body }) => updateVolunteerMission(id, body),
@@ -75,9 +77,9 @@ function VolunteerPageView({ isAdmin }) {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
       setEditingId(null);
       missionForm.reset(initialForm);
-      setStatus('Mission mise à jour.');
+      feedback.success('Mission mise à jour.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
   const deleteMutation = useMutation({
     mutationFn: deleteVolunteerMission,
@@ -87,9 +89,9 @@ function VolunteerPageView({ isAdmin }) {
     mutationFn: signupVolunteerMission,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['volunteer-missions'] });
-      setStatus('Inscription bénévole confirmée.');
+      feedback.success('Inscription bénévole confirmée.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
 
   return (
@@ -104,19 +106,7 @@ function VolunteerPageView({ isAdmin }) {
         }
       />
 
-      {status ? (
-        <Alert
-          variant={
-            status.includes('confirmée') ||
-            status.includes('créée') ||
-            status.includes('mise à jour')
-              ? 'success'
-              : 'error'
-          }
-        >
-          {status}
-        </Alert>
-      ) : null}
+      <FeedbackAlert feedback={feedback.value} />
 
       {isAdmin ? (
         <Card title={editingId ? 'Modifier la mission' : 'Créer une mission'}>
@@ -221,8 +211,8 @@ function VolunteerPageView({ isAdmin }) {
               <div>
                 <p className="font-display text-xl text-on-card">{mission.title}</p>
                 <p className="mt-1 font-sans text-sm text-muted-on-card">
-                  {new Date(mission.startAt).toLocaleString('fr-FR')} · {mission.remainingSlots}{' '}
-                  place(s) restante(s)
+                  {formatSlot(mission.startAt, mission.endAt)} · {mission.remainingSlots} place(s)
+                  restante(s)
                 </p>
                 {mission.description ? (
                   <p className="mt-2 font-sans text-sm text-muted-on-card">{mission.description}</p>
@@ -236,7 +226,7 @@ function VolunteerPageView({ isAdmin }) {
                     onClick={() => {
                       setEditingId(mission.id);
                       missionForm.reset(missionToForm(mission));
-                      setStatus('');
+                      feedback.clear();
                     }}
                   >
                     Modifier
@@ -249,7 +239,7 @@ function VolunteerPageView({ isAdmin }) {
                 <Button
                   type="button"
                   variant="secondary"
-                  loading={signupMutation.isPending}
+                  loading={signupMutation.isPending && signupMutation.variables === mission.id}
                   disabled={mission.remainingSlots <= 0}
                   onClick={() => signupMutation.mutate(mission.id)}
                 >

@@ -14,7 +14,7 @@ import {
 
 const SCOPE_OPTIONS = [
   { id: 'mine', label: 'Mon planning' },
-  { id: 'all', label: 'Structure' },
+  { id: 'all', label: 'Tout le club' },
 ];
 
 const TIME_FORMAT = { hour: '2-digit', minute: '2-digit', hour12: false };

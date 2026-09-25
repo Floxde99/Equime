@@ -20,9 +20,9 @@ import { InvoiceDetailDialog } from '@/features/billing/components/InvoiceDetail
 import { PaymentTestBanner } from '@/features/billing/components/PaymentTestBanner.jsx';
 import { isStripeCheckout } from '@/features/billing/paymentMode.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
+import { formatEuroCents } from '@/lib/money.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
-const currency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const STATUS_VARIANT = {
   draft: 'default',
   sent: 'info',
@@ -277,7 +277,7 @@ export function ClientInvoicesPage() {
                           {invoice.items.map((item) => item.label).join(' · ')}
                         </p>
                         <p className="font-sans text-sm text-text">
-                          {currency.format(invoice.totalCents / 100)}
+                          {formatEuroCents(invoice.totalCents)}
                         </p>
                       </div>
                       <div className="flex gap-2">

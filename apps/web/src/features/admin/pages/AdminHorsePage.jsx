@@ -1,4 +1,5 @@
 import {
+  horseFieldsSchema,
   HEALTH_LOG_TYPE_LABELS,
   HEALTH_LOG_TYPE_VALUES,
   HORSE_STATUS_LABELS,
@@ -6,7 +7,7 @@ import {
   RIDER_LEVEL_LABELS,
   RIDER_LEVEL_VALUES,
   createHealthLogSchema,
-  updateHorseSchema,
+  refineHorseLevels,
 } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -54,7 +55,8 @@ const LEVEL_OPTIONS = RIDER_LEVEL_VALUES.map((value) => ({
 }));
 
 /** Identité cheval : champs du schéma partagé, année vide autorisée dans le formulaire. */
-const horseIdentitySchema = updateHorseSchema
+const horseIdentitySchema = horseFieldsSchema
+  .partial()
   .pick({
     name: true,
     breed: true,
@@ -74,15 +76,7 @@ const horseIdentitySchema = updateHorseSchema
   .extend({
     birthYear: z.union([z.literal(''), z.coerce.number().int().min(1980).max(2100)]).optional(),
   })
-  .superRefine((data, ctx) => {
-    if (RIDER_LEVEL_VALUES.indexOf(data.minLevel) > RIDER_LEVEL_VALUES.indexOf(data.maxLevel)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Le niveau minimum ne peut pas dépasser le niveau maximum',
-        path: ['minLevel'],
-      });
-    }
-  });
+  .superRefine(refineHorseLevels);
 
 /** Fiche cheval admin : identité, charge, photo, carnet de santé (US-3.1, US-3.2). */
 export function AdminHorsePage() {

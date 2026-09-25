@@ -10,6 +10,7 @@ import { HorsePortrait } from '@/components/ui/horse-portrait.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { fetchEnrollments, fetchPlanning, updateAttendance } from '@/features/admin/api.js';
+import { formatDateTime } from '@/lib/dates.js';
 
 /** @returns {{ from: string, to: string }} */
 function computeDefaultRange() {
@@ -64,7 +65,7 @@ export function AttendancePage() {
             { value: '', label: '— Sélectionner —' },
             ...events.map((event) => ({
               value: event.id,
-              label: `${event.title} (${new Date(event.start).toLocaleString('fr-FR')})`,
+              label: `${event.title} (${formatDateTime(event.start)})`,
             })),
           ]}
         />
@@ -81,7 +82,7 @@ export function AttendancePage() {
             </div>
             <h2 className="font-display text-4xl text-primary">{selected.title}</h2>
             <p className="mt-2 font-sans text-sm text-muted">
-              {start?.toLocaleString('fr-FR')} · {selected.extendedProps?.instructorName}
+              {start ? formatDateTime(start) : ''} · {selected.extendedProps?.instructorName}
             </p>
           </div>
         </header>
