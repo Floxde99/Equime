@@ -29,6 +29,6 @@ test('un admin consulte le tableau de bord, une fiche cheval et les adhérents',
     await expect(page.getByRole('heading', { name: horseName, exact: true })).toBeVisible();
   }
 
-  await clickSidebarLink(page, 'Clients');
-  await expect(page.getByRole('heading', { name: 'Adhérents' })).toBeVisible();
+  await clickSidebarLink(page, 'Membres');
+  await expect(page.getByRole('heading', { name: 'Membres', exact: true })).toBeVisible();
 });
