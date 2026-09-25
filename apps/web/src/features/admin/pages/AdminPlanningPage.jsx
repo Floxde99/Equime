@@ -1,11 +1,11 @@
 import { createCourseSchema, RIDER_LEVEL_LABELS, RIDER_LEVEL_VALUES } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { Alert } from '@/components/ui/alert.jsx';
+import { FeedbackAlert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Field } from '@/components/ui/field.jsx';
@@ -24,6 +24,7 @@ import {
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
 import { blankToUndefined } from '@/lib/formValues.js';
 import { isRidingSpaceType } from '@/lib/spaceOccupancy.js';
+import { useFeedback } from '@/lib/useFeedback.js';
 
 const DEFAULT_RANGE = {
   from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString(),
@@ -47,7 +48,7 @@ export function AdminPlanningPage() {
   const qc = useQueryClient();
   const [scope, setScope] = useState('all');
   const [range, setRange] = useState(DEFAULT_RANGE);
-  const [status, setStatus] = useState('');
+  const feedback = useFeedback();
   const [createOpen, setCreateOpen] = useState(true);
   const courseForm = useForm({
     resolver: zodResolver(createCourseSchema),
@@ -63,25 +64,28 @@ export function AdminPlanningPage() {
   } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
+    // Garde la semaine affichée pendant le chargement de la suivante : sinon le
+    // calendrier est démonté et revient à la semaine en cours.
+    placeholderData: keepPreviousData,
   });
   const { data: instructors = [] } = useQuery({
     queryKey: ['admin-instructors'],
     queryFn: fetchInstructors,
   });
   const { data: spaces = [] } = useQuery({
-    queryKey: ['admin-spaces'],
+    queryKey: ['spaces'],
     queryFn: fetchSpaces,
   });
 
   const auditMutation = useMutation({ mutationFn: runCompatibilityAudit });
   const createMutation = useMutation({
     mutationFn: createCourse,
-    onSuccess: () => {
+    onSuccess: (_course, body) => {
       qc.invalidateQueries({ queryKey: ['planning'] });
       courseForm.reset(initialCourseForm);
-      setStatus('Cours récurrent créé.');
+      feedback.success(body.recurrenceRule ? 'Série de cours créée.' : 'Cours créé.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
 
   const levelOptions = RIDER_LEVEL_VALUES.map((value) => ({
@@ -97,7 +101,7 @@ export function AdminPlanningPage() {
       <PageHeader
         eyebrow="Administration"
         title="Planning"
-        description="Semaine 7 h – 21 h. Le formulaire de création est sous le calendrier pour laisser la grille lisible."
+        description="Toutes les séances du club, semaine par semaine. Créez un cours sous le calendrier."
         action={
           <Button
             type="button"
@@ -110,9 +114,7 @@ export function AdminPlanningPage() {
         }
       />
 
-      {status ? (
-        <Alert variant={status.includes('créé') ? 'success' : 'error'}>{status}</Alert>
-      ) : null}
+      <FeedbackAlert feedback={feedback.value} />
 
       <QueryState
         isPending={isPending}

@@ -1,4 +1,4 @@
-import { RIDER_LEVEL_LABELS } from '@equime/shared';
+import { areRiderDocumentsValidAt, RIDER_LEVEL_LABELS } from '@equime/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -9,26 +9,7 @@ import { Card } from '@/components/ui/card.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { enrollRider, fetchEnrollableCourses } from '@/features/admin/api.js';
 import { fetchRiders } from '@/features/riders/api.js';
-
-/** @param {string | Date | null | undefined} expiresAt */
-function isDocumentExpired(expiresAt) {
-  if (!expiresAt) return false;
-  const expiry = new Date(expiresAt);
-  const now = new Date();
-  const expiryDay = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return expiryDay < today;
-}
-
-/** @param {object} rider */
-function riderDocumentsApproved(rider) {
-  return (
-    rider?.medicalCertificateStatus === 'approved' &&
-    rider?.licenseStatus === 'approved' &&
-    !isDocumentExpired(rider.medicalCertificateExpiresAt) &&
-    !isDocumentExpired(rider.licenseExpiresAt)
-  );
-}
+import { formatSlot } from '@/lib/dates.js';
 
 /** Inscription à un cours compatible (US-4.3). */
 export function EnrollSection() {
@@ -43,7 +24,7 @@ export function EnrollSection() {
 
   const effectiveRiderId = riderId || riders[0]?.id || '';
   const selectedRider = riders.find((rider) => rider.id === effectiveRiderId);
-  const docsOk = riderDocumentsApproved(selectedRider);
+  const docsOk = areRiderDocumentsValidAt(selectedRider);
 
   const mutation = useMutation({
     mutationFn: ({ courseId, rider }) => enrollRider(courseId, rider),
@@ -104,7 +85,7 @@ export function EnrollSection() {
               <div>
                 <p className="font-sans text-sm font-semibold text-text">{course.title}</p>
                 <p className="font-sans text-xs text-muted">
-                  {new Date(course.startAt).toLocaleString('fr-FR')} — {course.spaceName} (
+                  {formatSlot(course.startAt, course.endAt)} — {course.spaceName} (
                   {course.enrolledCount}/{course.capacity})
                 </p>
               </div>

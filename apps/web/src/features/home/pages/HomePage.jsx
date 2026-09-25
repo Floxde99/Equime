@@ -1,6 +1,6 @@
 import { SPACE_TYPE_LABELS } from '@equime/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 
@@ -14,6 +14,7 @@ import { fetchPublicEvents } from '@/features/engagement/api.js';
 import { fetchPublicCourses, subscribeNewsletter } from '@/features/home/api.js';
 import { LegalLinks } from '@/features/legal/components/LegalLinks.jsx';
 import { clubContact } from '@/lib/clubContact.js';
+import { formatDate, formatDayShort } from '@/lib/dates.js';
 import { onInPageAnchorClick } from '@/lib/inPageScroll.js';
 import { formatEuroCents, formatEventPrice, formatMonthlyPlanPrice } from '@/lib/money.js';
 import {
@@ -41,25 +42,6 @@ const PROGRAMS = [
   },
 ];
 
-const SHOWCASE_EVENTS = [
-  {
-    id: 'showcase-printemps',
-    title: 'Stage de printemps',
-    startAt: '2026-06-15T09:00:00',
-    location: 'Grand manège',
-    description: 'Cinq jours de travail à pied et monté, tous niveaux.',
-    priceCents: 15000,
-  },
-  {
-    id: 'showcase-derby',
-    title: 'Spring Hunter Derby',
-    startAt: '2026-09-02T10:00:00',
-    location: 'Carrière d’honneur',
-    description: 'Épreuve club ouverte aux cavaliers du centre.',
-    priceCents: 800,
-  },
-];
-
 const joinClass =
   'inline-flex h-10 items-center justify-center rounded-full bg-primary px-6 font-sans text-xs font-semibold uppercase tracking-[0.14em] text-primary-fg hover:bg-primary-light';
 const primaryClass =
@@ -73,9 +55,16 @@ const outlineLightClass =
  * Ancre interne : défilement fluide vers la section (sans saut brutal).
  * @param {{ href: string, className?: string, children: import('react').ReactNode }} props
  */
-function InPageLink({ href, className, children }) {
+function InPageLink({ href, className, children, onClick }) {
   return (
-    <a href={href} className={className} onClick={onInPageAnchorClick}>
+    <a
+      href={href}
+      className={className}
+      onClick={(event) => {
+        onInPageAnchorClick(event);
+        onClick?.();
+      }}
+    >
       {children}
     </a>
   );
@@ -103,7 +92,8 @@ export function HomePage() {
     queryKey: ['public-courses'],
     queryFn: fetchPublicCourses,
   });
-  const events = apiEvents.length > 0 ? apiEvents.slice(0, 2) : SHOWCASE_EVENTS;
+  const events = apiEvents.slice(0, 2);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col bg-card text-on-card">
@@ -111,7 +101,7 @@ export function HomePage() {
       <header className="sticky top-0 z-40 border-b border-border-on-card bg-card">
         <nav
           aria-label="Navigation principale"
-          className="mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-8 py-5"
+          className="mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 py-5 sm:px-8"
         >
           <Link to="/" className="justify-self-start">
             <BrandLockup tone="light" showMark={false} />
@@ -156,15 +146,62 @@ export function HomePage() {
           <div className="flex items-center justify-end gap-4">
             <Link
               to="/login"
-              className="hidden font-sans text-sm font-medium text-on-card hover:text-primary sm:inline"
+              className="font-sans text-sm font-medium text-on-card hover:text-primary"
             >
               Connexion
             </Link>
-            <Link to="/register" className={joinClass}>
+            <Link to="/register" className={cn(joinClass, 'hidden sm:inline-flex')}>
               Nous rejoindre
             </Link>
+            <button
+              type="button"
+              className="inline-flex size-11 items-center justify-center rounded-md text-on-card hover:bg-paper md:hidden"
+              aria-expanded={menuOpen}
+              aria-controls="menu-mobile"
+              aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {menuOpen ? (
+                <X className="size-5" aria-hidden="true" />
+              ) : (
+                <Menu className="size-5" aria-hidden="true" />
+              )}
+            </button>
           </div>
         </nav>
+        {menuOpen ? (
+          <nav
+            id="menu-mobile"
+            aria-label="Navigation principale (mobile)"
+            className="border-t border-border-on-card md:hidden"
+          >
+            <ul className="flex flex-col px-4 py-2 font-sans text-base text-on-card">
+              {[
+                ['#centre', 'Le centre'],
+                ['#programmes', 'Programmes'],
+                ['#formules', 'Formules'],
+                ['#cours', 'Cours'],
+                ['#evenements', 'Événements'],
+                ['#temoignage', 'À propos'],
+              ].map(([href, label]) => (
+                <li key={href}>
+                  <InPageLink
+                    href={href}
+                    className="block min-h-11 py-3"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {label}
+                  </InPageLink>
+                </li>
+              ))}
+              <li>
+                <Link to="/register" className={cn(joinClass, 'my-3 w-full')}>
+                  Nous rejoindre
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        ) : null}
       </header>
 
       <main id="contenu" className="flex-1 scroll-mt-24">
@@ -433,6 +470,12 @@ export function HomePage() {
               </Link>
             </div>
             <QueryState isPending={isPending} isError={isError} error={error} onRetry={refetch}>
+              {events.length === 0 ? (
+                <p className="border-y border-border-on-card py-8 font-sans text-sm text-muted-on-card">
+                  Aucun stage ni compétition programmé pour le moment. Revenez bientôt ou
+                  écrivez-nous pour connaître les prochaines dates.
+                </p>
+              ) : null}
               <ul className="divide-y divide-border-on-card border-y border-border-on-card">
                 {events.map((event) => {
                   const { day, month } = formatEventDate(event.startAt);
@@ -601,8 +644,8 @@ export function HomePage() {
 function formatEventDate(iso) {
   const date = new Date(iso);
   return {
-    day: date.toLocaleDateString('fr-FR', { day: '2-digit' }),
-    month: date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '').toUpperCase(),
+    day: formatDate(date).slice(0, 2),
+    month: formatDayShort(date).split(' ')[2].replace('.', '').toUpperCase(),
   };
 }
 

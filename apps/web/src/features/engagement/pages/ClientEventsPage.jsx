@@ -1,39 +1,22 @@
+import { areRiderDocumentsValidAt } from '@equime/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert } from '@/components/ui/alert.jsx';
+import { FeedbackAlert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { fetchPublicEvents, registerForEvent } from '@/features/engagement/api.js';
 import { fetchRiders } from '@/features/riders/api.js';
+import { formatSlot } from '@/lib/dates.js';
 import { eventPhotoSrc } from '@/lib/demoPhotos.js';
-
-/** @param {string | Date | null | undefined} expiresAt */
-function isDocumentExpired(expiresAt) {
-  if (!expiresAt) return false;
-  const expiry = new Date(expiresAt);
-  const now = new Date();
-  const expiryDay = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return expiryDay < today;
-}
-
-/** @param {object} rider */
-function riderDocumentsApproved(rider) {
-  return (
-    rider?.medicalCertificateStatus === 'approved' &&
-    rider?.licenseStatus === 'approved' &&
-    !isDocumentExpired(rider.medicalCertificateExpiresAt) &&
-    !isDocumentExpired(rider.licenseExpiresAt)
-  );
-}
+import { useFeedback } from '@/lib/useFeedback.js';
 
 export function ClientEventsPage() {
   const qc = useQueryClient();
   const [selectedRiders, setSelectedRiders] = useState({});
-  const [status, setStatus] = useState('');
+  const feedback = useFeedback();
 
   const { data: events = [] } = useQuery({
     queryKey: ['public-events'],
@@ -48,9 +31,9 @@ export function ClientEventsPage() {
     mutationFn: ({ eventId, riderId }) => registerForEvent(eventId, riderId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['public-events'] });
-      setStatus('Inscription confirmée.');
+      feedback.success('Inscription confirmée.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
 
   const selectedRiderOf = (eventId) => riders.find((rider) => rider.id === selectedRiders[eventId]);
@@ -63,9 +46,7 @@ export function ClientEventsPage() {
         description="Stages et compétitions à venir, avec inscription par cavalier."
       />
 
-      {status ? (
-        <Alert variant={status.includes('confirmée') ? 'success' : 'error'}>{status}</Alert>
-      ) : null}
+      <FeedbackAlert feedback={feedback.value} />
 
       <div className="grid gap-6 md:grid-cols-2">
         {events.map((event) => (
@@ -76,7 +57,7 @@ export function ClientEventsPage() {
                 <div>
                   <h2 className="font-display text-2xl text-on-card">{event.title}</h2>
                   <p className="font-sans text-sm text-muted">
-                    {new Date(event.startAt).toLocaleString('fr-FR')} ·{' '}
+                    {formatSlot(event.startAt, event.endAt)} ·{' '}
                     {event.location || 'Lieu communiqué plus tard'}
                   </p>
                   {event.description ? (
@@ -107,9 +88,10 @@ export function ClientEventsPage() {
                 <Button
                   type="button"
                   disabled={
-                    !selectedRiders[event.id] || !riderDocumentsApproved(selectedRiderOf(event.id))
+                    !selectedRiders[event.id] ||
+                    !areRiderDocumentsValidAt(selectedRiderOf(event.id), event.startAt)
                   }
-                  loading={mutation.isPending}
+                  loading={mutation.isPending && mutation.variables?.eventId === event.id}
                   onClick={() =>
                     mutation.mutate({
                       eventId: event.id,
@@ -120,7 +102,8 @@ export function ClientEventsPage() {
                   Inscrire
                 </Button>
               </div>
-              {selectedRiders[event.id] && !riderDocumentsApproved(selectedRiderOf(event.id)) ? (
+              {selectedRiders[event.id] &&
+              !areRiderDocumentsValidAt(selectedRiderOf(event.id), event.startAt) ? (
                 <p className="mt-2 font-sans text-xs text-muted">
                   Le certificat médical et la licence FFE doivent être validés et en cours de
                   validité avant toute inscription.

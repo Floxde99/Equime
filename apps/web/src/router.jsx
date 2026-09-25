@@ -132,6 +132,10 @@ const AdminEventsPage = lazyNamed(
   () => import('@/features/engagement/pages/AdminEventsPage.jsx'),
   'AdminEventsPage'
 );
+const AdminSettingsPage = lazyNamed(
+  () => import('@/features/admin/pages/AdminSettingsPage.jsx'),
+  'AdminSettingsPage'
+);
 const AdminBillingPage = lazyNamed(
   () => import('@/features/admin/pages/AdminBillingPage.jsx'),
   'AdminBillingPage'
@@ -279,6 +283,7 @@ export const router = createBrowserRouter([
                   { path: '/admin/messages', element: <MessagesPage /> },
                   { path: '/admin/notifications', element: <NotificationsPage /> },
                   { path: '/admin/facturation', element: <AdminBillingPage /> },
+                  { path: '/admin/parametres', element: <AdminSettingsPage /> },
                   { path: '/admin/clients', element: <AdminMembersPage /> },
                 ],
               },

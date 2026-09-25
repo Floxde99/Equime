@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { Dialog } from '@/components/ui/dialog.jsx';
 import { excuseEnrollment, fetchMyEnrollments } from '@/features/admin/api.js';
+import { formatDateTime, formatDayShort, formatSlot, formatTime } from '@/lib/dates.js';
 
 /** @param {object} enrollment */
 function attendanceBadge(enrollment) {
@@ -57,12 +58,11 @@ export function UpcomingEnrollments({ compact = false, limit } = {}) {
             {compact ? (
               <div className="flex size-16 shrink-0 flex-col items-center justify-center rounded-xl bg-paper">
                 <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  {start
-                    .toLocaleDateString('fr-FR', { weekday: 'short' })
-                    .replace('.', '')
-                    .toUpperCase()}
+                  {formatDayShort(start).split(' ')[0].replace('.', '').toUpperCase()}
                 </span>
-                <span className="font-display text-2xl text-on-card">{start.getDate()}</span>
+                <span className="font-display text-2xl text-on-card">
+                  {formatDayShort(start).split(' ')[1]}
+                </span>
               </div>
             ) : null}
             <div className="min-w-0 flex-1">
@@ -72,10 +72,9 @@ export function UpcomingEnrollments({ compact = false, limit } = {}) {
               <p className="mt-1 font-sans text-xs text-muted-on-card">
                 {enrollment.rider.firstName} {enrollment.rider.lastName}
                 {' · '}
-                {start.toLocaleString('fr-FR', {
-                  dateStyle: compact ? undefined : 'short',
-                  timeStyle: 'short',
-                })}
+                {compact
+                  ? `${formatTime(start)} – ${formatTime(enrollment.course.endAt)}`
+                  : formatSlot(start, enrollment.course.endAt)}
                 {enrollment.course.spaceName ? ` · ${enrollment.course.spaceName}` : ''}
               </p>
             </div>
@@ -122,7 +121,7 @@ export function UpcomingEnrollments({ compact = false, limit } = {}) {
       {pending ? (
         <p>
           {pending.rider.firstName} sera marqué(e) excusé(e) pour le cours « {pending.course.title}{' '}
-          » du {new Date(pending.course.startAt).toLocaleString('fr-FR')}.
+          » du {formatDateTime(pending.course.startAt)}.
         </p>
       ) : null}
       {mutation.isError ? <p className="mt-2 text-danger">{mutation.error.message}</p> : null}

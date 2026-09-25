@@ -1,4 +1,4 @@
-import { createConversationSchema, createMessageSchema } from '@equime/shared';
+import { createConversationSchema, createMessageSchema, ROLE_LABELS } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -115,7 +115,7 @@ export function MessagesPage() {
       <PageHeader
         eyebrow={eyebrow}
         title="Messagerie"
-        description="Rafraîchissement automatique toutes les 15 secondes, lecture suivie par participant."
+        description="Échangez avec le club. Les nouveaux messages apparaissent automatiquement."
       />
 
       {error ? <Alert>{error}</Alert> : null}
@@ -134,7 +134,7 @@ export function MessagesPage() {
                 { value: '', label: '— Sélectionner —' },
                 ...contacts.map((contact) => ({
                   value: contact.id,
-                  label: `${contact.firstName} ${contact.lastName} (${contact.role})`,
+                  label: `${contact.firstName} ${contact.lastName} (${ROLE_LABELS[contact.role] ?? contact.role})`,
                 })),
               ]}
               {...createForm.register('participantId')}

@@ -19,3 +19,16 @@ export function Alert({ variant = 'error', className, children }) {
     </div>
   );
 }
+
+/**
+ * Affiche le retour d'action produit par `useFeedback` (rien si aucun).
+ * @param {{ feedback: null | { type: 'success' | 'error', message: string }, className?: string }} props
+ */
+export function FeedbackAlert({ feedback, className }) {
+  if (!feedback) return null;
+  return (
+    <Alert variant={feedback.type} className={className}>
+      {feedback.message}
+    </Alert>
+  );
+}

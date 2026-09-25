@@ -26,7 +26,12 @@ const eventBodySchema = z.object({
   startAt: z.coerce.date(),
   endAt: z.coerce.date(),
   capacity: z.coerce.number().int().positive().max(200),
-  priceCents: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  priceCents: z.coerce
+    .number()
+    .int()
+    .min(0, 'Le prix ne peut pas être négatif')
+    .max(1_000_000, 'Montant trop élevé (10 000 € maximum)')
+    .default(0),
   location: z
     .string()
     .trim()

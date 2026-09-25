@@ -1,4 +1,10 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button.jsx';
@@ -15,6 +21,7 @@ import {
   overrideHorse,
 } from '@/features/admin/api.js';
 import { PlanningCalendar } from '@/features/planning/components/PlanningCalendar.jsx';
+import { formatDateTime } from '@/lib/dates.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 
 /** @returns {{ from: string, to: string }} */
@@ -41,6 +48,9 @@ export function InstructorPlanningPage() {
   } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
+    // Garde la semaine affichée pendant le chargement de la suivante : sinon le
+    // calendrier est démonté et revient à la semaine en cours.
+    placeholderData: keepPreviousData,
   });
   const { data: enrollments = [] } = useQuery({
     queryKey: ['instructor-enrollments', courseId],
@@ -61,12 +71,16 @@ export function InstructorPlanningPage() {
     mutationFn: assignHorses,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['instructor-enrollments', courseId] });
+      qc.invalidateQueries({ queryKey: ['horse-options', courseId] });
       qc.invalidateQueries({ queryKey: ['planning'] });
     },
   });
   const overrideMutation = useMutation({
     mutationFn: ({ enrollmentId, horseId }) => overrideHorse(courseId, enrollmentId, horseId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['instructor-enrollments', courseId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['instructor-enrollments', courseId] });
+      qc.invalidateQueries({ queryKey: ['horse-options', courseId] });
+    },
   });
 
   return (
@@ -74,7 +88,7 @@ export function InstructorPlanningPage() {
       <PageHeader
         eyebrow="Espace moniteur"
         title="Mon planning"
-        description="Vue semaine 7 h – 21 h. Filtrez vos séances ou celles de toute la structure."
+        description="Vos séances ou celles de tout le club, semaine par semaine."
       />
       <div className="overflow-hidden rounded-xl">
         <img src={STITCH_PHOTOS.instructorPaddock} alt="" className="h-48 w-full object-cover" />
@@ -106,7 +120,7 @@ export function InstructorPlanningPage() {
               { value: '', label: '— Sélectionner —' },
               ...events.map((event) => ({
                 value: event.id,
-                label: `${event.title} (${new Date(event.start).toLocaleString('fr-FR')})`,
+                label: `${event.title} (${formatDateTime(event.start)})`,
               })),
             ]}
           />
@@ -137,7 +151,8 @@ export function InstructorPlanningPage() {
             <ul className="space-y-3">
               {enrollments.map((enrollment, index) => (
                 <OverrideRow
-                  key={enrollment.id}
+                  // Remonté quand le cheval change (attribution automatique) pour resynchroniser le choix
+                  key={`${enrollment.id}:${enrollment.horse?.id ?? ''}`}
                   enrollment={enrollment}
                   options={horseOptionQueries[index]?.data ?? []}
                   onOverride={(horseId) =>
@@ -171,14 +186,15 @@ function OverrideRow({ enrollment, options, onOverride }) {
           <Select
             id={`override-horse-${enrollment.id}`}
             name="horseId"
-            label="Override manuel"
+            label="Changer de cheval"
             value={selectedHorseId}
             onChange={(e) => setSelectedHorseId(e.target.value)}
             options={[
               { value: '', label: '— Choisir —' },
-              ...options.map((option) => ({
+              // Options déjà classées par pertinence : la première est la recommandation
+              ...options.map((option, index) => ({
                 value: option.horseId,
-                label: `${option.horseName} · score ${option.score}${option.warning ? ` · ⚠ ${option.warning}` : ''}`,
+                label: `${option.horseName}${index === 0 ? ' (recommandé)' : ''}${option.warning ? ` · ⚠ ${option.warning}` : ''}`,
               })),
             ]}
           />

@@ -103,8 +103,14 @@ export const updateAttendanceSchema = z.object({
   attendance: z.enum(ATTENDANCE_STATUS_VALUES),
 });
 
-export const planningQuerySchema = z.object({
-  from: z.coerce.date(),
-  to: z.coerce.date(),
-  scope: z.enum(['mine', 'all']).default('all'),
-});
+export const planningQuerySchema = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+    scope: z.enum(['mine', 'all']).default('all'),
+  })
+  .refine((q) => q.from < q.to, { message: 'La fin doit être après le début', path: ['to'] })
+  .refine((q) => q.to.getTime() - q.from.getTime() <= 100 * 24 * 60 * 60 * 1000, {
+    message: 'Période trop longue (100 jours maximum)',
+    path: ['to'],
+  });

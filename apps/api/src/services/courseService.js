@@ -2,7 +2,13 @@
 /**
  * Service cours — création récurrente, inscriptions, présences, planning (EPIC 4).
  */
-import { ATTENDANCE_STATUS, COURSE_STATUS, NOTIFICATION_TYPES, ROLES } from '@equime/shared';
+import {
+  ATTENDANCE_STATUS,
+  COURSE_STATUS,
+  formatDateTime,
+  NOTIFICATION_TYPES,
+  ROLES,
+} from '@equime/shared';
 
 import { env } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
@@ -280,7 +286,7 @@ export async function cancelCourse(courseId, cancelSeries) {
 
   /** @param {(typeof enrollments)[number]} enrollment */
   const notifyCancellation = (enrollment) => {
-    const dateLabel = enrollment.course.startAt.toLocaleDateString('fr-FR');
+    const dateLabel = formatDateTime(enrollment.course.startAt);
     const title = enrollment.course.title;
     const firstName = enrollment.rider.family.user.firstName;
     return dispatchNotification({
@@ -400,15 +406,15 @@ export async function enrollRider(userId, courseId, riderId, options = {}) {
         });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
 
-  if (!force) {
-    assertRiderDocumentsApproved(rider);
-  }
-
   const course = await prisma.course.findUnique({
     where: { id: courseId },
   });
   if (!course || course.status === COURSE_STATUS.CANCELLED) {
     throw AppError.notFound('Cours introuvable');
+  }
+  // Documents valables à la date de la séance, pas seulement au jour de l'inscription
+  if (!force) {
+    assertRiderDocumentsApproved(rider, course.startAt);
   }
   if (course.status === COURSE_STATUS.DRAFT) {
     throw AppError.badRequest("Ce cours n'est pas encore ouvert aux inscriptions");

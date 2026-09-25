@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { PageHeader } from '@/components/ui/page-header.jsx';
@@ -31,6 +31,9 @@ export function ClientPlanningPage() {
   } = useQuery({
     queryKey: ['planning', range, scope],
     queryFn: () => fetchPlanning(range.from, range.to, scope),
+    // Garde la semaine affichée pendant le chargement de la suivante : sinon le
+    // calendrier est démonté et revient à la semaine en cours.
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -38,7 +41,7 @@ export function ClientPlanningPage() {
       <PageHeader
         eyebrow="Espace famille"
         title="Planning"
-        description="Vos séances et celles du centre, en vue semaine (7 h – 21 h)."
+        description="Vos séances et celles du club, semaine par semaine."
       />
       <QueryState
         isPending={isPending}

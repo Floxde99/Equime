@@ -2,14 +2,15 @@ import { createEventSchema, EVENT_TYPE_LABELS, EVENT_TYPE_VALUES } from '@equime
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 
-import { Alert } from '@/components/ui/alert.jsx';
+import { FeedbackAlert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card } from '@/components/ui/card.jsx';
 import { ConfirmDialog } from '@/components/ui/dialog.jsx';
 import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
+import { MoneyInput } from '@/components/ui/money-input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
@@ -21,7 +22,9 @@ import {
   assignEventHorses,
   cancelEventRegistration,
 } from '@/features/engagement/api.js';
+import { formatSlot } from '@/lib/dates.js';
 import { toDatetimeLocalValue } from '@/lib/formValues.js';
+import { useFeedback } from '@/lib/useFeedback.js';
 
 const EVENT_TYPE_OPTIONS = EVENT_TYPE_VALUES.map((value) => ({
   value,
@@ -56,7 +59,7 @@ function eventToForm(event) {
 export function AdminEventsPage() {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState(null);
-  const [status, setStatus] = useState('');
+  const feedback = useFeedback();
   const [pendingDelete, setPendingDelete] = useState(null);
   const eventForm = useForm({
     resolver: zodResolver(createEventSchema),
@@ -72,9 +75,9 @@ export function AdminEventsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
       eventForm.reset(initialForm);
-      setStatus('Événement créé.');
+      feedback.success('Événement créé.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, body }) => updateEvent(id, body),
@@ -82,9 +85,9 @@ export function AdminEventsPage() {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
       setEditingId(null);
       eventForm.reset(initialForm);
-      setStatus('Événement mis à jour.');
+      feedback.success('Événement mis à jour.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
   const deleteMutation = useMutation({
     mutationFn: deleteEvent,
@@ -96,21 +99,21 @@ export function AdminEventsPage() {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
       const assigned = result.assignments?.length ?? 0;
       const conflicts = result.conflicts?.length ?? 0;
-      setStatus(
+      feedback.success(
         conflicts > 0
           ? `${assigned} cheval(aux) attribué(s), ${conflicts} sans monture éligible.`
           : `${assigned} cheval(aux) attribué(s).`
       );
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
   const cancelRegistrationMutation = useMutation({
     mutationFn: ({ eventId, registrationId }) => cancelEventRegistration(eventId, registrationId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-events'] });
-      setStatus('Inscription annulée.');
+      feedback.success('Inscription annulée.');
     },
-    onError: (err) => setStatus(err.message),
+    onError: (err) => feedback.error(err.message),
   });
 
   return (
@@ -118,23 +121,10 @@ export function AdminEventsPage() {
       <PageHeader
         eyebrow="Administration"
         title="Événements"
-        description="CRUD admin des stages et compétitions."
+        description="Créez et suivez les stages et compétitions, leurs inscrits et leurs montures."
       />
 
-      {status ? (
-        <Alert
-          variant={
-            status.includes('créé') ||
-            status.includes('mis à jour') ||
-            status.includes('attribué') ||
-            status.includes('annulée')
-              ? 'success'
-              : 'error'
-          }
-        >
-          {status}
-        </Alert>
-      ) : null}
+      <FeedbackAlert feedback={feedback.value} />
 
       <Card title={editingId ? "Modifier l'événement" : 'Créer un événement'}>
         <form
@@ -200,16 +190,24 @@ export function AdminEventsPage() {
             />
           </Field>
           <Field
-            label="Prix (centimes)"
+            label="Prix par participant"
             htmlFor="event-price"
+            hint="0 pour un événement gratuit. Une facture est émise à chaque inscription payante."
             error={eventForm.formState.errors.priceCents?.message}
           >
-            <Input
-              id="event-price"
-              type="number"
-              min="0"
-              invalid={!!eventForm.formState.errors.priceCents}
-              {...eventForm.register('priceCents')}
+            <Controller
+              control={eventForm.control}
+              name="priceCents"
+              render={({ field }) => (
+                <MoneyInput
+                  id="event-price"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  invalid={!!eventForm.formState.errors.priceCents}
+                  placeholder="0"
+                />
+              )}
             />
           </Field>
           <Field
@@ -267,7 +265,7 @@ export function AdminEventsPage() {
                 <div>
                   <p className="font-sans text-sm font-semibold text-text">{event.title}</p>
                   <p className="font-sans text-sm text-muted">
-                    {new Date(event.startAt).toLocaleString('fr-FR')} · {event.registeredCount}/
+                    {formatSlot(event.startAt, event.endAt)} · {event.registeredCount}/
                     {event.capacity}
                   </p>
                 </div>
@@ -275,7 +273,7 @@ export function AdminEventsPage() {
                   <Button
                     type="button"
                     variant="secondary"
-                    loading={assignMutation.isPending}
+                    loading={assignMutation.isPending && assignMutation.variables === event.id}
                     onClick={() => assignMutation.mutate(event.id)}
                   >
                     Attribuer les chevaux
@@ -286,7 +284,7 @@ export function AdminEventsPage() {
                     onClick={() => {
                       setEditingId(event.id);
                       eventForm.reset(eventToForm(event));
-                      setStatus('');
+                      feedback.clear();
                     }}
                   >
                     Modifier
@@ -311,7 +309,10 @@ export function AdminEventsPage() {
                       <Button
                         type="button"
                         variant="ghost"
-                        loading={cancelRegistrationMutation.isPending}
+                        loading={
+                          cancelRegistrationMutation.isPending &&
+                          cancelRegistrationMutation.variables?.registrationId === registration.id
+                        }
                         onClick={() =>
                           cancelRegistrationMutation.mutate({
                             eventId: event.id,

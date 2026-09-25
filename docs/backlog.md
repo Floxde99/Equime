@@ -423,6 +423,22 @@ Critères d'acceptation :
 - [ ] Validation Zod ligne par ligne, rapport d'erreurs téléchargeable, import tout ou rien.
 - [ ] Checklist de démarrage sur le dashboard admin (formules, espaces, chevaux, moniteurs, premier cours).
 
+### US-10.8 — Ergonomie au niveau du marché `M`
+**En tant que** secrétaire du club, **je veux** retrouver un client par son nom et saisir les prix en euros **afin de** travailler aussi vite qu'avec les logiciels du marché. (Retour du fondateur, 2026-09-24 ; audit complet du front.)
+
+Critères d'acceptation :
+- [x] Recherche de familles `GET /admin/families?q=` insensible à la casse et aux accents (parent, e-mail, prénom d'un cavalier) ; combobox accessible (WAI-ARIA, clavier).
+- [x] Facture : choix du client par recherche, puis formule de la famille, autre formule ou **lignes libres** (cotisation, licence…) ; échéance à J+30 par défaut.
+- [x] Tous les montants saisis en euros (« 49,90 ») — formules, lignes de facture, événements ; stockage inchangé en centimes.
+- [x] Formules modifiables et archivables ; réductions modifiables et supprimables ; réduction bornée à 100 %.
+- [x] Annuaire : recherche, filtre par rôle, bouton « Facturer » qui présélectionne la famille.
+- [x] Déclaration d'incident par listes (séance récente → cavalier → cheval prérempli), plus aucun identifiant à saisir.
+- [x] Dates en heure de Paris partout (écrans, e-mails, PDF) ; messages de validation en français ; retours d'action typés (plus d'erreur affichée en vert).
+- [x] Paramètres du club (délai d'annulation, rattrapages, saison, échéanciers, règle documentaire des mineurs) éditables par l'admin.
+- [x] Documents vérifiés à la date de la séance ou de l'événement, pas au jour de l'inscription.
+- [ ] Fiche de séance dans le planning admin (inscrits, inscription forcée, annulation) — Lot D.
+- [ ] Espaces moniteur (appel, incidents, tableau de bord) — Lot G.
+
 ---
 
 ## EPIC 11 — v1.2 : différenciation (Sprint 9)

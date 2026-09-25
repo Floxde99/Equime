@@ -32,6 +32,20 @@ export function errorHandler(err, req, res, next) {
     });
   }
 
+  // Contraintes de base : un conflit métier (doublon, élément encore utilisé)
+  // doit rester lisible pour l'utilisateur, jamais un 500.
+  const PRISMA_CONFLICTS = {
+    P2002: 'Cet élément existe déjà',
+    P2003:
+      'Cet élément est encore utilisé ailleurs : il ne peut pas être supprimé ou modifié ainsi',
+  };
+  if (err?.code in PRISMA_CONFLICTS) {
+    logger.warn({ code: 'CONFLICT', prismaCode: err.code, path: req.path }, err.message);
+    return res.status(409).json({
+      error: { code: 'CONFLICT', message: PRISMA_CONFLICTS[err.code] },
+    });
+  }
+
   logger.error({ err, path: req.path }, 'Erreur non gérée');
   return res.status(500).json({
     error: {

@@ -709,3 +709,31 @@ model NewsletterSubscription {
 
   @@map("newsletter_subscriptions")
 }
+
+// ============================================================
+// Paramètres du club
+// ============================================================
+
+/// Réglages métier du club, modifiables par l'admin (ligne unique, id = 1).
+/// Passera en configuration par club avec le multi-tenant (v1.3).
+model ClubSettings {
+  id                        Int      @id @default(1)
+  /// Délai minimal (heures avant la séance) pour qu'une annulation donne droit à un rattrapage
+  cancellationDeadlineHours Int      @default(24)
+  /// Durée de validité d'un crédit de rattrapage (jours)
+  makeupValidityDays        Int      @default(60)
+  /// Bornes de la saison, format MM-JJ
+  seasonStart               String   @default("09-01")
+  seasonEnd                 String   @default("06-30")
+  /// Jour du mois des échéances d'un paiement en 10 fois
+  installmentDay            Int      @default(5)
+  /// Dates des 3 échéances trimestrielles, format MM-JJ
+  quarterDueDates           String[] @default(["09-05", "01-05", "04-05"])
+  /// Forfait au prorata des semaines restantes en cas d'arrivée en cours de saison
+  proRataOnLateJoin         Boolean  @default(true)
+  /// Mineurs : attestation de questionnaire de santé au lieu d'un certificat médical
+  minorHealthQuestionnaire  Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
+
+  @@map("club_settings")
+}

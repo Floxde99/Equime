@@ -5,6 +5,9 @@ import { z } from 'zod';
 
 import { INVOICE_STATUS_VALUES } from '../constants.js';
 
+/** Plafond d'un montant saisi (10 000 €) : quantité × prix reste sous la limite d'un entier Postgres. */
+export const MAX_AMOUNT_CENTS = 1_000_000;
+
 export const invoiceIdParamSchema = z.object({
   id: z.string().min(1),
 });
@@ -21,7 +24,11 @@ export const subscriptionPlanBodySchema = z.object({
     .max(500)
     .optional()
     .or(z.literal('').transform(() => undefined)),
-  priceCents: z.coerce.number().int().min(0),
+  priceCents: z.coerce
+    .number()
+    .int()
+    .min(0, 'Le prix ne peut pas être négatif')
+    .max(MAX_AMOUNT_CENTS, 'Montant trop élevé (10 000 € maximum)'),
   sessionsPerWeek: z.coerce.number().int().positive().max(14),
   active: z.boolean().default(true),
 });
@@ -37,7 +44,11 @@ export const discountRuleBodySchema = z.object({
     .max(500)
     .optional()
     .or(z.literal('').transform(() => undefined)),
-  percentage: z.coerce.number().int().min(0).max(1000),
+  percentage: z.coerce
+    .number()
+    .int()
+    .min(1, 'Au moins 1 %')
+    .max(100, 'Une réduction ne peut pas dépasser 100 %'),
   minRiders: z.coerce.number().int().positive().max(20).optional(),
   active: z.boolean().default(true),
 });
@@ -48,7 +59,11 @@ export const updateDiscountRuleSchema = discountRuleBodySchema.partial();
 export const invoiceItemInputSchema = z.object({
   label: z.string().trim().min(1, 'Le libellé est requis').max(200),
   quantity: z.coerce.number().int().positive().max(999).default(1),
-  unitCents: z.coerce.number().int().min(0),
+  unitCents: z.coerce
+    .number()
+    .int()
+    .min(0, 'Le prix ne peut pas être négatif')
+    .max(MAX_AMOUNT_CENTS, 'Montant trop élevé (10 000 € maximum)'),
 });
 
 export const createInvoiceSchema = z.object({

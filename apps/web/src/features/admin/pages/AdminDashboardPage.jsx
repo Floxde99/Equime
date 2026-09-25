@@ -10,11 +10,12 @@ import { HorsePortrait } from '@/components/ui/horse-portrait.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
 import { fetchDashboardKpis, fetchHorses, fetchLoadAlerts } from '@/features/admin/api.js';
 import { fetchCriticalIncidentCount } from '@/features/engagement/api.js';
+import { formatEuroCents } from '@/lib/money.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
 /** Formate des centimes en euros. @param {number} cents */
 function formatEuros(cents) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  return formatEuroCents(cents);
 }
 
 const HORSE_VARIANT = {

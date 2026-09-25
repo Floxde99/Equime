@@ -2,6 +2,7 @@ import {
   adminChangeFamilySubscriptionSchema,
   createMemberSchema,
   DOCUMENT_STATUS_LABELS,
+  normalizeSearch,
   PASSWORD_POLICY,
   ROLE_LABELS,
   ROLES,
@@ -11,6 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
@@ -39,12 +41,33 @@ import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 import { formatEuroCents } from '@/lib/money.js';
 import { useDocumentViewer } from '@/lib/useDocumentViewer.js';
 
+/**
+ * Membre de l'annuaire → option de famille attendue par le formulaire de facture.
+ * @param {any} member
+ */
+function toFamilyOption(member) {
+  return {
+    id: member.family.id,
+    user: {
+      id: member.id,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      email: member.email,
+    },
+    riders: member.family.riders ?? [],
+    subscriptionPlan: member.family.subscriptionPlan ?? null,
+  };
+}
+
 /** Gestion des membres et validation des documents (US-9.2, US-9.3). */
 export function AdminMembersPage() {
   const qc = useQueryClient();
   const [pendingBan, setPendingBan] = useState(null);
   const [editingMember, setEditingMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const navigate = useNavigate();
 
   const {
     data: members = [],
@@ -56,6 +79,21 @@ export function AdminMembersPage() {
     queryKey: ['admin-members'],
     queryFn: fetchMembers,
   });
+  const needle = normalizeSearch(search);
+  const visibleMembers = members.filter((member) => {
+    if (roleFilter !== 'all' && member.role !== roleFilter) return false;
+    if (!needle) return true;
+    const haystack = normalizeSearch(
+      [
+        member.firstName,
+        member.lastName,
+        member.email,
+        ...(member.family?.riders ?? []).map((rider) => `${rider.firstName} ${rider.lastName}`),
+      ].join(' ')
+    );
+    return needle.split(/s+/).every((word) => haystack.includes(word));
+  });
+
   const { data: pendingRiders = [], isLoading: docsLoading } = useQuery({
     queryKey: ['pending-documents'],
     queryFn: fetchPendingDocuments,
@@ -95,7 +133,7 @@ export function AdminMembersPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Administration"
-        title="Adhérents"
+        title="Membres"
         description="Création des comptes client et moniteur, édition des fiches et formules famille."
       />
 
@@ -164,9 +202,39 @@ export function AdminMembersPage() {
       />
 
       <section className="space-y-4">
-        <h2 className="font-display text-2xl text-primary">Annuaire</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="font-display text-2xl text-primary">Annuaire</h2>
+          <p className="font-sans text-sm text-muted" aria-live="polite">
+            {visibleMembers.length} membre{visibleMembers.length > 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+          <Field label="Rechercher" htmlFor="members-search">
+            <Input
+              id="members-search"
+              type="search"
+              placeholder="Nom, e-mail ou prénom d’un cavalier"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </Field>
+          <Select
+            id="members-role"
+            label="Afficher"
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value)}
+            options={[
+              { value: 'all', label: 'Tous les membres' },
+              { value: ROLES.CLIENT, label: 'Familles' },
+              { value: ROLES.INSTRUCTOR, label: 'Moniteurs' },
+            ]}
+          />
+        </div>
         <ul className="space-y-2">
-          {members.map((member) => (
+          {visibleMembers.length === 0 ? (
+            <li className="font-sans text-sm text-muted">Aucun membre ne correspond.</li>
+          ) : null}
+          {visibleMembers.map((member) => (
             <li
               key={member.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-on-card bg-card p-4"
@@ -183,6 +251,11 @@ export function AdminMembersPage() {
                   <p className="font-sans text-sm font-semibold text-text">
                     {member.firstName} {member.lastName}
                   </p>
+                  {member.family?.riders?.length ? (
+                    <p className="font-sans text-xs text-muted">
+                      Cavaliers : {member.family.riders.map((rider) => rider.firstName).join(', ')}
+                    </p>
+                  ) : null}
                   <p className="font-sans text-xs text-muted">
                     {member.email} — {ROLE_LABELS[member.role] ?? member.role}
                     {member.family?.subscriptionPlan
@@ -203,16 +276,29 @@ export function AdminMembersPage() {
                   Modifier
                 </Button>
                 {member.role === ROLES.CLIENT && member.family ? (
-                  <Button type="button" variant="ghost" onClick={() => setPlanMember(member)}>
-                    Formule
-                  </Button>
+                  <>
+                    <Button type="button" variant="ghost" onClick={() => setPlanMember(member)}>
+                      Formule
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        navigate('/admin/facturation', {
+                          state: { family: toFamilyOption(member) },
+                        })
+                      }
+                    >
+                      Facturer
+                    </Button>
+                  </>
                 ) : null}
                 {member.role === ROLES.CLIENT ? (
                   member.banned ? (
                     <Button
                       type="button"
                       variant="ghost"
-                      loading={unbanMutation.isPending}
+                      loading={unbanMutation.isPending && unbanMutation.variables === member.id}
                       onClick={() => unbanMutation.mutate(member.id)}
                     >
                       Débannir
@@ -221,7 +307,7 @@ export function AdminMembersPage() {
                     <Button
                       type="button"
                       variant="danger"
-                      loading={banMutation.isPending}
+                      loading={banMutation.isPending && banMutation.variables === member.id}
                       onClick={() => setPendingBan(member)}
                     >
                       Bannir

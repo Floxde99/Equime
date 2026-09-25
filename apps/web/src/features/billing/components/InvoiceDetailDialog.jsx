@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button.jsx';
 import { Dialog } from '@/components/ui/dialog.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
 import { downloadInvoicePdf } from '@/features/billing/api.js';
-
-const currency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+import { formatDate } from '@/lib/dates.js';
+import { formatEuroCents } from '@/lib/money.js';
 
 const STATUS_VARIANT = {
   draft: 'default',
@@ -18,9 +18,8 @@ const STATUS_VARIANT = {
 };
 
 /** @param {string | Date | null | undefined} value */
-function formatDate(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('fr-FR');
+function formatDateOrDash(value) {
+  return value ? formatDate(value) : '—';
 }
 
 /**
@@ -110,7 +109,7 @@ export function InvoiceDetailDialog({
                 {INVOICE_STATUS_LABELS[invoice.status] ?? invoice.status}
               </Badge>
               <p className="font-sans text-sm font-semibold">
-                {currency.format((invoice.totalCents ?? 0) / 100)}
+                {formatEuroCents(invoice.totalCents ?? 0)}
               </p>
             </div>
 
@@ -123,16 +122,16 @@ export function InvoiceDetailDialog({
               ) : null}
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted-on-card">Émise le</dt>
-                <dd>{formatDate(invoice.issuedAt)}</dd>
+                <dd>{formatDateOrDash(invoice.issuedAt)}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted-on-card">Échéance</dt>
-                <dd>{formatDate(invoice.dueAt)}</dd>
+                <dd>{formatDateOrDash(invoice.dueAt)}</dd>
               </div>
               {invoice.paidAt ? (
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-muted-on-card">Payée le</dt>
-                  <dd>{formatDate(invoice.paidAt)}</dd>
+                  <dd>{formatDateOrDash(invoice.paidAt)}</dd>
                 </div>
               ) : null}
             </dl>
@@ -162,10 +161,10 @@ export function InvoiceDetailDialog({
                       <td className="py-2 pr-3">{item.label}</td>
                       <td className="py-2 px-2 text-right tabular-nums">{item.quantity}</td>
                       <td className="py-2 px-2 text-right tabular-nums">
-                        {currency.format(item.unitCents / 100)}
+                        {formatEuroCents(item.unitCents)}
                       </td>
                       <td className="py-2 pl-2 text-right tabular-nums">
-                        {currency.format(item.totalCents / 100)}
+                        {formatEuroCents(item.totalCents)}
                       </td>
                     </tr>
                   ))}
@@ -176,7 +175,7 @@ export function InvoiceDetailDialog({
                       Total TTC
                     </th>
                     <td className="pt-3 pl-2 text-right font-sans font-semibold tabular-nums">
-                      {currency.format((invoice.totalCents ?? 0) / 100)}
+                      {formatEuroCents(invoice.totalCents ?? 0)}
                     </td>
                   </tr>
                 </tfoot>

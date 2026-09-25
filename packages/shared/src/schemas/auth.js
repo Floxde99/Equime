@@ -22,7 +22,9 @@ const lastNameSchema = z.string().trim().min(1, 'Le nom est requis').max(80);
 const phoneSchema = z
   .string()
   .trim()
-  .regex(/^\+?[0-9 .-]{6,20}$/, 'Numéro de téléphone invalide');
+  .regex(/^\+?[0-9 .-]{6,20}$/, 'Numéro de téléphone invalide')
+  // Au moins 6 chiffres réels : « ------ » n'est pas un numéro
+  .refine((value) => value.replace(/\D/g, '').length >= 6, 'Numéro de téléphone invalide');
 
 export const registerSchema = z.object({
   email: emailSchema,

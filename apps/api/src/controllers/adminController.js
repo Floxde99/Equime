@@ -97,3 +97,9 @@ export async function listAuditLogs(_req, res) {
   const logs = await adminService.listAuditLogs();
   res.json({ logs });
 }
+
+/** GET /api/v1/admin/families?q= — recherche de familles (secrétariat) */
+export async function searchFamilies(req, res) {
+  const families = await adminService.searchFamilies(req.query.q);
+  res.json({ families });
+}

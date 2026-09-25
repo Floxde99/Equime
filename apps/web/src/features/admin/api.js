@@ -233,3 +233,20 @@ export function fetchAuditLogs() {
 export function cancelCourse(courseId, cancelSeries = false) {
   return api.post(`/courses/${courseId}/cancel`, { cancelSeries });
 }
+
+/**
+ * Recherche de familles (secrétariat) : nom ou e-mail du parent, prénom d'un cavalier.
+ * @param {string} q au moins 2 caractères
+ */
+export function searchFamilies(q) {
+  return api.get(`/admin/families?q=${encodeURIComponent(q)}`).then((r) => r.families);
+}
+
+export function fetchClubSettings() {
+  return api.get('/settings').then((r) => r.settings);
+}
+
+/** @param {object} body */
+export function updateClubSettings(body) {
+  return api.patch('/settings', body).then((r) => r.settings);
+}

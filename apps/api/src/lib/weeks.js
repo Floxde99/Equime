@@ -5,8 +5,9 @@
  * le dimanche à 22 h ou 23 h heure de Paris. Logique pure, testée unitairement.
  */
 
-/** Fuseau du centre équestre (mono-club ; passera en configuration club en v1.3). */
-export const CLUB_TIME_ZONE = 'Europe/Paris';
+import { CLUB_TIME_ZONE } from '@equime/shared';
+
+export { CLUB_TIME_ZONE };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_INDEX = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };

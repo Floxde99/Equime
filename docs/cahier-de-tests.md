@@ -206,6 +206,18 @@ Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 | T-9.2 | Ban immédiat | Bannir un client connecté | Sessions révoquées, reconnexion refusée | ✅ `admin.test.js` | ✅ |
 | T-9.3 | Validation documents | Approuver/refuser un certificat | Statut mis à jour, motif obligatoire si refus | ✅ `admin.test.js` | ✅ |
 
+## Module 10 — v1.1 club pilote
+
+| ID | Scénario | Étapes | Résultat attendu | Auto | Statut |
+|---|---|---|---|---|---|
+| T-10.8.1 | Recherche de familles | « helene », « zoe », « martin zoe », e-mail partiel | Famille trouvée sans tenir compte des accents ni de la casse ; plusieurs mots combinés | ✅ `settingsSearch.test.js` | ✅ |
+| T-10.8.2 | Recherche : robustesse | « %% », « __ », compte anonymisé, 1 caractère, rôle client | Aucun résultat parasite ; anonymisé exclu ; 400 ; 403 | ✅ `settingsSearch.test.js` | ✅ |
+| T-10.8.3 | Paramètres du club | Lecture client, modification admin, valeurs invalides (02-30, jour 31) | Valeurs par défaut créées ; modification admin ; 400 avec champs en erreur ; 403 client | ✅ `settingsSearch.test.js` | ✅ |
+| T-10.8.4 | Saisie en euros | « 49 », « 49,9 », « 1 234,50 € », « -5 », « 49,999 » | Centimes exacts ; saisies invalides refusées ; aller-retour stable | ✅ `formatters.test.js` | ✅ |
+| T-10.8.5 | Dates en heure de Paris | 14 h été et hiver, 23 h 30 UTC, créneau sur deux jours | Heure murale de Paris quel que soit le fuseau serveur | ✅ `formatters.test.js` | ✅ |
+| T-10.8.6 | Validité des documents à la date de la séance | Certificat valable jusqu'au 15/10, séance le 20/10 | Inscription refusée ; séance du 01/10 acceptée | ✅ `documentRules.test.js` | ✅ |
+| T-10.8.7 | Facture à lignes libres (recette) | Recherche « chloe », lignes 30 € + 25,5 € | Famille Fontaine choisie au clavier ; total 55,50 € ; lignes 3000 + 2550 centimes | Manuel (navigateur) | ✅ 2026-09-24 |
+
 ## Parcours E2E (Phase 6 — Playwright)
 
 **4 parcours métier critiques (E2E-1–4) + extension fumée/modules (E2E-5–13).**
