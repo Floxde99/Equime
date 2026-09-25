@@ -18,7 +18,7 @@
 ```
 utilisateurs(#id, email UNIQUE, mot_de_passe_hash, prénom, nom, téléphone?, rôle, banni, banni_le?, anonymisé_le?)
 
-familles(#id, utilisateur_id UNIQUE → utilisateurs(id), plan_abonnement_id? → plans_abonnement(id), quota_séances)
+familles(#id, utilisateur_id UNIQUE → utilisateurs(id))
 
 cavaliers(#id, famille_id → familles(id), prénom, nom, date_naissance, niveau,
           certificat_médical_url?, certificat_médical_statut, licence_url?, licence_statut, consentement_médical_le?)
@@ -39,7 +39,7 @@ cours(#id, titre, description?, moniteur_id → utilisateurs(id), espace_id → 
       règle_récurrence?, fin_récurrence?, cours_parent_id? → cours(id))
 
 inscriptions_cours(#id, cours_id → cours(id), cavalier_id → cavaliers(id), cheval_id? → chevaux(id),
-                   présence, cheval_attribué_le?, UNIQUE(cours_id, cavalier_id))
+                   présence, statut, droit, annulée_le?, cheval_attribué_le?, UNIQUE(cours_id, cavalier_id))
 
 événements(#id, titre, description?, type, début_le, fin_le, capacité, prix_centimes, lieu?)
 
@@ -47,6 +47,15 @@ inscriptions_événements(#id, événement_id → événements(id), cavalier_id 
                         UNIQUE(événement_id, cavalier_id))
 
 plans_abonnement(#id, nom UNIQUE, description?, prix_centimes, séances_par_semaine, actif)
+        -- prix_centimes : prix de la saison complète (ADR 011)
+
+forfaits_cavalier(#id, cavalier_id → cavaliers(id), plan_id → plans_abonnement(id),
+                  début_saison, fin_saison, début_effectif, échéancier, prix_centimes, réduction_pct,
+                  statut, arrêté_le?, facture_id? UNIQUE → factures(id))
+
+crédits_rattrapage(#id, cavalier_id → cavaliers(id), origine, expire_le,
+                   inscription_source_id? UNIQUE → inscriptions_cours(id),
+                   inscription_rattrapage_id? UNIQUE → inscriptions_cours(id), utilisé_le?)
 
 règles_réduction(#id, libellé, description?, pourcentage, min_cavaliers?, actif)
 
@@ -54,6 +63,12 @@ factures(#id, famille_id → familles(id), numéro UNIQUE, statut, émise_le?, �
          total_centimes, payée_le?)
 
 lignes_facture(#id, facture_id → factures(id), libellé, quantité, prix_unitaire_centimes, total_centimes)
+
+échéances_facture(#id, facture_id → factures(id), rang, due_le, montant_centimes, réglée_le?,
+                  session_stripe? UNIQUE, UNIQUE(facture_id, rang))
+
+règlements(#id, facture_id → factures(id), échéance_id? → échéances_facture(id), mode, montant_centimes,
+           reçu_le, référence?, payment_intent_stripe? UNIQUE, saisi_par_id? → utilisateurs(id))
 
 incidents(#id, déclarant_id → utilisateurs(id), cours_id? → cours(id), cheval_id? → chevaux(id),
           cavalier_id? → cavaliers(id), gravité, description, statut, survenu_le, résolu_le?)

@@ -21,7 +21,21 @@ classDiagram
 
     class Famille {
         +String id
-        +Int quotaSéances
+    }
+
+    class ForfaitCavalier {
+        +DateTime débutSaison
+        +DateTime finSaison
+        +Échéancier échéancier
+        +Int prixCentimes
+        +Int réductionPourcent
+        +StatutForfait statut
+    }
+
+    class CréditRattrapage {
+        +OrigineCrédit origine
+        +DateTime expireLe
+        +DateTime? utiliséLe
     }
 
     class Cavalier {
@@ -67,7 +81,18 @@ classDiagram
 
     class InscriptionCours {
         +StatutPrésence présence
+        +StatutInscription statut
+        +DroitConsommé droit
+        +DateTime? annuléeLe
         +DateTime? chevalAttribuéLe
+    }
+
+    class ServiceDroits {
+        <<service>>
+        +chooseEntitlement(parSemaine, prisesSemaine, crédit) Droit
+        +resolveEntitlement(cavalier, dateSéance) Droit
+        +isCancelledInTime(dateSéance, délaiHeures) Boolean
+        +getRidersEntitlements(cavaliers) Droits[]
     }
 
     class ServiceAttribution {
@@ -94,7 +119,7 @@ classDiagram
 
     class PlanAbonnement {
         +String nom
-        +Int prixCentimes
+        +Int prixSaisonCentimes
         +Int séancesParSemaine
     }
 
@@ -107,7 +132,20 @@ classDiagram
         +String numéro
         +StatutFacture statut
         +Int totalCentimes
-        +String? stripeCheckoutSessionId
+    }
+
+    class Échéance {
+        +Int rang
+        +DateTime dueLe
+        +Int montantCentimes
+        +DateTime? régléeLe
+    }
+
+    class Règlement {
+        +ModeRèglement mode
+        +Int montantCentimes
+        +DateTime reçuLe
+        +String? référence
     }
 
     class LigneFacture {
@@ -118,11 +156,12 @@ classDiagram
 
     class ServiceFacturation {
         <<service>>
-        +generateSubscriptionInvoices() Facture[]
-        +applyBestDiscount(prix, nbCavaliers, règles) Int
+        +subscribeRider(cavalierId, forfait, échéancier) Facture
+        +applyBestDiscount(prix, nbCavaliersAbonnés, règles) Int
+        +buildInstallments(total, dates, maintenant) Échéance[]
         +sendInvoice(factureId) Facture
         +remindInvoice(factureId) Facture
-        +markInvoicePaidFromPayment(factureId) Facture
+        +recordPayment(factureId, règlement) Facture
     }
 
     class Incident {
@@ -186,7 +225,11 @@ classDiagram
 
     Utilisateur "1" --> "0..1" Famille : possède
     Famille "1" --> "1..*" Cavalier : compte
-    Famille "0..*" --> "0..1" PlanAbonnement : souscrit
+    Cavalier "1" --> "0..*" ForfaitCavalier : souscrit (1 par saison)
+    ForfaitCavalier "0..*" --> "1" PlanAbonnement
+    ForfaitCavalier "0..1" --> "0..1" Facture : facturé par
+    Cavalier "1" --> "0..*" CréditRattrapage : dispose
+    InscriptionCours "0..1" --> "0..1" CréditRattrapage : produit / consomme
     Cavalier "1" --> "0..*" Affinité
     Affinité "0..*" --> "1" Cheval
     Cours "1" --> "0..*" InscriptionCours
@@ -199,6 +242,9 @@ classDiagram
     InscriptionÉvénement "0..*" --> "1" Cavalier
     Famille "1" --> "0..*" Facture
     Facture "1" --> "1..*" LigneFacture
+    Facture "1" --> "1..*" Échéance
+    Facture "1" --> "0..*" Règlement
+    Règlement "0..*" --> "0..1" Échéance : couvre
     Conversation "1" --> "0..*" Message
     Conversation "1" --> "2..*" Utilisateur : réunit
     Utilisateur "1" --> "0..*" Notification
@@ -210,6 +256,8 @@ classDiagram
     ServiceAttribution ..> Cheval
     ServiceAttribution ..> Affinité
     ServiceFacturation ..> Facture
+    ServiceDroits ..> InscriptionCours
+    ServiceDroits ..> CréditRattrapage
     ServiceFacturation ..> RègleRéduction
     ServiceJetons ..> JetonRafraîchissement
 ```
@@ -237,8 +285,9 @@ Où se trouvent les comportements qu'un modèle riche aurait portés :
 | `Cheval.estÉligible()`, `niveauCompatible()` | `horseAssignment.isEligibleHorse`, `levelFit` (ADR 009) |
 | `Cavalier.documentsValides()` | `lib/riderDocuments.assertRiderDocumentsApproved` |
 | `Cours.duréeHeures()`, `expanserRécurrence()` | `durationHoursFromRange`, `recurrence.expandWeeklyRecurrence` |
-| `Famille.réductionApplicable()` | `pricing.applyBestDiscount` |
-| `Facture.émettre()`, `marquerPayée()` | `billingService.sendInvoice`, `markInvoicePaidFromPayment` |
+| `Famille.réductionApplicable()` | `pricing.applyBestDiscount` (cavaliers ayant un forfait actif) |
+| `Cavalier.peutRéserver()`, `Inscription.annuler()` | `entitlementService.resolveEntitlement`, `courseService.cancelEnrollment` (ADR 011) |
+| `Facture.émettre()`, `encaisser()` | `billingService.sendInvoice`, `recordPayment` |
 | `JetonRafraîchissement.estValide()` | `tokenService.rotateRefreshToken` |
 | `Utilisateur.peutAccéder()` | middlewares `requireAuth` / `requireRole` |
 

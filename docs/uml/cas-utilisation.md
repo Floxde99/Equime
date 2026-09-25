@@ -32,11 +32,11 @@ flowchart LR
         A2(["Réserver un événement (stage, compétition)"])
         A3(["Consulter le planning de la famille"])
         A4(["Se porter volontaire sur une mission"])
-        A5(["Excuser une séance à venir"])
+        A5(["Annuler une séance (rattrapage si dans le délai)"])
     end
     subgraph "Compte & facturation"
-        B1(["Consulter et payer ses factures (simulé)"])
-        B2(["Gérer son abonnement"])
+        B1(["Consulter et payer ses échéances"])
+        B2(["Choisir le forfait de saison d'un cavalier"])
         B3(["Gérer ses préférences de notification"])
         B4(["Supprimer son compte (anonymisation RGPD)"])
     end
@@ -47,7 +47,7 @@ flowchart LR
     C --> B1 & B2 & B3 & B4
     C --> M1
     F2 -.->|include| F2b(["Donner le consentement médical explicite"])
-    A1 -.->|include| A1b(["Vérifier quota d'abonnement"])
+    A1 -.->|include| A1b(["Vérifier le droit de la semaine ou un rattrapage"])
 ```
 
 ## Moniteur

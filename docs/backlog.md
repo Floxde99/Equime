@@ -189,6 +189,7 @@ Critères d'acceptation :
 
 Critères d'acceptation :
 - [x] Action limitée aux inscriptions de sa famille et aux séances encore à venir ; statut `excused`.
+- ↪ v1.1 : remplacé par l'**annulation** avec rattrapage (US-10.3, ADR 011) ; le statut « excusé » reste réservé à l'appel du moniteur.
 - [x] Notification `rider_absence` envoyée selon les préférences.
 - [x] Action disponible sur le planning famille et le dashboard (`UpcomingEnrollments`).
 
@@ -262,6 +263,7 @@ Critères d'acceptation :
 Critères d'acceptation :
 - [x] `POST /api/v1/admin/invoices/generate-subscriptions` : mois calendaire en cours ; une famille déjà facturée sur la période est ignorée (skip).
 - [x] Bouton sur `AdminBillingPage` ; déclenchement manuel (pas de cron).
+- ↪ v1.1 : supprimé, le forfait est facturé à la saison avec son échéancier (US-10.5, ADR 011).
 
 ### US-6.5 — Souscrire à une formule `M`
 **En tant que** client, **je veux** choisir une formule d'abonnement si je n'en ai pas **afin d'** activer les inscriptions aux cours. (Excel 8.2)
@@ -272,6 +274,7 @@ Critères d'acceptation :
 - [x] Admin : `PATCH /api/v1/admin/families/:id/subscription` change le plan et réinitialise le quota.
 - [x] `GET /api/v1/public/plans` : formules actives (vitrine + compte).
 - [x] `ClientAccountPage` : formule + quota ; CTA « Choisir une formule » seulement si aucune.
+- ↪ v1.1 : remplacé par le forfait **par cavalier** (US-10.5, ADR 011) ; le quota famille est supprimé.
 
 ---
 
@@ -353,6 +356,7 @@ Critères d'acceptation :
 - [x] Création d'un compte membre : `POST /admin/members` avec `role: instructor | client` (client → famille vide, quota 0) ; formulaire sur `AdminMembersPage` (Excel 7.1).
 - [x] Édition fiche : `PATCH /admin/members/:id` (prénom, nom, téléphone — pas le rôle).
 - [x] Changement de formule famille depuis l'annuaire (`PATCH /admin/families/:id/subscription`).
+- ↪ v1.1 : dialogue « Forfaits » par cavalier (souscrire, arrêter) — US-10.5.
 
 ### US-9.4 — Inscription forcée (admin) `S`
 **En tant qu'** admin, **je veux** inscrire un cavalier malgré des documents incomplets ou un quota épuisé **afin de** traiter les cas exceptionnels. (Excel 10.4)
@@ -384,14 +388,17 @@ Critères d'acceptation :
 - [ ] Alerte à la famille et à l'admin à J−30 et J−7 avant l'expiration du certificat médical ou de la licence.
 - [ ] Journal d'exécution (pino) et test d'intégration « exécutée une seule fois sous verrou ».
 
-### US-10.3 — Rattrapages `M`
-**En tant que** parent, **je veux** récupérer une séance excusée à temps **afin de** ne pas payer une séance manquée.
+### US-10.3 — Annulations et rattrapages `M` ✅
+**En tant que** parent, **je veux** annuler une séance à temps et la rattraper plus tard **afin de** ne pas perdre une séance payée. (ADR 011)
 
 Critères d'acceptation :
-- [ ] Modèle `SessionCredit` (famille, origine : absence excusée ou annulation par le club, `expiresAt`).
-- [ ] Absence excusée avant le délai limite (paramétrable, 24 h par défaut) → 1 crédit ; séance annulée par le club → 1 crédit par inscrit.
-- [ ] Le parent choisit un créneau compatible avec le niveau du cavalier ; le crédit expiré n'est plus utilisable.
-- [ ] Parcours E2E « absence excusée → crédit → rattrapage ».
+- [x] Modèle `SessionCredit` par **cavalier** (origine : annulation dans les délais ou séance annulée par le club, `expiresAt`, inscription source et inscription de rattrapage).
+- [x] Annulation par la famille (`DELETE /courses/:id/enrollments/:enrollmentId`) : place libérée ; avant le délai du club (24 h par défaut, réglable) → 1 rattrapage valable 60 jours après la séance ; après → aucun ; un rattrapage annulé à temps rend son crédit.
+- [x] Séance annulée par le club → 1 rattrapage par inscrit (sauf inscription forcée), notification avec la date limite.
+- [x] Au-delà du droit de la semaine, l'inscription consomme le rattrapage qui expire le premier ; un crédit expiré n'est plus utilisable.
+- [x] L'écran rappelle la règle avant de confirmer (« avant le 29/09 à 14:00 : rattrapage offert ») ; les droits sont servis par `GET /client/entitlements`.
+- [x] Une inscription annulée ne compte ni dans la capacité ni dans la charge du cheval.
+- [x] Tests d'intégration (délais, club, réinscription, concurrence) ; parcours E2E de réservation mis à jour.
 
 ### US-10.4 — Liste d'attente `S`
 **En tant que** parent, **je veux** m'inscrire en liste d'attente sur un cours ou un stage complet **afin d'** obtenir une place qui se libère.
@@ -401,12 +408,19 @@ Critères d'acceptation :
 - [ ] Place libérée → notification `waitlist_spot_available` et fenêtre de confirmation de 12 h, puis passage au suivant.
 - [ ] Promotion automatique optionnelle (réglage du club).
 
-### US-10.5 — Cartes de séances `M`
-**En tant qu'** admin, **je veux** vendre des cartes (ex. 10 séances) en plus des abonnements **afin de** proposer les formules habituelles des clubs.
+### US-10.5 — Forfaits par cavalier et échéanciers `M` ✅
+**En tant que** parent, **je veux** choisir un forfait de saison pour chaque cavalier et le régler au trimestre ou en 10 fois **afin de** payer comme dans mon club. (Décision du fondateur, 2026-09-24 : le club pilote ne vend pas de cartes ; ADR 011.)
 
 Critères d'acceptation :
-- [ ] `SubscriptionPlan.kind` : `subscription` | `card`, avec `sessionsCount` et durée de validité.
-- [ ] Décompte automatique à l'inscription, solde et expiration visibles par le parent sur son tableau de bord.
+- [x] `RiderSubscription` : un forfait par cavalier et par saison (1er septembre → 30 juin, heure de Paris, réglable) ; prix de la saison, réduction et échéancier figés à la souscription.
+- [x] Réduction famille calculée sur les cavaliers ayant **un forfait actif** sur la saison, et non plus sur les profils créés.
+- [x] Arrivée en cours de saison : prix au prorata des semaines restantes (réglable), échéances passées regroupées en une échéance immédiate.
+- [x] Facture émise à la souscription avec son échéancier (`InvoiceInstallment`) : 3 échéances trimestrielles ou 10 le 5 de chaque mois ; reste de la division sur la première.
+- [x] Droit hebdomadaire : `sessionsPerWeek` séances du forfait par semaine ISO, au-delà un rattrapage, sinon refus explicite ; l'admin peut forcer (tracé).
+- [x] Aperçu chiffré avant validation (prix, prorata, réduction, échéances datées) côté famille et secrétariat ; arrêt d'un forfait par l'admin.
+- [x] Règlements (`Payment`) : Stripe règle l'échéance suivante (idempotent par PaymentIntent) ; saisie au club (chèque, espèces, ANCV, Pass'Sport, virement, carte sur place) ; la facture est soldée quand les règlements couvrent son total.
+- [x] Suppression du quota famille et de la génération mensuelle ; migration : forfait en 10 fois pour chaque cavalier des familles abonnées, sans refacturation.
+- [ ] Cartes de séances : reportées (non vendues par le club pilote).
 
 ### US-10.6 — Facture conforme `M`
 **En tant qu'** admin, **je veux** des factures avec TVA et mentions légales **afin de** pouvoir les remettre à mes clients et à mon comptable.
