@@ -1033,6 +1033,8 @@ export async function listEnrollableCourses(userId, riderId) {
     remainingSpots: c.capacity - c._count.enrollments,
     spaceName: c.space.name,
     instructorName: `${c.instructor.firstName} ${c.instructor.lastName}`,
+    // Lundi de la semaine (heure de Paris) : regroupement par semaine côté famille
+    weekStart: isoWeekRange(c.startAt).start,
     ...(hint ? hint(c) : {}),
   }));
 }

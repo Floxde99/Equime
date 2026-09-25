@@ -12,7 +12,13 @@ export const CLUB_TIME_ZONE = 'Europe/Paris';
 
 const LOCALE = 'fr-FR';
 
-const euroFormatter = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'EUR' });
+// `useGrouping: 'always'` : les navigateurs récents (CLDR) n'espacent plus les milliers
+// sous 10 000 (« 1290,00 € ») alors que Node le fait ; même rendu partout (écran, PDF, e-mails).
+const euroFormatter = new Intl.NumberFormat(LOCALE, {
+  style: 'currency',
+  currency: 'EUR',
+  useGrouping: 'always',
+});
 
 /**
  * « 49,90 € » à partir de centimes.

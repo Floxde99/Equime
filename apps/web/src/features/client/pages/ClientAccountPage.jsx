@@ -1,9 +1,9 @@
-import { deleteAccountSchema, subscribeFamilyPlanSchema, updateMeSchema } from '@equime/shared';
+import { deleteAccountSchema, updateMeSchema } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { Alert } from '@/components/ui/alert.jsx';
 import { Button } from '@/components/ui/button.jsx';
@@ -12,20 +12,14 @@ import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
-import { Select } from '@/components/ui/select.jsx';
 import { deleteAccount, exportAccountData, updateProfile } from '@/features/auth/api.js';
-import {
-  fetchFamilySubscription,
-  fetchPublicPlans,
-  subscribeFamilyPlan,
-} from '@/features/billing/api.js';
-import { formatEuroCents } from '@/lib/money.js';
+import { SubscriptionSummary } from '@/features/billing/components/SubscriptionSummary.jsx';
+import { useEntitlements } from '@/features/billing/useEntitlements.js';
 import { useAuthStore } from '@/stores/authStore.js';
 
 /** Compte famille : profil, export et suppression RGPD (Excel 3.1, US-1.6). */
 export function ClientAccountPage() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const clearAuth = useAuthStore((s) => s.clear);
@@ -33,15 +27,7 @@ export function ClientAccountPage() {
   const [profileOk, setProfileOk] = useState(false);
   const [exportOk, setExportOk] = useState(false);
 
-  const subscriptionQuery = useQuery({
-    queryKey: ['family-subscription'],
-    queryFn: fetchFamilySubscription,
-  });
-  const plansQuery = useQuery({
-    queryKey: ['public-plans'],
-    queryFn: fetchPublicPlans,
-  });
-  const hasPlan = Boolean(subscriptionQuery.data?.subscriptionPlanId);
+  const entitlementsQuery = useEntitlements();
 
   const profileForm = useForm({
     resolver: zodResolver(updateMeSchema),
@@ -95,23 +81,16 @@ export function ClientAccountPage() {
         description="Gérez vos données personnelles."
       />
 
-      <QueryState
-        isPending={subscriptionQuery.isPending || plansQuery.isPending}
-        isError={subscriptionQuery.isError || plansQuery.isError}
-        error={subscriptionQuery.error ?? plansQuery.error}
-        onRetry={() => {
-          subscriptionQuery.refetch();
-          plansQuery.refetch();
-        }}
-      >
-        <FamilySubscriptionCard
-          subscription={subscriptionQuery.data}
-          plans={plansQuery.data ?? []}
-          onSubscribed={() => {
-            qc.invalidateQueries({ queryKey: ['family-subscription'] });
-          }}
-        />
-      </QueryState>
+      <Card title="Forfaits de la famille">
+        <QueryState
+          isPending={entitlementsQuery.isPending}
+          isError={entitlementsQuery.isError}
+          error={entitlementsQuery.error}
+          onRetry={entitlementsQuery.refetch}
+        >
+          <FamilyEntitlements riders={entitlementsQuery.data?.riders ?? []} />
+        </QueryState>
+      </Card>
 
       <Card title="Mes informations">
         <form
@@ -179,11 +158,7 @@ export function ClientAccountPage() {
           {profileMutation.isError ? (
             <Alert>{profileMutation.error?.message ?? 'Mise à jour impossible'}</Alert>
           ) : null}
-          <Button
-            type="submit"
-            variant={hasPlan ? 'primary' : 'secondary'}
-            loading={profileMutation.isPending}
-          >
+          <Button type="submit" loading={profileMutation.isPending}>
             Enregistrer
           </Button>
         </form>
@@ -237,76 +212,40 @@ export function ClientAccountPage() {
 }
 
 /**
- * @param {{
- *   subscription?: { sessionQuota: number, subscriptionPlan?: { name: string, priceCents: number, sessionsPerWeek: number } | null },
- *   plans: Array<{ id: string, name: string, priceCents: number, sessionsPerWeek: number, description?: string | null }>,
- *   onSubscribed: () => void,
- * }} props
+ * Forfait de chaque cavalier (ADR 011) ; la souscription se fait depuis la page Famille.
+ * @param {{ riders: Array<{ riderId: string, firstName: string, lastName: string,
+ *   subscription: object | null }> }} props
  */
-function FamilySubscriptionCard({ subscription, plans, onSubscribed }) {
-  const plan = subscription?.subscriptionPlan;
-  const form = useForm({
-    resolver: zodResolver(subscribeFamilyPlanSchema),
-    defaultValues: { subscriptionPlanId: plans[0]?.id ?? '' },
-  });
-  const mutation = useMutation({
-    mutationFn: (values) => subscribeFamilyPlan(values.subscriptionPlanId),
-    onSuccess: () => onSubscribed(),
-  });
-
+function FamilyEntitlements({ riders }) {
+  if (riders.length === 0) {
+    return (
+      <p className="font-sans text-sm text-muted-on-card">
+        Ajoutez un cavalier pour choisir son forfait.{' '}
+        <Link to="/app/cavaliers" className="text-primary underline">
+          Ouvrir la page Famille
+        </Link>
+      </p>
+    );
+  }
   return (
-    <Card title="Formule d’abonnement">
-      {plan ? (
-        <div className="space-y-2">
-          <p className="font-sans text-sm font-semibold text-text">{plan.name}</p>
-          <p className="font-sans text-sm text-muted">
-            {formatEuroCents(plan.priceCents)} · {plan.sessionsPerWeek} séance(s) / semaine
+    <ul className="space-y-4">
+      {riders.map((rider) => (
+        <li key={rider.riderId}>
+          <p className="font-sans text-sm font-semibold text-on-card">
+            {rider.firstName} {rider.lastName}
           </p>
-          <p className="font-sans text-sm text-on-card">
-            Quota restant : {subscription.sessionQuota} séance(s)
-          </p>
-          <p className="font-sans text-xs text-muted">
-            Pour changer de formule, contactez le secrétariat.
-          </p>
-        </div>
-      ) : (
-        <form
-          className="space-y-4"
-          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-          noValidate
-        >
-          <p className="font-sans text-sm text-muted">
-            Choisissez une formule pour activer les inscriptions aux cours. Le quota initial
-            correspond à quatre semaines de séances.
-          </p>
-          <Field
-            label="Formule"
-            htmlFor="family-plan"
-            error={form.formState.errors.subscriptionPlanId?.message}
-          >
-            <Select
-              id="family-plan"
-              options={plans.map((item) => ({
-                value: item.id,
-                label: `${item.name} — ${formatEuroCents(item.priceCents)} (${item.sessionsPerWeek} séance(s)/sem.)`,
-              }))}
-              {...form.register('subscriptionPlanId')}
-            />
-          </Field>
-          {mutation.isError ? (
-            <Alert>{mutation.error?.message ?? 'Souscription impossible'}</Alert>
-          ) : null}
-          {plans.length === 0 ? (
-            <p className="font-sans text-sm text-muted">
-              Aucune formule n’est proposée pour le moment.
-            </p>
+          {rider.subscription ? (
+            <SubscriptionSummary entitlement={rider} />
           ) : (
-            <Button type="submit" loading={mutation.isPending}>
-              Choisir une formule
-            </Button>
+            <p className="font-sans text-sm text-muted-on-card">
+              Pas de forfait.{' '}
+              <Link to="/app/cavaliers" className="text-primary underline">
+                Choisir un forfait
+              </Link>
+            </p>
           )}
-        </form>
-      )}
-    </Card>
+        </li>
+      ))}
+    </ul>
   );
 }

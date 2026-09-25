@@ -5,7 +5,7 @@
  * Comptes (mot de passe commun : Equime!2026) :
  *   admin@equime.local  (admin)  · coach@equime.local (moniteur)
  *   lina@equime.local   (client) · alex@equime.local  (client)
- * 15 chevaux, 3 espaces, 3 séries de cours hebdomadaires sur 8 semaines,
+ * 15 chevaux, 3 espaces, 4 séries de cours hebdomadaires sur 8 semaines,
  * factures variées, événements, incident, mission bénévolat, conversation.
  *
  * Usage : npm run seed -w apps/api   (réinitialise les données à chaque exécution)
@@ -273,7 +273,7 @@ async function main() {
     ],
   });
 
-  // --- Cours : 3 séries hebdomadaires sur 8 semaines ---
+  // --- Cours : 4 séries hebdomadaires sur 8 semaines ---
   // La série est portée par la 1re séance (parent) ; les 7 suivantes pointent parentCourseId.
   /** @type {Array<{title: string, weekday: number, hour: number, durationMin: number, spaceId: string, minLevel: string, maxLevel: string, capacity: number}>} */
   const seriesDefs = [
@@ -305,6 +305,17 @@ async function main() {
       spaceId: carriere.id,
       minLevel: 'galop_5',
       maxLevel: 'galop_7',
+      capacity: 8,
+    },
+    {
+      // Sans inscrit : place pour la 2e séance hebdomadaire du forfait Classique d'Emma
+      title: 'Galop 2-4 du samedi',
+      weekday: 6,
+      hour: 14,
+      durationMin: 60,
+      spaceId: manege.id,
+      minLevel: 'galop_2',
+      maxLevel: 'galop_4',
       capacity: 8,
     },
   ];

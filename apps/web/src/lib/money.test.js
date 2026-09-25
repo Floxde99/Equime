@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatEuroCents, formatEventPrice, formatMonthlyPlanPrice } from './money.js';
+import {
+  formatEuroCents,
+  formatEventPrice,
+  formatSeasonPlanPrice,
+  formatTenInstallments,
+} from './money.js';
 
 describe('formatEuroCents', () => {
   it('formate un montant en euros (fr-FR)', () => {
@@ -29,11 +34,14 @@ describe('formatEventPrice', () => {
   });
 });
 
-describe('formatMonthlyPlanPrice', () => {
-  it('suffixe le tarif par mois', () => {
-    const label = formatMonthlyPlanPrice(4900);
-    expect(label).toMatch(/49[,.]00/);
-    expect(label).toContain('€');
-    expect(label).toMatch(/\/ mois$/);
+describe('formatSeasonPlanPrice', () => {
+  it('affiche le prix de la saison complète', () => {
+    const label = formatSeasonPlanPrice(89000);
+    expect(label).toMatch(/890[,.]00/);
+    expect(label).toMatch(/la saison$/);
+  });
+
+  it('indique la mensualité d’un paiement en 10 fois', () => {
+    expect(formatTenInstallments(89000)).toMatch(/^soit 10 × 89[,.]00/);
   });
 });

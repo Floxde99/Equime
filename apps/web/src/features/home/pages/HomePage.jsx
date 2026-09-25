@@ -16,7 +16,12 @@ import { LegalLinks } from '@/features/legal/components/LegalLinks.jsx';
 import { clubContact } from '@/lib/clubContact.js';
 import { formatDate, formatDayShort } from '@/lib/dates.js';
 import { onInPageAnchorClick } from '@/lib/inPageScroll.js';
-import { formatEuroCents, formatEventPrice, formatMonthlyPlanPrice } from '@/lib/money.js';
+import {
+  formatEuroCents,
+  formatEventPrice,
+  formatSeasonPlanPrice,
+  formatTenInstallments,
+} from '@/lib/money.js';
 import {
   formatCourseHours,
   formatSessionsPerWeek,
@@ -290,7 +295,10 @@ export function HomePage() {
                     <li key={plan.id} className="border border-border-on-card bg-card p-8">
                       <h3 className="font-display text-2xl text-on-card">{plan.name}</h3>
                       <p className="mt-3 font-sans text-3xl font-semibold text-on-card">
-                        {formatMonthlyPlanPrice(plan.priceCents)}
+                        {formatSeasonPlanPrice(plan.priceCents)}
+                      </p>
+                      <p className="mt-1 font-sans text-sm text-muted-on-card">
+                        {formatTenInstallments(plan.priceCents)} ou au trimestre
                       </p>
                       <p className="mt-2 font-sans text-sm text-muted-on-card">
                         {formatSessionsPerWeek(plan.sessionsPerWeek)}

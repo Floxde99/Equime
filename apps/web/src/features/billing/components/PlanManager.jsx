@@ -12,14 +12,14 @@ import { Field } from '@/components/ui/field.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { MoneyInput } from '@/components/ui/money-input.jsx';
 import { createSubscriptionPlan, updateSubscriptionPlan } from '@/features/billing/api.js';
-import { formatEuroCents, formatMonthlyPlanPrice } from '@/lib/money.js';
+import { formatEuroCents, formatSeasonPlanPrice } from '@/lib/money.js';
 import { formatSessionsPerWeek } from '@/lib/publicSchedule.js';
 
 const PLAN_DEFAULTS = { name: '', description: '', priceCents: undefined, sessionsPerWeek: 1 };
 
 /**
- * Formules : création, modification, archivage (une formule archivée n'est plus
- * proposée aux familles mais reste sur les factures existantes).
+ * Forfaits de saison : création, modification, archivage (un forfait archivé n'est plus
+ * proposé aux familles mais reste sur les factures existantes).
  * @param {{ plans: Array<{ id: string, name: string, description?: string | null,
  *   priceCents: number, sessionsPerWeek: number, active: boolean }> }} props
  */
@@ -43,7 +43,7 @@ export function PlanManager({ plans }) {
     onSuccess: (plan) => {
       setFeedback({
         type: 'success',
-        message: editing ? `Formule « ${plan.name} » modifiée.` : `Formule « ${plan.name} » créée.`,
+        message: editing ? `Forfait « ${plan.name} » modifié.` : `Forfait « ${plan.name} » créé.`,
       });
       setEditing(null);
       form.reset(PLAN_DEFAULTS);
@@ -60,8 +60,8 @@ export function PlanManager({ plans }) {
       setFeedback({
         type: 'success',
         message: plan.active
-          ? `Formule « ${plan.name} » réactivée.`
-          : `Formule « ${plan.name} » archivée.`,
+          ? `Forfait « ${plan.name} » réactivé.`
+          : `Forfait « ${plan.name} » archivé.`,
       });
       refresh();
     },
@@ -86,7 +86,7 @@ export function PlanManager({ plans }) {
   const errors = form.formState.errors;
 
   return (
-    <Card title="Formules">
+    <Card title="Forfaits de saison">
       {feedback ? (
         <Alert variant={feedback.type} className="mb-4">
           {feedback.message}
@@ -95,7 +95,7 @@ export function PlanManager({ plans }) {
 
       <ul className="mb-5 space-y-2">
         {active.length === 0 ? (
-          <li className="font-sans text-sm text-muted-on-card">Aucune formule proposée.</li>
+          <li className="font-sans text-sm text-muted-on-card">Aucun forfait proposé.</li>
         ) : null}
         {active.map((plan) => (
           <li
@@ -105,7 +105,7 @@ export function PlanManager({ plans }) {
             <div>
               <p className="font-sans text-sm font-semibold text-on-card">{plan.name}</p>
               <p className="font-sans text-sm text-muted-on-card">
-                {formatMonthlyPlanPrice(plan.priceCents)} ·{' '}
+                {formatSeasonPlanPrice(plan.priceCents)} ·{' '}
                 {formatSessionsPerWeek(plan.sessionsPerWeek)}
               </p>
             </div>
@@ -129,7 +129,7 @@ export function PlanManager({ plans }) {
       {archived.length > 0 ? (
         <details className="mb-5">
           <summary className="cursor-pointer font-sans text-sm text-muted-on-card">
-            Formules archivées ({archived.length})
+            Forfaits archivés ({archived.length})
           </summary>
           <ul className="mt-2 space-y-2">
             {archived.map((plan) => (
@@ -139,7 +139,7 @@ export function PlanManager({ plans }) {
               >
                 <p className="font-sans text-sm text-muted-on-card">
                   {plan.name} · {formatEuroCents(plan.priceCents)}{' '}
-                  <Badge variant="default">Archivée</Badge>
+                  <Badge variant="default">Archivé</Badge>
                 </p>
                 <Button
                   type="button"
@@ -161,13 +161,13 @@ export function PlanManager({ plans }) {
         onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
       >
         <h4 className="font-sans text-sm font-semibold text-on-card">
-          {editing ? `Modifier « ${editing.name} »` : 'Nouvelle formule'}
+          {editing ? `Modifier « ${editing.name} »` : 'Nouveau forfait'}
         </h4>
         <Field label="Nom" htmlFor="plan-name" error={errors.name?.message}>
           <Input id="plan-name" invalid={!!errors.name} {...form.register('name')} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Prix mensuel" htmlFor="plan-price" error={errors.priceCents?.message}>
+          <Field label="Prix de la saison" htmlFor="plan-price" error={errors.priceCents?.message}>
             <Controller
               control={form.control}
               name="priceCents"
@@ -178,7 +178,7 @@ export function PlanManager({ plans }) {
                   onChange={field.onChange}
                   onBlur={field.onBlur}
                   invalid={!!errors.priceCents}
-                  placeholder="49,90"
+                  placeholder="890"
                 />
               )}
             />
@@ -200,7 +200,7 @@ export function PlanManager({ plans }) {
         </div>
         <div className="flex gap-2">
           <Button type="submit" loading={saveMutation.isPending}>
-            {editing ? 'Enregistrer les modifications' : 'Créer la formule'}
+            {editing ? 'Enregistrer les modifications' : 'Créer le forfait'}
           </Button>
           {editing ? (
             <Button

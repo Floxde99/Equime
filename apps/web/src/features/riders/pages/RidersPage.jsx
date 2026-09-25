@@ -23,6 +23,9 @@ import { Input } from '@/components/ui/input.jsx';
 import { PageHeader } from '@/components/ui/page-header.jsx';
 import { QueryState } from '@/components/ui/query-state.jsx';
 import { Select } from '@/components/ui/select.jsx';
+import { fetchPublicPlans } from '@/features/billing/api.js';
+import { RiderSubscriptionPanel } from '@/features/billing/components/RiderSubscriptionPanel.jsx';
+import { entitlementOf, useEntitlements } from '@/features/billing/useEntitlements.js';
 import {
   createRider,
   deleteRider,
@@ -67,6 +70,8 @@ export function RidersPage() {
   });
 
   const { data: horses = [] } = useQuery({ queryKey: ['horses'], queryFn: fetchHorses });
+  const { data: plans = [] } = useQuery({ queryKey: ['public-plans'], queryFn: fetchPublicPlans });
+  const { data: entitlements } = useEntitlements();
 
   const form = useForm({
     resolver: zodResolver(createRiderSchema),
@@ -123,6 +128,8 @@ export function RidersPage() {
               key={rider.id}
               rider={rider}
               horses={horses}
+              plans={plans}
+              entitlement={entitlementOf(entitlements, rider.id)}
               onEdit={() => {
                 setEditingId(rider.id);
                 form.reset({
@@ -214,8 +221,11 @@ export function RidersPage() {
   );
 }
 
-/** @param {{ rider: object, horses: object[], onEdit: () => void, onDelete: () => void }} props */
-function RiderCard({ rider, horses, onEdit, onDelete }) {
+/**
+ * @param {{ rider: object, horses: object[], plans: object[], entitlement: object | null,
+ *   onEdit: () => void, onDelete: () => void }} props
+ */
+function RiderCard({ rider, horses, plans, entitlement, onEdit, onDelete }) {
   const qc = useQueryClient();
   const [medicalConsent, setMedicalConsent] = useState(false);
   const [medicalExpiresAt, setMedicalExpiresAt] = useState('');
@@ -256,6 +266,8 @@ function RiderCard({ rider, horses, onEdit, onDelete }) {
           </Button>
         </div>
       </div>
+
+      <RiderSubscriptionPanel rider={rider} entitlement={entitlement} plans={plans} />
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="font-sans text-xs text-muted">Certificat :</span>{' '}

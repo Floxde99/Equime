@@ -2,7 +2,7 @@ import { invoiceItemInputSchema } from '@equime/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -14,6 +14,7 @@ import { MoneyInput } from '@/components/ui/money-input.jsx';
 import { Select } from '@/components/ui/select.jsx';
 import { FamilyPicker } from '@/features/admin/components/FamilyPicker.jsx';
 import { createInvoice } from '@/features/billing/api.js';
+import { SubscriptionForm } from '@/features/billing/components/SubscriptionForm.jsx';
 import { formatEuroCents } from '@/lib/money.js';
 import { cn } from '@/lib/utils.js';
 
@@ -29,146 +30,50 @@ function defaultDueDate() {
 const EMPTY_LINE = { label: '', quantity: 1, unitCents: undefined };
 
 const MODES = [
-  { value: 'subscription', label: 'Formule de la famille' },
-  { value: 'plan', label: 'Autre formule' },
+  { value: 'season', label: 'Forfait de saison' },
   { value: 'lines', label: 'Lignes libres' },
 ];
 
-const invoiceFormSchema = z
-  .object({
-    family: z.any(),
-    mode: z.enum(['subscription', 'plan', 'lines']),
-    subscriptionPlanId: z.string().optional(),
-    // Validées seulement en mode « lignes libres » (voir plus bas)
-    items: z.array(z.any()),
-    dueAt: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.mode === 'lines') {
-      data.items.forEach((line, index) => {
-        const result = invoiceItemInputSchema.safeParse(line);
-        if (result.success) return;
-        for (const issue of result.error.issues) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['items', index, ...issue.path],
-            message: issue.message,
-          });
-        }
-      });
-    }
-    if (!data.family?.id) {
-      ctx.addIssue({ code: 'custom', path: ['family'], message: 'Choisissez une famille' });
-      return;
-    }
-    if (data.mode === 'subscription' && !data.family.subscriptionPlan) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['mode'],
-        message: 'Cette famille n’a pas de formule : choisissez-en une ou saisissez des lignes',
-      });
-    }
-    if (data.mode === 'plan' && !data.subscriptionPlanId) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['subscriptionPlanId'],
-        message: 'Choisissez une formule',
-      });
-    }
-    if (data.mode === 'lines' && data.items.length === 0) {
-      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Ajoutez au moins une ligne' });
-    }
-  });
+const linesFormSchema = z.object({
+  items: z.array(invoiceItemInputSchema).min(1, 'Ajoutez au moins une ligne'),
+  dueAt: z.string().optional(),
+});
 
 /**
- * Création d'une facture par le secrétariat : recherche du client, puis
- * formule ou lignes libres (cotisation, licence, pension…), montants en euros.
+ * Création d'une facture par le secrétariat : recherche du client, puis forfait
+ * de saison d'un cavalier (facture et échéancier émis à la validation) ou
+ * lignes libres (cotisation, licence, pension…), montants en euros.
+ * `initialFamily` (« Facturer » depuis l'annuaire) n'est lu qu'au montage : le
+ * parent change la `key` du formulaire pour en présélectionner une autre.
  *
  * @param {{
- *   plans: Array<{ id: string, name: string, priceCents: number, active?: boolean }>,
+ *   plans: Array<{ id: string, name: string, priceCents: number, sessionsPerWeek: number, active?: boolean }>,
  *   initialFamily?: import('@/features/admin/components/FamilyPicker.jsx').FamilyOption | null,
  *   onCreated?: (invoice: { id: string, number: string }) => void,
+ *   onSubscribed?: (result: { subscription: object, invoice: { id: string, number: string } }) => void,
  * }} props
  */
-export function CreateInvoiceForm({ plans, initialFamily = null, onCreated }) {
-  const qc = useQueryClient();
-  const defaults = {
-    family: initialFamily,
-    mode: initialFamily && !initialFamily.subscriptionPlan ? 'lines' : 'subscription',
-    subscriptionPlanId: '',
-    items: [EMPTY_LINE],
-    dueAt: defaultDueDate(),
-  };
-  const form = useForm({ resolver: zodResolver(invoiceFormSchema), defaultValues: defaults });
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
-  const [family, mode, items] = useWatch({
-    control: form.control,
-    name: ['family', 'mode', 'items'],
-  });
-
-  // Présélection depuis l'annuaire (« Facturer ») : l'arrivée d'une famille recharge le formulaire
-  useEffect(() => {
-    if (initialFamily) {
-      form.reset({
-        ...defaults,
-        family: initialFamily,
-        mode: initialFamily.subscriptionPlan ? 'subscription' : 'lines',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule la famille initiale déclenche
-  }, [initialFamily?.id]);
-
-  const mutation = useMutation({
-    mutationFn: createInvoice,
-    onSuccess: (invoice) => {
-      form.reset({ ...defaults, family: null });
-      qc.invalidateQueries({ queryKey: ['admin-invoices'] });
-      onCreated?.(invoice);
-    },
-  });
-
-  const linesTotal = (items ?? []).reduce((sum, line) => {
-    const unit = Number(line?.unitCents);
-    const quantity = Number(line?.quantity);
-    return Number.isFinite(unit) && Number.isFinite(quantity) ? sum + unit * quantity : sum;
-  }, 0);
-
-  const activePlans = plans.filter((plan) => plan.active !== false);
-  const errors = form.formState.errors;
+export function CreateInvoiceForm({ plans, initialFamily = null, onCreated, onSubscribed }) {
+  const [family, setFamily] = useState(initialFamily);
+  const [mode, setMode] = useState('season');
+  const [familyError, setFamilyError] = useState('');
 
   return (
-    <form
-      className="space-y-4"
-      noValidate
-      onSubmit={form.handleSubmit((values) => {
-        const body = { familyId: values.family.id, dueAt: values.dueAt || undefined };
-        if (values.mode === 'plan') body.subscriptionPlanId = values.subscriptionPlanId;
-        if (values.mode === 'lines') {
-          body.items = values.items.map((line) => invoiceItemInputSchema.parse(line));
-        }
-        mutation.mutate(body);
-      })}
-    >
-      {mutation.isError ? <Alert>{mutation.error.message}</Alert> : null}
-
+    <div className="space-y-4">
       <Field
         label="Client"
         htmlFor="invoice-family"
         hint="Nom du parent, e-mail ou prénom d’un cavalier."
-        error={errors.family?.message}
+        error={familyError || undefined}
       >
-        <Controller
-          control={form.control}
-          name="family"
-          render={({ field }) => (
-            <FamilyPicker
-              id="invoice-family"
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              invalid={!!errors.family}
-            />
-          )}
+        <FamilyPicker
+          id="invoice-family"
+          value={family}
+          onChange={(value) => {
+            setFamily(value);
+            setFamilyError('');
+          }}
+          invalid={Boolean(familyError)}
         />
       </Field>
 
@@ -189,127 +94,217 @@ export function CreateInvoiceForm({ plans, initialFamily = null, onCreated }) {
             >
               <input
                 type="radio"
+                name="invoice-mode"
                 value={option.value}
+                checked={mode === option.value}
+                onChange={() => setMode(option.value)}
                 className="accent-primary"
-                {...form.register('mode')}
               />
               {option.label}
             </label>
           ))}
         </div>
-        {errors.mode ? (
-          <p role="alert" className="font-sans text-xs text-danger">
-            {errors.mode.message}
-          </p>
-        ) : null}
       </fieldset>
 
-      {mode === 'subscription' && family?.subscriptionPlan ? (
-        <p className="rounded-lg bg-paper px-4 py-3 font-sans text-sm text-on-card">
-          {family.subscriptionPlan.name} — {formatEuroCents(family.subscriptionPlan.priceCents)}
-          <span className="block text-xs text-muted-on-card">
-            La réduction famille s’applique automatiquement selon le nombre de cavaliers.
-          </span>
-        </p>
-      ) : null}
-
-      {mode === 'plan' ? (
-        <Select
-          id="invoice-plan"
-          label="Formule"
-          error={errors.subscriptionPlanId?.message}
-          options={[
-            { value: '', label: '— Choisir une formule —' },
-            ...activePlans.map((plan) => ({
-              value: plan.id,
-              label: `${plan.name} — ${formatEuroCents(plan.priceCents)}`,
-            })),
-          ]}
-          {...form.register('subscriptionPlanId')}
+      {mode === 'season' ? (
+        <SeasonSubscription family={family} plans={plans} onSubscribed={onSubscribed} />
+      ) : (
+        <LinesInvoiceForm
+          family={family}
+          onMissingFamily={() => setFamilyError('Choisissez une famille')}
+          onCreated={(invoice) => {
+            setFamily(null);
+            onCreated?.(invoice);
+          }}
         />
-      ) : null}
+      )}
+    </div>
+  );
+}
 
-      {mode === 'lines' ? (
-        <div className="space-y-3">
-          {fields.map((line, index) => {
-            const lineErrors = errors.items?.[index];
-            return (
-              <div
-                key={line.id}
-                className="grid gap-2 rounded-lg border border-border-on-card p-3 sm:grid-cols-[1fr_5rem_8rem_auto] sm:items-start"
+/**
+ * Forfait de saison pour l'un des cavaliers de la famille (ADR 011).
+ * @param {{ family: object | null, plans: object[],
+ *   onSubscribed?: (result: { subscription: object, invoice: object }) => void }} props
+ */
+function SeasonSubscription({ family, plans, onSubscribed }) {
+  const [riderId, setRiderId] = useState('');
+  if (!family) {
+    return (
+      <p className="font-sans text-sm text-muted-on-card">
+        Choisissez d’abord la famille, puis le cavalier.
+      </p>
+    );
+  }
+  const riders = family.riders ?? [];
+  if (riders.length === 0) {
+    return (
+      <p className="font-sans text-sm text-muted-on-card">
+        Cette famille n’a pas encore de cavalier.
+      </p>
+    );
+  }
+  const rider = riders.find((item) => item.id === riderId) ?? riders[0];
+  const current = rider.subscriptions?.[0] ?? null;
+
+  return (
+    <div className="space-y-4">
+      <Select
+        id="invoice-rider"
+        label="Cavalier"
+        value={rider.id}
+        onChange={(event) => setRiderId(event.target.value)}
+        options={riders.map((item) => ({
+          value: item.id,
+          label: item.subscriptions?.[0]
+            ? `${item.firstName} ${item.lastName} (forfait ${item.subscriptions[0].plan.name})`
+            : `${item.firstName} ${item.lastName}`,
+        }))}
+      />
+      {current ? (
+        <Alert variant="info">
+          {rider.firstName} a déjà le forfait {current.plan.name} pour cette saison.
+        </Alert>
+      ) : (
+        <SubscriptionForm
+          key={rider.id}
+          rider={rider}
+          plans={plans}
+          asAdmin
+          onSubscribed={(result) => {
+            setRiderId('');
+            onSubscribed?.(result);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Facture en lignes libres (brouillon, une échéance).
+ * @param {{ family: { id: string } | null, onMissingFamily: () => void,
+ *   onCreated: (invoice: { id: string, number: string }) => void }} props
+ */
+function LinesInvoiceForm({ family, onMissingFamily, onCreated }) {
+  const qc = useQueryClient();
+  const defaults = { items: [EMPTY_LINE], dueAt: defaultDueDate() };
+  const form = useForm({ resolver: zodResolver(linesFormSchema), defaultValues: defaults });
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
+  const items = useWatch({ control: form.control, name: 'items' });
+
+  const mutation = useMutation({
+    mutationFn: createInvoice,
+    onSuccess: (invoice) => {
+      form.reset(defaults);
+      qc.invalidateQueries({ queryKey: ['admin-invoices'] });
+      onCreated(invoice);
+    },
+  });
+
+  const linesTotal = (items ?? []).reduce((sum, line) => {
+    const unit = Number(line?.unitCents);
+    const quantity = Number(line?.quantity);
+    return Number.isFinite(unit) && Number.isFinite(quantity) ? sum + unit * quantity : sum;
+  }, 0);
+  const errors = form.formState.errors;
+
+  return (
+    <form
+      className="space-y-4"
+      noValidate
+      onSubmit={form.handleSubmit((values) => {
+        if (!family?.id) {
+          onMissingFamily();
+          return;
+        }
+        mutation.mutate({
+          familyId: family.id,
+          dueAt: values.dueAt || undefined,
+          items: values.items,
+        });
+      })}
+    >
+      {mutation.isError ? <Alert>{mutation.error.message}</Alert> : null}
+      <div className="space-y-3">
+        {fields.map((line, index) => {
+          const lineErrors = errors.items?.[index];
+          return (
+            <div
+              key={line.id}
+              className="grid gap-2 rounded-lg border border-border-on-card p-3 sm:grid-cols-[1fr_5rem_8rem_auto] sm:items-start"
+            >
+              <Field
+                label="Libellé"
+                htmlFor={`invoice-line-label-${index}`}
+                error={lineErrors?.label?.message}
               >
-                <Field
-                  label="Libellé"
-                  htmlFor={`invoice-line-label-${index}`}
-                  error={lineErrors?.label?.message}
-                >
-                  <Input
-                    placeholder="Cotisation annuelle, licence FFE…"
-                    invalid={!!lineErrors?.label}
-                    {...form.register(`items.${index}.label`)}
-                  />
-                </Field>
-                <Field
-                  label="Qté"
-                  htmlFor={`invoice-line-qty-${index}`}
-                  error={lineErrors?.quantity?.message}
-                >
-                  <Input
-                    type="number"
-                    min="1"
-                    invalid={!!lineErrors?.quantity}
-                    {...form.register(`items.${index}.quantity`)}
-                  />
-                </Field>
-                <Field
-                  label="Prix unitaire"
-                  htmlFor={`invoice-line-price-${index}`}
-                  error={lineErrors?.unitCents?.message}
-                >
-                  <Controller
-                    control={form.control}
-                    name={`items.${index}.unitCents`}
-                    render={({ field }) => (
-                      <MoneyInput
-                        id={`invoice-line-price-${index}`}
-                        value={field.value}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        invalid={!!lineErrors?.unitCents}
-                        placeholder="0"
-                      />
-                    )}
-                  />
-                </Field>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="sm:mt-7"
-                  aria-label={`Supprimer la ligne ${index + 1}`}
-                  disabled={fields.length === 1}
-                  onClick={() => remove(index)}
-                >
-                  <Trash2 className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-            );
-          })}
-          {errors.items?.message ? (
-            <p role="alert" className="font-sans text-xs text-danger">
-              {errors.items.message}
-            </p>
-          ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button type="button" variant="secondary" onClick={() => append(EMPTY_LINE)}>
-              <Plus className="size-4" aria-hidden="true" />
-              Ajouter une ligne
-            </Button>
-            <p className="font-sans text-sm text-on-card">
-              Total : <strong>{formatEuroCents(linesTotal)}</strong>
-            </p>
-          </div>
+                <Input
+                  placeholder="Cotisation annuelle, licence FFE…"
+                  invalid={!!lineErrors?.label}
+                  {...form.register(`items.${index}.label`)}
+                />
+              </Field>
+              <Field
+                label="Qté"
+                htmlFor={`invoice-line-qty-${index}`}
+                error={lineErrors?.quantity?.message}
+              >
+                <Input
+                  type="number"
+                  min="1"
+                  invalid={!!lineErrors?.quantity}
+                  {...form.register(`items.${index}.quantity`)}
+                />
+              </Field>
+              <Field
+                label="Prix unitaire"
+                htmlFor={`invoice-line-price-${index}`}
+                error={lineErrors?.unitCents?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name={`items.${index}.unitCents`}
+                  render={({ field }) => (
+                    <MoneyInput
+                      id={`invoice-line-price-${index}`}
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={!!lineErrors?.unitCents}
+                      placeholder="0"
+                    />
+                  )}
+                />
+              </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                className="sm:mt-7"
+                aria-label={`Supprimer la ligne ${index + 1}`}
+                disabled={fields.length === 1}
+                onClick={() => remove(index)}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        })}
+        {errors.items?.message ? (
+          <p role="alert" className="font-sans text-xs text-danger">
+            {errors.items.message}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button type="button" variant="secondary" onClick={() => append(EMPTY_LINE)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Ajouter une ligne
+          </Button>
+          <p className="font-sans text-sm text-on-card">
+            Total : <strong>{formatEuroCents(linesTotal)}</strong>
+          </p>
         </div>
-      ) : null}
+      </div>
 
       <Field
         label="Échéance"
