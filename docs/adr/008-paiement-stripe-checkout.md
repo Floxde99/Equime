@@ -1,6 +1,6 @@
 # ADR 008 — Paiement via Stripe Checkout hébergé
 
-- **Statut** : accepté
+- **Statut** : accepté ; complété par l’[ADR 011](011-forfaits-cavalier-droits-hebdomadaires.md) (paiement par échéance)
 - **Décideur** : développeur principal · **Proposé par** : assistant
 - **Date** : 2026-09-22
 
@@ -22,9 +22,9 @@ Contraintes projet : 100 % JS ESM, couches route → Zod → controller → serv
 
 **Option A** : Stripe Checkout en `mode: 'payment'`.
 
-1. Le client authentifié appelle `POST /api/v1/client/invoices/:id/checkout` ; l’API crée une Session, persiste `stripeCheckoutSessionId`, renvoie `{ url }`.
+1. Le client authentifié appelle `POST /api/v1/client/invoices/:id/checkout` ; l’API crée une Session pour **l’échéance suivante** (ADR 011), persiste `stripeCheckoutSessionId` sur l’échéance, renvoie `{ url }`.
 2. Le front fait `location.assign(url)` — **aucune carte dans le DOM Equime**.
-3. Le webhook `POST /api/v1/webhooks/stripe` (body brut + `constructEvent`) traite `checkout.session.completed` (et `async_payment_succeeded` si besoin) et appelle `markInvoicePaidFromPayment` de façon **idempotente**.
+3. Le webhook `POST /api/v1/webhooks/stripe` (body brut + `constructEvent`) traite `checkout.session.completed` (et `async_payment_succeeded` si besoin) et enregistre un règlement (`recordPayment`) de façon **idempotente** (unicité du PaymentIntent).
 4. **Clés test autorisées en préprod et en prod** jusqu’au go-live (`sk_test_` / `whsec_…`) : même code, bascule live uniquement via `.env` (`sk_live_`).
 5. Sans `STRIPE_SECRET_KEY` et si `NODE_ENV` ∈ {`development`,`test`} : le chemin **simulé** `POST …/pay` reste disponible (CI / E2E locaux). Sinon → 410 Gone.
 

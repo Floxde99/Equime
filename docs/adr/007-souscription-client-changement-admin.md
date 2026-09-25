@@ -1,6 +1,6 @@
 # ADR 007 — Souscription client, changement de formule réservé à l'admin
 
-- **Statut** : accepté (Excel 8.2)
+- **Statut** : remplacé par l’[ADR 011](011-forfaits-cavalier-droits-hebdomadaires.md) (forfait par cavalier, v1.1)
 - **Décideur** : développeur principal · **Proposé par** : assistant
 
 ## Contexte

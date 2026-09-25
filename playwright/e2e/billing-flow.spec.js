@@ -17,7 +17,11 @@ test('un client peut payer une facture et l’admin voit le statut mis à jour',
   await clickSidebarLink(page, 'Facturation');
   await expect(page.getByRole('heading', { name: 'Historique & facturation' })).toBeVisible();
 
-  const invoiceRow = page.locator('li').filter({ hasText: 'FAC-2026-0002' }).first();
+  // La facture figure aussi dans « Prochaines échéances » : on vise l'historique.
+  const history = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Historique', exact: true }) });
+  const invoiceRow = history.locator('li').filter({ hasText: 'FAC-2026-0002' }).first();
   await expect(invoiceRow).toBeVisible();
 
   const payButton = invoiceRow.getByRole('button', { name: 'Payer' });
@@ -36,7 +40,7 @@ test('un client peut payer une facture et l’admin voit le statut mis à jour',
   });
 
   await clickSidebarLink(adminPage, 'Facturation');
-  await expect(adminPage.getByRole('heading', { name: 'Facturation & abonnements' })).toBeVisible();
+  await expect(adminPage.getByRole('heading', { name: 'Facturation & forfaits' })).toBeVisible();
 
   const adminInvoiceRow = adminPage.locator('li').filter({ hasText: 'FAC-2026-0002' }).first();
   await expect(adminInvoiceRow).toBeVisible();

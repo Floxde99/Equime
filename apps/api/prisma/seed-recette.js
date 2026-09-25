@@ -8,7 +8,7 @@
  *
  * Contenu : 25 familles clientes (~35 cavaliers), 2 moniteurs, 1 admin,
  * 15 chevaux, 3 espaces, 6 séries de cours sur 8 semaines (dont 4 semaines
- * passées avec présences renseignées), factures sur 3 mois, événements,
+ * passées avec présences renseignées), forfaits de saison avec échéanciers, événements,
  * incidents, missions bénévolat, conversations.
  *
  * Usage : npm run seed:recette -w apps/api (préprod uniquement — jamais en prod)
@@ -23,6 +23,7 @@ import {
   addMinutes,
   addWeeks,
   createRng,
+  createSeasonSubscription,
   hashPassword,
   nextWeekday,
   resetDatabase,
@@ -116,24 +117,24 @@ async function main() {
   await resetDatabase(prisma);
   const passwordHash = await hashPassword('Recette!2026');
 
-  // --- Abonnements & réductions ---
+  // --- Forfaits de saison & réductions (ADR 011 : prix de la saison) ---
   const plans = [];
   for (const data of [
     {
       name: 'Découverte',
-      priceCents: 4900,
+      priceCents: 49000,
       sessionsPerWeek: 1,
       description: '1 séance par semaine',
     },
     {
       name: 'Classique',
-      priceCents: 8900,
+      priceCents: 89000,
       sessionsPerWeek: 2,
       description: '2 séances par semaine',
     },
     {
       name: 'Intensif',
-      priceCents: 12900,
+      priceCents: 129000,
       sessionsPerWeek: 3,
       description: '3 séances par semaine',
     },
@@ -191,12 +192,12 @@ async function main() {
         lastName,
         role: 'client',
         banned: i === 25, // un compte banni pour la recette du module membres
-        family: { create: { subscriptionPlanId: plan.id, sessionQuota: plan.sessionsPerWeek * 4 } },
+        family: { create: {} },
       },
       include: { family: true },
     });
     const family = /** @type {NonNullable<typeof user.family>} */ (user.family);
-    families.push({ user, family });
+    families.push({ user, family, plan });
     const riderCount = i <= 8 ? 2 : 1; // 8 familles à 2 cavaliers
     for (let r = 0; r < riderCount; r += 1) {
       const level = pick(LEVELS);
@@ -453,34 +454,29 @@ async function main() {
     });
   }
 
-  // --- Factures : 3 mois d'abonnements par famille ---
+  // --- Forfaits de saison par cavalier (ADR 011) : facture et échéancier ---
+  // Trois tirages par famille, comme l'ancien historique mensuel : la suite
+  // pseudo-aléatoire (et donc le reste du jeu de données) reste inchangée.
   let invoiceNumber = 0;
-  for (const { family } of families) {
-    const plan = plans.find((p) => p.id === family.subscriptionPlanId) ?? plans[0];
-    for (let month = 3; month >= 1; month -= 1) {
+  for (const { family, plan } of families) {
+    const draws = [
+      pick(['paid', 'paid', 'paid', 'overdue']),
+      pick(['paid', 'paid', 'paid', 'overdue']),
+      pick(['sent', 'draft']),
+    ];
+    const paidInstallments = draws.filter((d) => d === 'paid').length;
+    const familyRiders = riders.filter((rider) => rider.familyId === family.id);
+    for (const [index, rider] of familyRiders.entries()) {
       invoiceNumber += 1;
-      const isPast = month > 1;
-      const status = isPast ? pick(['paid', 'paid', 'paid', 'overdue']) : pick(['sent', 'draft']);
-      await prisma.invoice.create({
-        data: /** @type {any} */ ({
-          familyId: family.id,
-          number: `REC-2026-${String(invoiceNumber).padStart(4, '0')}`,
-          status,
-          issuedAt: status === 'draft' ? null : addWeeks(new Date(), -month * 4),
-          dueAt: status === 'draft' ? null : addWeeks(new Date(), -month * 4 + 2),
-          totalCents: plan.priceCents,
-          paidAt: status === 'paid' ? addWeeks(new Date(), -month * 4 + 1) : null,
-          items: {
-            create: [
-              {
-                label: `Abonnement ${plan.name}`,
-                quantity: 1,
-                unitCents: plan.priceCents,
-                totalCents: plan.priceCents,
-              },
-            ],
-          },
-        }),
+      await createSeasonSubscription(prisma, {
+        familyId: family.id,
+        rider,
+        plan,
+        paymentSchedule: invoiceNumber % 3 === 0 ? 'quarterly' : 'ten_installments',
+        number: `REC-2026-${String(invoiceNumber).padStart(4, '0')}`,
+        discount: index > 0 ? { label: 'Famille nombreuse', percentage: 10 } : undefined,
+        paidInstallments: Math.min(paidInstallments, 1),
+        overdue: paidInstallments === 0,
       });
     }
   }

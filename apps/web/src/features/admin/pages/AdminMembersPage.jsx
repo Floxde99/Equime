@@ -1,5 +1,4 @@
 import {
-  adminChangeFamilySubscriptionSchema,
   createMemberSchema,
   DOCUMENT_STATUS_LABELS,
   normalizeSearch,
@@ -36,9 +35,10 @@ import {
   unbanMember,
   updateMember,
 } from '@/features/admin/api.js';
-import { changeFamilySubscription, fetchSubscriptionPlans } from '@/features/billing/api.js';
+import { endSubscription, fetchSubscriptionPlans } from '@/features/billing/api.js';
+import { SubscriptionForm } from '@/features/billing/components/SubscriptionForm.jsx';
+import { formatDate } from '@/lib/dates.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
-import { formatEuroCents } from '@/lib/money.js';
 import { useDocumentViewer } from '@/lib/useDocumentViewer.js';
 
 /**
@@ -55,8 +55,19 @@ function toFamilyOption(member) {
       email: member.email,
     },
     riders: member.family.riders ?? [],
-    subscriptionPlan: member.family.subscriptionPlan ?? null,
   };
+}
+
+/**
+ * Résumé des forfaits de la famille dans l'annuaire (ADR 011).
+ * @param {{ riders?: Array<{ subscriptions?: Array<{ plan: { name: string } }> }> }} family
+ */
+function subscriptionsLabel(family) {
+  const riders = family.riders ?? [];
+  if (riders.length === 0) return ' · aucun cavalier';
+  const subscribed = riders.filter((rider) => rider.subscriptions?.length);
+  if (subscribed.length === 0) return ' · sans forfait';
+  return ` · ${subscribed.length}/${riders.length} cavalier${riders.length > 1 ? 's' : ''} avec forfait`;
 }
 
 /** Gestion des membres et validation des documents (US-9.2, US-9.3). */
@@ -258,11 +269,9 @@ export function AdminMembersPage() {
                   ) : null}
                   <p className="font-sans text-xs text-muted">
                     {member.email} — {ROLE_LABELS[member.role] ?? member.role}
-                    {member.family?.subscriptionPlan
-                      ? ` · ${member.family.subscriptionPlan.name} (${member.family.sessionQuota} séance(s))`
-                      : member.role === ROLES.CLIENT
-                        ? ' · sans formule'
-                        : ''}
+                    {member.role === ROLES.CLIENT && member.family
+                      ? subscriptionsLabel(member.family)
+                      : ''}
                   </p>
                 </div>
               </div>
@@ -278,7 +287,7 @@ export function AdminMembersPage() {
                 {member.role === ROLES.CLIENT && member.family ? (
                   <>
                     <Button type="button" variant="ghost" onClick={() => setPlanMember(member)}>
-                      Formule
+                      Forfaits
                     </Button>
                     <Button
                       type="button"
@@ -340,14 +349,10 @@ export function AdminMembersPage() {
         }}
       />
 
-      <ChangePlanDialog
-        member={planMember}
+      <FamilySubscriptionsDialog
+        member={planMember ? (members.find((m) => m.id === planMember.id) ?? planMember) : null}
         plans={plans}
         onClose={() => setPlanMember(null)}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ['admin-members'] });
-          setPlanMember(null);
-        }}
       />
     </div>
   );
@@ -564,68 +569,108 @@ function EditMemberDialog({ member, onClose, onSaved }) {
 }
 
 /**
+ * Forfaits des cavaliers d'une famille (ADR 011) : souscription par le
+ * secrétariat ou arrêt en cours de saison.
  * @param {{
  *   member: object | null,
  *   plans: Array<{ id: string, name: string, priceCents: number, sessionsPerWeek: number, active?: boolean }>,
  *   onClose: () => void,
- *   onSaved: () => void,
  * }} props
  */
-function ChangePlanDialog({ member, plans, onClose, onSaved }) {
-  const currentId = member?.family?.subscriptionPlanId ?? plans[0]?.id ?? '';
-  const form = useForm({
-    resolver: zodResolver(adminChangeFamilySubscriptionSchema),
-    values: { subscriptionPlanId: currentId },
+function FamilySubscriptionsDialog({ member, plans, onClose }) {
+  const qc = useQueryClient();
+  const [choosingFor, setChoosingFor] = useState(/** @type {string | null} */ (null));
+  const [confirmation, setConfirmation] = useState('');
+  const endMutation = useMutation({
+    mutationFn: endSubscription,
+    onSuccess: (subscription) => {
+      setConfirmation(
+        `Forfait ${subscription.plan.name} arrêté pour ${subscription.rider.firstName}.`
+      );
+      qc.invalidateQueries({ queryKey: ['admin-members'] });
+    },
   });
-  const mutation = useMutation({
-    mutationFn: (values) => changeFamilySubscription(member.family.id, values.subscriptionPlanId),
-    onSuccess: onSaved,
-  });
-  const options = plans.map((plan) => ({
-    value: plan.id,
-    label: `${plan.name} — ${formatEuroCents(plan.priceCents)} (${plan.sessionsPerWeek} séance(s)/sem.)${plan.active === false ? ' — inactive' : ''}`,
-  }));
+  const riders = member?.family?.riders ?? [];
 
   return (
     <Dialog
       open={Boolean(member)}
-      onClose={onClose}
-      title={member ? `Formule de ${member.firstName} ${member.lastName}` : ''}
-      footer={
-        <>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
-          </Button>
-          <Button
-            type="button"
-            loading={mutation.isPending}
-            disabled={options.length === 0}
-            onClick={form.handleSubmit((values) => mutation.mutate(values))}
-          >
-            Appliquer la formule
-          </Button>
-        </>
-      }
+      onClose={() => {
+        setChoosingFor(null);
+        setConfirmation('');
+        onClose();
+      }}
+      title={member ? `Forfaits — famille ${member.lastName}` : ''}
+      className="max-w-2xl"
     >
-      {member ? (
-        <form className="space-y-4" noValidate>
-          <p>Le quota est réinitialisé à quatre semaines de séances du nouveau plan.</p>
-          <Field
-            label="Formule"
-            htmlFor="admin-family-plan"
-            error={form.formState.errors.subscriptionPlanId?.message}
-          >
-            <Select
-              id="admin-family-plan"
-              options={options}
-              {...form.register('subscriptionPlanId')}
-            />
-          </Field>
-          {mutation.isError ? (
-            <Alert>{mutation.error?.message ?? 'Changement impossible'}</Alert>
-          ) : null}
-        </form>
+      {confirmation ? (
+        <Alert variant="success" className="mb-4">
+          {confirmation}
+        </Alert>
       ) : null}
+      {endMutation.isError ? <Alert className="mb-4">{endMutation.error.message}</Alert> : null}
+      {riders.length === 0 ? (
+        <p className="font-sans text-sm text-muted-on-card">Aucun cavalier dans cette famille.</p>
+      ) : (
+        <ul className="space-y-4">
+          {riders.map((rider) => {
+            const subscription = rider.subscriptions?.[0] ?? null;
+            return (
+              <li key={rider.id} className="rounded-lg border border-border-on-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-sans text-sm font-semibold text-on-card">
+                    {rider.firstName} {rider.lastName}
+                  </p>
+                  {subscription ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      loading={endMutation.isPending && endMutation.variables === subscription.id}
+                      onClick={() => endMutation.mutate(subscription.id)}
+                    >
+                      Arrêter le forfait
+                    </Button>
+                  ) : choosingFor !== rider.id ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setConfirmation('');
+                        setChoosingFor(rider.id);
+                      }}
+                    >
+                      Souscrire un forfait
+                    </Button>
+                  ) : null}
+                </div>
+                {subscription ? (
+                  <p className="mt-1 font-sans text-xs text-muted-on-card">
+                    Forfait {subscription.plan.name} · {subscription.plan.sessionsPerWeek}{' '}
+                    séance(s)/semaine · saison jusqu’au{' '}
+                    {formatDate(new Date(new Date(subscription.seasonEnd).getTime() - 1))}
+                  </p>
+                ) : choosingFor === rider.id ? (
+                  <div className="mt-3">
+                    <SubscriptionForm
+                      rider={rider}
+                      plans={plans}
+                      asAdmin
+                      onSubscribed={({ invoice }) => {
+                        setChoosingFor(null);
+                        setConfirmation(
+                          `Forfait enregistré pour ${rider.firstName} : facture ${invoice.number} envoyée à la famille.`
+                        );
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-1 font-sans text-xs text-muted-on-card">Pas de forfait.</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Dialog>
   );
 }

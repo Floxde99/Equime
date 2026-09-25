@@ -37,25 +37,22 @@ const PUBLIC_USER_SELECT = {
 
 /**
  * @typedef {{ id: string, email: string, firstName: string, lastName: string,
- *   phone: string | null, role: string, createdAt: Date, sessionQuota: number | null }} PublicUser
+ *   phone: string | null, role: string, createdAt: Date }} PublicUser
  */
 
 /**
- * Profil public + quota de séances famille (clients uniquement).
+ * Profil public. Les droits aux séances (forfaits, rattrapages) sont servis par
+ * `GET /client/entitlements` (ADR 011).
  * @param {string} userId
  * @returns {Promise<PublicUser>}
  */
 async function loadPublicUser(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      ...PUBLIC_USER_SELECT,
-      family: { select: { sessionQuota: true } },
-    },
+    select: PUBLIC_USER_SELECT,
   });
   if (!user) throw AppError.unauthorized();
-  const { family, ...safe } = user;
-  return { ...safe, sessionQuota: family?.sessionQuota ?? null };
+  return user;
 }
 
 /**
@@ -126,7 +123,7 @@ export async function createMember(input) {
         },
         select: PUBLIC_USER_SELECT,
       });
-      await tx.family.create({ data: { userId: created.id, sessionQuota: 0 } });
+      await tx.family.create({ data: { userId: created.id } });
       return created;
     });
     return loadPublicUser(user.id);
@@ -421,7 +418,6 @@ export async function exportPortableData(userId) {
       createdAt: true,
       family: {
         select: {
-          sessionQuota: true,
           riders: {
             select: {
               id: true,
@@ -433,6 +429,20 @@ export async function exportPortableData(userId) {
               licenseStatus: true,
               medicalConsentAt: true,
               createdAt: true,
+              subscriptions: {
+                select: {
+                  plan: { select: { name: true } },
+                  seasonStart: true,
+                  seasonEnd: true,
+                  paymentSchedule: true,
+                  priceCents: true,
+                  discountPercent: true,
+                  status: true,
+                },
+              },
+              sessionCredits: {
+                select: { source: true, expiresAt: true, usedAt: true, createdAt: true },
+              },
             },
           },
           invoices: {
@@ -445,6 +455,9 @@ export async function exportPortableData(userId) {
               paidAt: true,
               items: {
                 select: { label: true, quantity: true, unitCents: true },
+              },
+              payments: {
+                select: { method: true, amountCents: true, paidAt: true, reference: true },
               },
             },
             orderBy: { issuedAt: 'desc' },
@@ -460,7 +473,7 @@ export async function exportPortableData(userId) {
 
   return {
     exportedAt: new Date().toISOString(),
-    format: 'equime-portability-v1',
+    format: 'equime-portability-v2',
     profile: {
       email: user.email,
       firstName: user.firstName,
@@ -470,7 +483,6 @@ export async function exportPortableData(userId) {
     },
     family: user.family
       ? {
-          sessionQuota: user.family.sessionQuota,
           riders: user.family.riders,
           invoices: user.family.invoices,
         }

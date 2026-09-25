@@ -140,6 +140,49 @@ enum AdminAuditAction {
   medical_document_viewed
   medical_document_reviewed
   license_uploaded_by_admin
+  enrollment_forced
+}
+
+/// Inscription à une séance : active, ou annulée (place libérée) — ADR 011
+enum EnrollmentStatus {
+  active
+  cancelled
+}
+
+/// Droit utilisé par une inscription (ce qu'une annulation doit rendre)
+enum EnrollmentEntitlement {
+  subscription
+  makeup
+  forced
+}
+
+/// Échéancier d'un forfait de saison
+enum PaymentSchedule {
+  quarterly
+  ten_installments
+}
+
+enum RiderSubscriptionStatus {
+  active
+  ended
+}
+
+/// Origine d'un crédit de rattrapage
+enum SessionCreditSource {
+  cancelled_in_time
+  club_cancellation
+}
+
+/// Mode de règlement (paiements en ligne et encaissements au club)
+enum PaymentMethod {
+  card_online
+  card_onsite
+  cash
+  cheque
+  transfer
+  ancv
+  pass_sport
+  other
 }
 
 // ============================================================
@@ -161,66 +204,62 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  family                  Family?
-  refreshTokens           RefreshToken[]
-  passwordResetTokens     PasswordResetToken[]
-  instructedCourses       Course[]                  @relation("CourseInstructor")
-  reportedIncidents       Incident[]                @relation("IncidentReporter")
-  horseHealthLogs         HorseHealthLog[]          @relation("HealthLogAuthor")
-  volunteerSignups        VolunteerSignup[]
+  family                   Family?
+  refreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  instructedCourses        Course[]                  @relation("CourseInstructor")
+  reportedIncidents        Incident[]                @relation("IncidentReporter")
+  horseHealthLogs          HorseHealthLog[]          @relation("HealthLogAuthor")
+  volunteerSignups         VolunteerSignup[]
   conversationParticipants ConversationParticipant[]
-  sentMessages            Message[]                 @relation("MessageSender")
-  notifications           Notification[]
-  notificationPreferences NotificationPreference[]
-  adminAuditLogs          AdminAuditLog[]
+  sentMessages             Message[]                 @relation("MessageSender")
+  notifications            Notification[]
+  notificationPreferences  NotificationPreference[]
+  adminAuditLogs           AdminAuditLog[]
+  recordedPayments         Payment[]                 @relation("PaymentRecorder")
 
   @@index([role])
   @@map("users")
 }
 
 model Family {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  subscriptionPlanId String?
-  /// Séances restantes sur l'abonnement en cours
-  sessionQuota       Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user             User              @relation(fields: [userId], references: [id])
-  subscriptionPlan SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id])
-  riders           Rider[]
-  invoices         Invoice[]
+  user     User      @relation(fields: [userId], references: [id])
+  riders   Rider[]
+  invoices Invoice[]
 
-  @@index([subscriptionPlanId])
   @@map("families")
 }
 
 model Rider {
-  id                       String         @id @default(cuid())
-  familyId                 String
-  firstName                String
-  lastName                 String
-  birthdate                DateTime
-  level                    RiderLevel     @default(initiation)
-  medicalCertificateUrl              String?
-  medicalCertificateStatus           DocumentStatus @default(missing)
-  medicalCertificateRejectionReason  String?
+  id                                String         @id @default(cuid())
+  familyId                          String
+  firstName                         String
+  lastName                          String
+  birthdate                         DateTime
+  level                             RiderLevel     @default(initiation)
+  medicalCertificateUrl             String?
+  medicalCertificateStatus          DocumentStatus @default(missing)
+  medicalCertificateRejectionReason String?
   /// Date de fin de validité du certificat (Excel 7.2) ; null = pas encore saisie
-  medicalCertificateExpiresAt        DateTime?
-  licenseUrl                         String?
-  licenseStatus                      DocumentStatus @default(missing)
-  licenseRejectionReason             String?
+  medicalCertificateExpiresAt       DateTime?
+  licenseUrl                        String?
+  licenseStatus                     DocumentStatus @default(missing)
+  licenseRejectionReason            String?
   /// Date de fin de validité de la licence FFE (Excel 7.2)
-  licenseExpiresAt                   DateTime?
+  licenseExpiresAt                  DateTime?
   /// Numéro de licence FFE — saisi indépendamment du justificatif (le club
   /// le fournit parfois avant le document, ou un adhérent arrive en cours
   /// d'année avec une licence de son club précédent)
-  licenseNumber                      String?
+  licenseNumber                     String?
   /// RGPD : consentement explicite au stockage du certificat médical
-  medicalConsentAt         DateTime?
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
+  medicalConsentAt                  DateTime?
+  createdAt                         DateTime       @default(now())
+  updatedAt                         DateTime       @updatedAt
 
   family             Family              @relation(fields: [familyId], references: [id])
   affinities         HorseAffinity[]
@@ -228,6 +267,8 @@ model Rider {
   eventRegistrations EventRegistration[]
   incidents          Incident[]
   adminAuditLogs     AdminAuditLog[]
+  subscriptions      RiderSubscription[]
+  sessionCredits     SessionCredit[]
 
   @@index([familyId])
   @@map("riders")
@@ -238,22 +279,22 @@ model Rider {
 // ============================================================
 
 model Horse {
-  id                 String      @id @default(cuid())
-  name               String
-  breed              String?
-  birthYear          Int?
-  photoUrl           String?
-  status             HorseStatus @default(fit)
+  id                  String      @id @default(cuid())
+  name                String
+  breed               String?
+  birthYear           Int?
+  photoUrl            String?
+  status              HorseStatus @default(fit)
   /// Plage de niveaux cavalier compatibles (score d'attribution +5)
-  minLevel           RiderLevel  @default(initiation)
-  maxLevel           RiderLevel  @default(galop_7)
+  minLevel            RiderLevel  @default(initiation)
+  maxLevel            RiderLevel  @default(galop_7)
   /// Plafond de charge hebdo (heures). La charge elle-même est dérivée des
   /// affectations de la semaine (services/horseLoad.js), jamais stockée — ADR 010.
-  maxWeeklyLoadHours Float       @default(12)
+  maxWeeklyLoadHours  Float       @default(12)
   /// Seuil d'alerte de charge affiché sur le dashboard admin
-  alertThresholdHours Float      @default(10)
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  alertThresholdHours Float       @default(10)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   affinities         HorseAffinity[]
   enrollments        CourseEnrollment[]
@@ -352,19 +393,28 @@ model Course {
 }
 
 model CourseEnrollment {
-  id              String           @id @default(cuid())
+  id              String                @id @default(cuid())
   courseId        String
   riderId         String
   horseId         String?
-  attendance      AttendanceStatus @default(pending)
+  attendance      AttendanceStatus      @default(pending)
   /// Renseigné par l'attribution automatique ou l'override manuel du moniteur
   horseAssignedAt DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  /// Annulée = place libérée, hors charge cheval et hors capacité (ADR 011)
+  status          EnrollmentStatus      @default(active)
+  /// Droit consommé : séance du forfait, rattrapage ou inscription forcée
+  entitlement     EnrollmentEntitlement @default(subscription)
+  cancelledAt     DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
-  course Course @relation(fields: [courseId], references: [id])
-  rider  Rider  @relation(fields: [riderId], references: [id])
-  horse  Horse? @relation(fields: [horseId], references: [id])
+  course         Course         @relation(fields: [courseId], references: [id])
+  rider          Rider          @relation(fields: [riderId], references: [id])
+  horse          Horse?         @relation(fields: [horseId], references: [id])
+  /// Crédit produit par l'annulation de cette inscription
+  creditProduced SessionCredit? @relation("CreditSource")
+  /// Crédit consommé pour cette inscription (rattrapage)
+  creditUsed     SessionCredit? @relation("CreditUse")
 
   @@unique([courseId, riderId])
   @@index([riderId])
@@ -424,15 +474,66 @@ model SubscriptionPlan {
   id              String   @id @default(cuid())
   name            String   @unique
   description     String?
+  /// Prix de la saison complète (ADR 011), en centimes
   priceCents      Int
   sessionsPerWeek Int
   active          Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  families Family[]
+  subscriptions RiderSubscription[]
 
   @@map("subscription_plans")
+}
+
+/// Forfait de saison d'un cavalier (ADR 011) — prix et réduction figés à la souscription
+model RiderSubscription {
+  id              String                  @id @default(cuid())
+  riderId         String
+  planId          String
+  /// Bornes de la saison (minuit, heure de Paris) ; seasonEnd exclu
+  seasonStart     DateTime
+  seasonEnd       DateTime
+  /// Début effectif (arrivée en cours de saison)
+  startsAt        DateTime
+  paymentSchedule PaymentSchedule
+  /// Prix du forfait avant réduction (prorata éventuel appliqué)
+  priceCents      Int
+  discountPercent Int                     @default(0)
+  status          RiderSubscriptionStatus @default(active)
+  endedAt         DateTime?
+  invoiceId       String?                 @unique
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  rider   Rider            @relation(fields: [riderId], references: [id])
+  plan    SubscriptionPlan @relation(fields: [planId], references: [id])
+  invoice Invoice?         @relation(fields: [invoiceId], references: [id])
+
+  @@index([riderId, status])
+  @@index([planId])
+  @@map("rider_subscriptions")
+}
+
+/// Crédit de rattrapage (ADR 011)
+model SessionCredit {
+  id                 String              @id @default(cuid())
+  riderId            String
+  source             SessionCreditSource
+  /// Inscription annulée qui a produit le crédit (un seul crédit par inscription)
+  sourceEnrollmentId String?             @unique
+  expiresAt          DateTime
+  /// Inscription de rattrapage qui l'a consommé
+  usedByEnrollmentId String?             @unique
+  usedAt             DateTime?
+  createdAt          DateTime            @default(now())
+
+  rider            Rider             @relation(fields: [riderId], references: [id])
+  sourceEnrollment CourseEnrollment? @relation("CreditSource", fields: [sourceEnrollmentId], references: [id])
+  usedByEnrollment CourseEnrollment? @relation("CreditUse", fields: [usedByEnrollmentId], references: [id])
+
+  @@index([riderId, usedAt, expiresAt])
+  @@map("session_credits")
 }
 
 model DiscountRule {
@@ -451,42 +552,87 @@ model DiscountRule {
 }
 
 model Invoice {
-  id                       String        @id @default(cuid())
-  familyId                 String
-  number                   String        @unique
-  status                   InvoiceStatus @default(draft)
-  issuedAt                 DateTime?
-  dueAt                    DateTime?
-  totalCents               Int           @default(0)
-  paidAt                   DateTime?
-  /// Session Stripe Checkout (idempotence / reprise) — unique si présente
-  stripeCheckoutSessionId  String?       @unique
-  /// PaymentIntent Stripe une fois le paiement confirmé
-  stripePaymentIntentId    String?
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @updatedAt
+  id         String        @id @default(cuid())
+  familyId   String
+  number     String        @unique
+  status     InvoiceStatus @default(draft)
+  issuedAt   DateTime?
+  dueAt      DateTime?
+  totalCents Int           @default(0)
+  paidAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  family Family        @relation(fields: [familyId], references: [id])
-  items  InvoiceItem[]
+  family            Family               @relation(fields: [familyId], references: [id])
+  items             InvoiceItem[]
+  installments      InvoiceInstallment[]
+  payments          Payment[]
+  riderSubscription RiderSubscription?
 
   @@index([familyId, status])
   @@map("invoices")
 }
 
-model InvoiceItem {
-  id                   String   @id @default(cuid())
-  invoiceId            String
-  label                String
-  quantity             Int      @default(1)
-  unitCents            Int
-  totalCents           Int
-  /// Idempotence facture stage (Excel 12.1) : une ligne max par inscription
-  eventRegistrationId  String?  @unique
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+/// Échéance d'une facture (1 par défaut ; 3 ou 10 pour un forfait de saison)
+model InvoiceInstallment {
+  id                      String    @id @default(cuid())
+  invoiceId               String
+  sequence                Int
+  dueAt                   DateTime
+  amountCents             Int
+  /// Renseigné quand les règlements couvrent l'échéance
+  paidAt                  DateTime?
+  /// Session Stripe Checkout en cours pour cette échéance (reprise, pas de double débit)
+  stripeCheckoutSessionId String?   @unique
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  invoice            Invoice            @relation(fields: [invoiceId], references: [id])
-  eventRegistration  EventRegistration? @relation(fields: [eventRegistrationId], references: [id])
+  invoice  Invoice   @relation(fields: [invoiceId], references: [id])
+  payments Payment[]
+
+  @@unique([invoiceId, sequence])
+  @@index([dueAt, paidAt])
+  @@map("invoice_installments")
+}
+
+/// Règlement reçu (en ligne ou au club) — ADR 011
+model Payment {
+  id                    String        @id @default(cuid())
+  invoiceId             String
+  installmentId         String?
+  method                PaymentMethod
+  amountCents           Int
+  paidAt                DateTime
+  /// N° de chèque, référence de virement…
+  reference             String?
+  /// Idempotence des paiements Stripe (webhook et confirmation de retour)
+  stripePaymentIntentId String?       @unique
+  recordedById          String?
+  createdAt             DateTime      @default(now())
+
+  invoice     Invoice             @relation(fields: [invoiceId], references: [id])
+  installment InvoiceInstallment? @relation(fields: [installmentId], references: [id])
+  recordedBy  User?               @relation("PaymentRecorder", fields: [recordedById], references: [id])
+
+  @@index([invoiceId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+model InvoiceItem {
+  id                  String   @id @default(cuid())
+  invoiceId           String
+  label               String
+  quantity            Int      @default(1)
+  unitCents           Int
+  totalCents          Int
+  /// Idempotence facture stage (Excel 12.1) : une ligne max par inscription
+  eventRegistrationId String?  @unique
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  invoice           Invoice            @relation(fields: [invoiceId], references: [id])
+  eventRegistration EventRegistration? @relation(fields: [eventRegistrationId], references: [id])
 
   @@index([invoiceId])
   @@map("invoice_items")
@@ -521,14 +667,14 @@ model Incident {
 }
 
 model VolunteerMission {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
   startAt     DateTime
   endAt       DateTime?
   slots       Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   signups VolunteerSignup[]
 

@@ -130,7 +130,7 @@ export const INCIDENT_STATUS_LABELS = Object.freeze({
 
 /** @type {Record<string, string>} */
 export const NOTIFICATION_TYPE_LABELS = Object.freeze({
-  subscription_confirmed: 'Abonnement confirmé',
+  subscription_confirmed: 'Forfait confirmé',
   invoice_created: 'Nouvelle facture',
   payment_confirmed: 'Paiement confirmé',
   invoice_reminder: 'Relance de facture',
@@ -138,4 +138,35 @@ export const NOTIFICATION_TYPE_LABELS = Object.freeze({
   course_enrolled: 'Inscription à un cours',
   course_cancelled: 'Cours annulé',
   rider_absence: 'Absence signalée',
+});
+
+/** @type {Record<string, string>} */
+export const PAYMENT_SCHEDULE_LABELS = Object.freeze({
+  quarterly: 'Au trimestre (3 échéances)',
+  ten_installments: 'En 10 fois',
+});
+
+/** @type {Record<string, string>} */
+export const ENROLLMENT_ENTITLEMENT_LABELS = Object.freeze({
+  subscription: 'Séance du forfait',
+  makeup: 'Rattrapage',
+  forced: 'Inscription forcée',
+});
+
+/** @type {Record<string, string>} */
+export const SESSION_CREDIT_SOURCE_LABELS = Object.freeze({
+  cancelled_in_time: 'Annulation dans les délais',
+  club_cancellation: 'Séance annulée par le club',
+});
+
+/** @type {Record<string, string>} */
+export const PAYMENT_METHOD_LABELS = Object.freeze({
+  card_online: 'Carte bancaire en ligne',
+  card_onsite: 'Carte bancaire au club',
+  cash: 'Espèces',
+  cheque: 'Chèque',
+  transfer: 'Virement',
+  ancv: 'Chèques-vacances ANCV',
+  pass_sport: "Pass'Sport",
+  other: 'Autre',
 });

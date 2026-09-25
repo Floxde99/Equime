@@ -1,18 +1,17 @@
 // @ts-check
 /**
- * Facturation et abonnements (EPIC 6).
+ * Facturation (EPIC 6) : factures, échéanciers et règlements (ADR 011).
  */
-import { NOTIFICATION_TYPES } from '@equime/shared';
+import { formatEuroCents, NOTIFICATION_TYPES, PAYMENT_METHODS } from '@equime/shared';
 
 import { env, isSimulatedPaymentAllowed } from '../config/env.js';
 import { AppError } from '../lib/appError.js';
 import { buildInvoicePdf, invoicePdfFilename } from '../lib/invoicePdf.js';
 import { logger } from '../lib/logger.js';
-import { buildSimpleNotificationEmail, escapeHtml } from '../lib/mailer.js';
+import { escapeHtml } from '../lib/mailer.js';
 import { prisma } from '../lib/prisma.js';
 
 import { dispatchNotification } from './notificationService.js';
-import { applyBestDiscount } from './pricing.js';
 
 const PLAN_SELECT = {
   id: true,
@@ -44,8 +43,6 @@ const INVOICE_SELECT = {
   dueAt: true,
   totalCents: true,
   paidAt: true,
-  stripeCheckoutSessionId: true,
-  stripePaymentIntentId: true,
   createdAt: true,
   updatedAt: true,
   family: {
@@ -59,7 +56,61 @@ const INVOICE_SELECT = {
     select: { id: true, label: true, quantity: true, unitCents: true, totalCents: true },
     orderBy: { createdAt: 'asc' },
   },
+  installments: {
+    select: { id: true, sequence: true, dueAt: true, amountCents: true, paidAt: true },
+    orderBy: { sequence: 'asc' },
+  },
+  payments: {
+    select: { id: true, method: true, amountCents: true, paidAt: true, reference: true },
+    orderBy: { paidAt: 'asc' },
+  },
+  riderSubscription: {
+    select: {
+      id: true,
+      paymentSchedule: true,
+      rider: { select: { id: true, firstName: true, lastName: true } },
+      plan: { select: { id: true, name: true } },
+    },
+  },
 };
+
+/** Délai de paiement par défaut d'une facture libre. */
+const DEFAULT_PAYMENT_DAYS = 30;
+
+/**
+ * Échéance suivante et reste dû, déduits des règlements couvrant les échéances
+ * dans l'ordre (logique pure).
+ * @param {{ totalCents: number, installments: Array<{ id: string, sequence: number,
+ *   dueAt: Date, amountCents: number }>, payments: Array<{ amountCents: number }> }} invoice
+ */
+export function summarizeInvoicePayments(invoice) {
+  const paidCents = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
+  const remainingCents = Math.max(0, invoice.totalCents - paidCents);
+  let cumulative = 0;
+  /** @type {{ id: string, sequence: number, dueAt: Date, amountCents: number } | null} */
+  let nextInstallment = null;
+  for (const installment of invoice.installments) {
+    cumulative += installment.amountCents;
+    if (cumulative > paidCents) {
+      nextInstallment = {
+        id: installment.id,
+        sequence: installment.sequence,
+        dueAt: installment.dueAt,
+        amountCents: Math.min(installment.amountCents, cumulative - paidCents),
+      };
+      break;
+    }
+  }
+  return { paidCents, remainingCents, nextInstallment };
+}
+
+/**
+ * @template {{ totalCents: number, installments: any[], payments: any[] }} T
+ * @param {T} invoice
+ */
+function withPaymentSummary(invoice) {
+  return { ...invoice, ...summarizeInvoicePayments(invoice) };
+}
 
 export function listSubscriptionPlans() {
   return prisma.subscriptionPlan.findMany({ select: PLAN_SELECT, orderBy: { name: 'asc' } });
@@ -79,8 +130,12 @@ export async function updateSubscriptionPlan(planId, input) {
 }
 
 export async function deleteSubscriptionPlan(planId) {
-  const families = await prisma.family.count({ where: { subscriptionPlanId: planId } });
-  if (families > 0) throw AppError.conflict('Impossible de supprimer une formule déjà attribuée');
+  const subscriptions = await prisma.riderSubscription.count({ where: { planId } });
+  if (subscriptions > 0) {
+    throw AppError.conflict(
+      'Ce forfait a déjà été souscrit : archivez-le plutôt que de le supprimer'
+    );
+  }
   await prisma.subscriptionPlan.delete({ where: { id: planId } });
 }
 
@@ -104,7 +159,8 @@ export async function deleteDiscountRule(ruleId) {
   await prisma.discountRule.delete({ where: { id: ruleId } });
 }
 
-async function nextInvoiceNumber(tx) {
+/** @param {any} tx */
+export async function nextInvoiceNumber(tx) {
   const year = new Date().getUTCFullYear();
   const prefix = `FAC-${year}-`;
   const latest = await tx.invoice.findFirst({
@@ -116,89 +172,102 @@ async function nextInvoiceNumber(tx) {
   return `${prefix}${String(lastCounter + 1).padStart(4, '0')}`;
 }
 
-async function buildInvoiceItems(tx, familyId, subscriptionPlanId, manualItems) {
-  if (manualItems?.length) {
-    return manualItems.map((item) => ({
-      label: item.label,
-      quantity: item.quantity,
-      unitCents: item.unitCents,
-      totalCents: item.quantity * item.unitCents,
-    }));
-  }
-
-  const family = await tx.family.findUnique({
-    where: { id: familyId },
-    include: {
-      riders: { select: { id: true } },
-      subscriptionPlan: { select: PLAN_SELECT },
-    },
-  });
-  if (!family) throw AppError.notFound('Famille introuvable');
-
-  const plan = subscriptionPlanId
-    ? await tx.subscriptionPlan.findUnique({
-        where: { id: subscriptionPlanId },
-        select: PLAN_SELECT,
-      })
-    : family.subscriptionPlan;
-  if (!plan) {
-    throw AppError.badRequest("Aucune formule d'abonnement n'est associée à cette famille");
-  }
-
-  const rules = await tx.discountRule.findMany({ select: RULE_SELECT });
-  const pricing = applyBestDiscount({
-    basePriceCents: plan.priceCents,
-    riderCount: family.riders.length,
-    rules,
-  });
-
-  const items = [
-    {
-      label: `Abonnement ${plan.name}`,
-      quantity: 1,
-      unitCents: plan.priceCents,
-      totalCents: plan.priceCents,
-    },
-  ];
-
-  if (pricing.discountCents > 0 && pricing.appliedRule) {
-    items.push({
-      label: `Réduction ${pricing.appliedRule.label} (${pricing.appliedRule.percentage}%)`,
-      quantity: 1,
-      unitCents: -pricing.discountCents,
-      totalCents: -pricing.discountCents,
-    });
-  }
-
-  return items;
-}
-
 /**
- * @param {{ familyId: string, subscriptionPlanId?: string, dueAt?: Date, items?: Array<{ label: string, quantity: number, unitCents: number }> }} input
+ * Facture libre (brouillon) : lignes saisies, une seule échéance.
+ * Les forfaits de saison sont facturés à la souscription (subscriptionService).
+ * @param {{ familyId: string, dueAt?: Date, items: Array<{ label: string, quantity: number, unitCents: number }> }} input
  */
 export async function createInvoice(input) {
-  return prisma.$transaction(async (tx) => {
-    const items = await buildInvoiceItems(
-      tx,
-      input.familyId,
-      input.subscriptionPlanId,
-      input.items
-    );
-    const totalCents = Math.max(
-      0,
-      items.reduce((sum, item) => sum + item.totalCents, 0)
-    );
+  const family = await prisma.family.findUnique({ where: { id: input.familyId } });
+  if (!family) throw AppError.notFound('Famille introuvable');
 
-    return tx.invoice.create({
+  const items = input.items.map((item) => ({
+    label: item.label,
+    quantity: item.quantity,
+    unitCents: item.unitCents,
+    totalCents: item.quantity * item.unitCents,
+  }));
+  const totalCents = Math.max(
+    0,
+    items.reduce((sum, item) => sum + item.totalCents, 0)
+  );
+  const dueAt = input.dueAt ?? new Date(Date.now() + DEFAULT_PAYMENT_DAYS * 24 * 60 * 60 * 1000);
+
+  const invoice = await prisma.$transaction(async (tx) =>
+    tx.invoice.create({
       data: {
         familyId: input.familyId,
         number: await nextInvoiceNumber(tx),
-        dueAt: input.dueAt ?? null,
+        dueAt,
         totalCents,
         items: { create: items },
+        installments: { create: [{ sequence: 1, dueAt, amountCents: totalCents }] },
       },
       select: INVOICE_SELECT,
-    });
+    })
+  );
+  return withPaymentSummary(invoice);
+}
+
+/**
+ * Facture émise (statut « envoyée ») avec son échéancier, dans une transaction.
+ * @param {any} tx
+ * @param {{ familyId: string, items: Array<{ label: string, quantity: number, unitCents: number,
+ *   totalCents: number, eventRegistrationId?: string }>,
+ *   installments: Array<{ sequence: number, dueAt: Date, amountCents: number }> }} input
+ */
+export async function createIssuedInvoice(tx, input) {
+  const totalCents = input.installments.reduce((sum, i) => sum + i.amountCents, 0);
+  const now = new Date();
+  // Montant nul (réduction de 100 %) : rien à régler, la facture est soldée d'emblée.
+  const settled = totalCents === 0;
+  return tx.invoice.create({
+    data: {
+      familyId: input.familyId,
+      number: await nextInvoiceNumber(tx),
+      status: settled ? 'paid' : 'sent',
+      issuedAt: now,
+      paidAt: settled ? now : null,
+      dueAt: input.installments[0].dueAt,
+      totalCents,
+      items: { create: input.items },
+      installments: {
+        create: input.installments.map((i) => ({ ...i, paidAt: settled ? now : null })),
+      },
+    },
+    select: INVOICE_SELECT,
+  });
+}
+
+/**
+ * Notification « nouvelle facture » (in-app et e-mail).
+ * @param {{ number: string, totalCents: number, installments: Array<unknown>,
+ *   family: { userId: string, user: { firstName: string } } }} invoice
+ */
+export function notifyInvoiceIssued(invoice) {
+  const amount = formatEuroCents(invoice.totalCents);
+  const schedule =
+    invoice.installments.length > 1 ? ` Payable en ${invoice.installments.length} échéances.` : '';
+  return dispatchNotification({
+    userId: invoice.family.userId,
+    type: NOTIFICATION_TYPES.INVOICE_CREATED,
+    title: 'Nouvelle facture disponible',
+    body: `La facture ${invoice.number} de ${amount} est disponible.${schedule}`,
+    linkUrl: '/app/factures',
+    email: {
+      subject: `Equime — Facture ${invoice.number} disponible`,
+      text: [
+        `Bonjour ${invoice.family.user.firstName},`,
+        '',
+        `La facture ${invoice.number} est maintenant disponible dans votre espace Equime.`,
+        `Montant : ${amount}.${schedule}`,
+      ].join('\n'),
+      html: [
+        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
+        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> est maintenant disponible dans votre espace Equime.</p>`,
+        `<p>Montant : ${escapeHtml(amount)}.${escapeHtml(schedule)}</p>`,
+      ].join('\n'),
+    },
   });
 }
 
@@ -206,54 +275,12 @@ export async function createInvoice(input) {
  * Liste admin : tous les statuts, y compris les brouillons (non envoyés).
  * @returns {Promise<object[]>}
  */
-export function listAdminInvoices() {
-  return prisma.invoice.findMany({ select: INVOICE_SELECT, orderBy: [{ createdAt: 'desc' }] });
-}
-
-/**
- * Bornes du mois calendaire local (évite les doublons de facture d'abonnement).
- * @param {Date} [now]
- * @returns {{ periodStart: Date, periodEnd: Date }}
- */
-function calendarMonthRange(now = new Date()) {
-  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return { periodStart, periodEnd };
-}
-
-/**
- * Génère une facture d'abonnement (brouillon) pour chaque famille ayant une
- * formule, si aucune facture n'existe déjà sur le mois calendaire en cours
- * (Excel 12.1 — génération batch, sans cron).
- *
- * @returns {Promise<{ invoices: object[], createdCount: number, skippedCount: number }>}
- */
-export async function generateSubscriptionInvoices() {
-  const { periodStart, periodEnd } = calendarMonthRange();
-  const families = await prisma.family.findMany({
-    where: { subscriptionPlanId: { not: null } },
-    select: { id: true },
+export async function listAdminInvoices() {
+  const invoices = await prisma.invoice.findMany({
+    select: INVOICE_SELECT,
+    orderBy: [{ createdAt: 'desc' }],
   });
-
-  /** @type {object[]} */
-  const invoices = [];
-  let skippedCount = 0;
-
-  for (const family of families) {
-    const existing = await prisma.invoice.count({
-      where: {
-        familyId: family.id,
-        createdAt: { gte: periodStart, lt: periodEnd },
-      },
-    });
-    if (existing > 0) {
-      skippedCount += 1;
-      continue;
-    }
-    invoices.push(await createInvoice({ familyId: family.id }));
-  }
-
-  return { invoices, createdCount: invoices.length, skippedCount };
+  return invoices.map(withPaymentSummary);
 }
 
 /** Statuts visibles côté client — les brouillons restent internes à l'admin. */
@@ -262,11 +289,12 @@ const CLIENT_INVOICE_STATUSES = ['sent', 'paid', 'overdue'];
 export async function listFamilyInvoices(userId) {
   const family = await prisma.family.findUnique({ where: { userId } });
   if (!family) return [];
-  return prisma.invoice.findMany({
+  const invoices = await prisma.invoice.findMany({
     where: { familyId: family.id, status: { in: CLIENT_INVOICE_STATUSES } },
     select: INVOICE_SELECT,
     orderBy: [{ createdAt: 'desc' }],
   });
+  return invoices.map(withPaymentSummary);
 }
 
 async function getInvoiceOrThrow(invoiceId) {
@@ -275,7 +303,7 @@ async function getInvoiceOrThrow(invoiceId) {
     select: INVOICE_SELECT,
   });
   if (!invoice) throw AppError.notFound('Facture introuvable');
-  return invoice;
+  return withPaymentSummary(invoice);
 }
 
 /**
@@ -292,7 +320,7 @@ async function getInvoiceForClient(userId, invoiceId) {
     select: INVOICE_SELECT,
   });
   if (!invoice) throw AppError.notFound('Facture introuvable');
-  return invoice;
+  return withPaymentSummary(invoice);
 }
 
 /**
@@ -319,28 +347,8 @@ export async function sendInvoice(invoiceId) {
     select: INVOICE_SELECT,
   });
 
-  await dispatchNotification({
-    userId: invoice.family.userId,
-    type: NOTIFICATION_TYPES.INVOICE_CREATED,
-    title: 'Nouvelle facture disponible',
-    body: `La facture ${invoice.number} est maintenant envoyée.`,
-    linkUrl: '/app/factures',
-    email: {
-      subject: `Equime — Facture ${invoice.number} disponible`,
-      text: [
-        `Bonjour ${invoice.family.user.firstName},`,
-        '',
-        `La facture ${invoice.number} est maintenant disponible dans votre espace Equime.`,
-        `Montant : ${(invoice.totalCents / 100).toFixed(2)} €.`,
-      ].join('\n'),
-      html: [
-        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
-        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> est maintenant disponible dans votre espace Equime.</p>`,
-        `<p>Montant : ${(invoice.totalCents / 100).toFixed(2)} €</p>`,
-      ].join('\n'),
-    },
-  });
-  return invoice;
+  await notifyInvoiceIssued(invoice);
+  return withPaymentSummary(invoice);
 }
 
 export async function remindInvoice(invoiceId) {
@@ -378,7 +386,7 @@ export async function remindInvoice(invoiceId) {
       ].join('\n'),
     },
   });
-  return invoice;
+  return withPaymentSummary(invoice);
 }
 
 function clubIssuer() {
@@ -424,24 +432,9 @@ const PUBLIC_PLAN_SELECT = {
   sessionsPerWeek: true,
 };
 
-const FAMILY_SUBSCRIPTION_SELECT = {
-  id: true,
-  userId: true,
-  sessionQuota: true,
-  subscriptionPlanId: true,
-  subscriptionPlan: { select: PLAN_SELECT },
-};
-
 /**
- * Quota mensuel initial : séances par semaine × 4 (Excel 8.2, aligné sur le seed).
- * @param {number} sessionsPerWeek
- */
-export function monthlySessionQuota(sessionsPerWeek) {
-  return sessionsPerWeek * 4;
-}
-
-/**
- * Formules actives pour la vitrine et le compte famille (Excel 1.2 / 8.2).
+ * Forfaits actifs pour la vitrine et la page Famille (Excel 1.2 / 8.2).
+ * `priceCents` est le prix de la saison (ADR 011).
  */
 export function listActivePublicPlans() {
   return prisma.subscriptionPlan.findMany({
@@ -449,125 +442,6 @@ export function listActivePublicPlans() {
     select: PUBLIC_PLAN_SELECT,
     orderBy: { priceCents: 'asc' },
   });
-}
-
-/**
- * Abonnement de la famille du client connecté.
- * @param {string} userId
- */
-export async function getFamilySubscription(userId) {
-  const family = await prisma.family.findUnique({
-    where: { userId },
-    select: FAMILY_SUBSCRIPTION_SELECT,
-  });
-  if (!family) throw AppError.forbidden('Aucune famille associée à ce compte');
-  return family;
-}
-
-/**
- * Première souscription client : uniquement si `subscriptionPlanId` est null.
- * @param {string} userId
- * @param {string} planId
- */
-export async function subscribeFamilyPlan(userId, planId) {
-  const family = await prisma.family.findUnique({ where: { userId } });
-  if (!family) throw AppError.forbidden('Aucune famille associée à ce compte');
-  if (family.subscriptionPlanId) {
-    throw AppError.conflict(
-      'Une formule est déjà associée à votre famille. Pour la modifier, contactez le secrétariat.'
-    );
-  }
-
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
-  if (!plan || !plan.active) throw AppError.notFound('Formule introuvable');
-
-  const quota = monthlySessionQuota(plan.sessionsPerWeek);
-  const result = await prisma.family.updateMany({
-    where: { id: family.id, subscriptionPlanId: null },
-    data: { subscriptionPlanId: plan.id, sessionQuota: quota },
-  });
-  if (result.count === 0) {
-    throw AppError.conflict(
-      'Une formule est déjà associée à votre famille. Pour la modifier, contactez le secrétariat.'
-    );
-  }
-
-  const updated = await prisma.family.findUniqueOrThrow({
-    where: { id: family.id },
-    select: FAMILY_SUBSCRIPTION_SELECT,
-  });
-
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { firstName: true },
-  });
-
-  await dispatchNotification({
-    userId,
-    type: NOTIFICATION_TYPES.SUBSCRIPTION_CONFIRMED,
-    title: 'Formule enregistrée',
-    body: `Votre famille est abonnée à la formule ${plan.name}.`,
-    linkUrl: '/app/compte',
-    email: buildSimpleNotificationEmail({
-      firstName: user.firstName,
-      subject: `Equime — Formule confirmée : ${plan.name}`,
-      paragraphs: [
-        `Votre famille est abonnée à la formule ${plan.name}.`,
-        'Vous pouvez consulter votre abonnement depuis votre espace client.',
-      ],
-      ctaUrl: `${env.APP_URL}/app/compte`,
-      ctaLabel: 'Voir mon compte',
-    }),
-  });
-
-  return updated;
-}
-
-/**
- * Changement de formule par l'admin : réinitialise le quota sur le nouveau plan.
- * @param {string} familyId
- * @param {string} planId
- */
-export async function adminChangeFamilySubscription(familyId, planId) {
-  const family = await prisma.family.findUnique({ where: { id: familyId } });
-  if (!family) throw AppError.notFound('Famille introuvable');
-
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
-  if (!plan) throw AppError.notFound('Formule introuvable');
-
-  const updated = await prisma.family.update({
-    where: { id: family.id },
-    data: {
-      subscriptionPlanId: plan.id,
-      sessionQuota: monthlySessionQuota(plan.sessionsPerWeek),
-    },
-    select: FAMILY_SUBSCRIPTION_SELECT,
-  });
-
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: family.userId },
-    select: { firstName: true },
-  });
-
-  await dispatchNotification({
-    userId: family.userId,
-    type: NOTIFICATION_TYPES.SUBSCRIPTION_CONFIRMED,
-    title: 'Formule mise à jour',
-    body: `Votre formule d'abonnement est désormais ${plan.name}.`,
-    linkUrl: '/app/compte',
-    email: buildSimpleNotificationEmail({
-      firstName: user.firstName,
-      subject: `Equime — Formule mise à jour : ${plan.name}`,
-      paragraphs: [
-        `Votre formule d'abonnement est désormais ${plan.name}.`,
-        'Vous pouvez consulter votre abonnement depuis votre espace client.',
-      ],
-      ctaUrl: `${env.APP_URL}/app/compte`,
-      ctaLabel: 'Voir mon compte',
-    }),
-  });
-
-  return updated;
 }
 
 /**
@@ -593,33 +467,26 @@ export async function createSentInvoiceForEventRegistration(input) {
   });
   if (existingItem) return existingItem.invoice;
 
-  /** @type {object | null} */
+  /** @type {any} */
   let invoice = null;
   try {
-    invoice = await prisma.$transaction(async (tx) => {
-      return tx.invoice.create({
-        data: {
-          familyId: input.familyId,
-          number: await nextInvoiceNumber(tx),
-          status: 'sent',
-          issuedAt: new Date(),
-          dueAt: input.dueAt ?? null,
-          totalCents: input.priceCents,
-          items: {
-            create: [
-              {
-                label: `${input.riderName} — ${input.eventTitle}`,
-                quantity: 1,
-                unitCents: input.priceCents,
-                totalCents: input.priceCents,
-                eventRegistrationId: input.registrationId,
-              },
-            ],
+    invoice = await prisma.$transaction(async (tx) =>
+      createIssuedInvoice(tx, {
+        familyId: input.familyId,
+        items: [
+          {
+            label: `${input.riderName} — ${input.eventTitle}`,
+            quantity: 1,
+            unitCents: input.priceCents,
+            totalCents: input.priceCents,
+            eventRegistrationId: input.registrationId,
           },
-        },
-        select: INVOICE_SELECT,
-      });
-    });
+        ],
+        installments: [
+          { sequence: 1, dueAt: input.dueAt ?? new Date(), amountCents: input.priceCents },
+        ],
+      })
+    );
   } catch (err) {
     if (err?.code === 'P2002') {
       const item = await prisma.invoiceItem.findUnique({
@@ -631,99 +498,149 @@ export async function createSentInvoiceForEventRegistration(input) {
     throw err;
   }
 
-  await dispatchNotification({
-    userId: invoice.family.userId,
-    type: NOTIFICATION_TYPES.INVOICE_CREATED,
-    title: 'Nouvelle facture disponible',
-    body: `La facture ${invoice.number} est maintenant envoyée.`,
-    linkUrl: '/app/factures',
-    email: {
-      subject: `Equime — Facture ${invoice.number} disponible`,
-      text: [
-        `Bonjour ${invoice.family.user.firstName},`,
-        '',
-        `La facture ${invoice.number} est maintenant disponible dans votre espace Equime.`,
-        `Montant : ${(invoice.totalCents / 100).toFixed(2)} €.`,
-      ].join('\n'),
-      html: [
-        `<p>Bonjour ${escapeHtml(invoice.family.user.firstName)},</p>`,
-        `<p>La facture <strong>${escapeHtml(invoice.number)}</strong> est maintenant disponible dans votre espace Equime.</p>`,
-        `<p>Montant : ${(invoice.totalCents / 100).toFixed(2)} €</p>`,
-      ].join('\n'),
-    },
-  });
+  await notifyInvoiceIssued(invoice);
   return invoice;
 }
 
 /**
- * Marque une facture payée et envoie la notification `payment_confirmed`.
- * Idempotent, y compris en concurrence (webhook et confirm-checkout
- * simultanés) : la transition `sent|overdue → paid` est conditionnelle, et
- * seul l'appel qui l'effectue notifie.
+ * Enregistre un règlement (ADR 011) : les règlements couvrent les échéances dans
+ * l'ordre ; la facture passe « payée » quand ils couvrent son total.
  *
- * @param {string} invoiceId
- * @param {{ paymentIntentId?: string | null }} [extras]
- * @returns {Promise<object>}
+ * - Règlement saisi au club : refusé s'il dépasse le reste dû.
+ * - Paiement Stripe : l'argent est déjà encaissé, il est toujours enregistré
+ *   (un trop-perçu est tracé pour remboursement). Idempotent par PaymentIntent :
+ *   webhook et confirmation de retour peuvent arriver ensemble.
+ *
+ * @param {{ invoiceId: string, method: string, amountCents: number, paidAt?: Date,
+ *   reference?: string, stripePaymentIntentId?: string | null, installmentId?: string | null,
+ *   recordedById?: string | null }} input
+ * @returns {Promise<{ invoice: object, recorded: boolean }>}
  */
-export async function markInvoicePaidFromPayment(invoiceId, extras = {}) {
-  /** @type {Record<string, unknown>} */
-  const data = {
-    status: 'paid',
-    paidAt: new Date(),
-  };
-  if (extras.paymentIntentId) {
-    data.stripePaymentIntentId = extras.paymentIntentId;
+export async function recordPayment(input) {
+  const isStripe = Boolean(input.stripePaymentIntentId);
+  /** @type {{ fullyPaid: boolean, remainingCents: number } | null} */
+  let outcome = null;
+  try {
+    outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "invoices" WHERE id = ${input.invoiceId} FOR UPDATE`;
+      if (isStripe) {
+        const known = await tx.payment.findUnique({
+          where: { stripePaymentIntentId: /** @type {string} */ (input.stripePaymentIntentId) },
+          select: { id: true },
+        });
+        if (known) return null;
+      }
+      const invoice = await tx.invoice.findUnique({
+        where: { id: input.invoiceId },
+        select: {
+          status: true,
+          totalCents: true,
+          installments: {
+            select: { id: true, amountCents: true, paidAt: true },
+            orderBy: { sequence: 'asc' },
+          },
+          payments: { select: { amountCents: true } },
+        },
+      });
+      if (!invoice) throw AppError.notFound('Facture introuvable');
+
+      const payable = invoice.status === 'sent' || invoice.status === 'overdue';
+      const paidBefore = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
+      const remainingBefore = invoice.totalCents - paidBefore;
+      if (!isStripe) {
+        if (!payable) throw AppError.badRequest('Cette facture ne peut pas recevoir de règlement');
+        if (input.amountCents > remainingBefore) {
+          throw AppError.badRequest(
+            `Le règlement dépasse le reste dû (${formatEuroCents(remainingBefore)})`
+          );
+        }
+      } else if (!payable || input.amountCents > remainingBefore) {
+        logger.error(
+          { invoiceId: input.invoiceId, paymentIntentId: input.stripePaymentIntentId },
+          'Paiement Stripe au-delà du reste dû : trop-perçu à rembourser'
+        );
+      }
+
+      const paidAt = input.paidAt ?? new Date();
+      await tx.payment.create({
+        data: {
+          invoiceId: input.invoiceId,
+          installmentId: input.installmentId ?? null,
+          method: input.method,
+          amountCents: input.amountCents,
+          paidAt,
+          reference: input.reference ?? null,
+          stripePaymentIntentId: input.stripePaymentIntentId ?? null,
+          recordedById: input.recordedById ?? null,
+        },
+      });
+
+      const paidTotal = paidBefore + input.amountCents;
+      let cumulative = 0;
+      for (const installment of invoice.installments) {
+        cumulative += installment.amountCents;
+        if (!installment.paidAt && cumulative <= paidTotal) {
+          await tx.invoiceInstallment.update({
+            where: { id: installment.id },
+            data: { paidAt },
+          });
+        }
+      }
+
+      const fullyPaid = payable && paidTotal >= invoice.totalCents;
+      if (fullyPaid) {
+        await tx.invoice.update({
+          where: { id: input.invoiceId },
+          data: { status: 'paid', paidAt },
+        });
+      }
+      return { fullyPaid, remainingCents: Math.max(0, invoice.totalCents - paidTotal) };
+    });
+  } catch (err) {
+    // Même PaymentIntent déjà enregistré (webhook et retour de paiement simultanés).
+    if (isStripe && /** @type {{ code?: string }} */ (err)?.code === 'P2002') {
+      return { invoice: await getInvoiceOrThrow(input.invoiceId), recorded: false };
+    }
+    throw err;
   }
 
-  const { count } = await prisma.invoice.updateMany({
-    where: { id: invoiceId, status: { in: ['sent', 'overdue'] } },
-    data,
-  });
-
-  if (count === 0) {
-    const current = await getInvoiceOrThrow(invoiceId);
-    if (current.status !== 'paid') {
-      throw AppError.badRequest('Cette facture ne peut pas être payée');
-    }
-    // Second encaissement pour une facture déjà réglée : à rembourser à la main.
-    if (extras.paymentIntentId && extras.paymentIntentId !== current.stripePaymentIntentId) {
-      logger.error(
-        { invoiceId, paymentIntentId: extras.paymentIntentId },
-        'Paiement Stripe reçu pour une facture déjà payée'
-      );
-    }
-    return current;
-  }
-
-  const invoice = await prisma.invoice.findUniqueOrThrow({
-    where: { id: invoiceId },
-    select: INVOICE_SELECT,
-  });
-
+  const invoice = await getInvoiceOrThrow(input.invoiceId);
+  if (!outcome) return { invoice, recorded: false };
+  const amount = formatEuroCents(input.amountCents);
+  const body = outcome.fullyPaid
+    ? `Règlement de ${amount} reçu : la facture ${invoice.number} est soldée.`
+    : `Règlement de ${amount} reçu pour la facture ${invoice.number}. Reste dû : ${formatEuroCents(outcome.remainingCents)}.`;
   await dispatchNotification({
     userId: invoice.family.userId,
     type: NOTIFICATION_TYPES.PAYMENT_CONFIRMED,
     title: 'Paiement confirmé',
-    body: `Le paiement de la facture ${invoice.number} a bien été enregistré.`,
+    body,
     linkUrl: '/app/factures',
     email: {
-      subject: `Equime — Paiement confirmé ${invoice.number}`,
-      text: [
-        'Bonjour,',
-        '',
-        `Le paiement de la facture ${invoice.number} a bien été enregistré.`,
-      ].join('\n'),
-      html: [
-        '<p>Bonjour,</p>',
-        `<p>Le paiement de la facture <strong>${escapeHtml(invoice.number)}</strong> a bien été enregistré.</p>`,
-      ].join('\n'),
+      subject: `Equime — Paiement reçu (${invoice.number})`,
+      text: ['Bonjour,', '', body].join('\n'),
+      html: ['<p>Bonjour,</p>', `<p>${escapeHtml(body)}</p>`].join('\n'),
     },
   });
+  return { invoice, recorded: true };
+}
+
+/**
+ * Règlement saisi par le secrétariat (espèces, chèque, ANCV, Pass'Sport…).
+ * @param {string} invoiceId
+ * @param {{ method: string, amountCents: number, paidAt?: Date, reference?: string }} input
+ * @param {string} adminId
+ */
+export async function recordOfflinePayment(invoiceId, input, adminId) {
+  if (input.method === PAYMENT_METHODS.CARD_ONLINE) {
+    throw AppError.badRequest('Les paiements en ligne sont enregistrés automatiquement');
+  }
+  const { invoice } = await recordPayment({ ...input, invoiceId, recordedById: adminId });
   return invoice;
 }
 
 /**
- * Paiement simulé (dev/test sans Stripe uniquement).
+ * Paiement simulé de l'échéance suivante (dev/test sans Stripe uniquement).
  * @param {string} userId
  * @param {string} invoiceId
  */
@@ -739,6 +656,14 @@ export async function payInvoice(userId, invoiceId) {
   if (current.status !== 'sent' && current.status !== 'overdue') {
     throw AppError.badRequest('Cette facture ne peut pas être payée');
   }
+  if (!current.nextInstallment) return current;
 
-  return markInvoicePaidFromPayment(invoiceId);
+  const { invoice } = await recordPayment({
+    invoiceId,
+    installmentId: current.nextInstallment.id,
+    method: PAYMENT_METHODS.OTHER,
+    amountCents: current.nextInstallment.amountCents,
+    reference: 'Paiement simulé',
+  });
+  return invoice;
 }

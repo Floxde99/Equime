@@ -7,8 +7,8 @@ import { searchFamilies } from '@/features/admin/api.js';
  * @typedef {{
  *   id: string,
  *   user: { id: string, firstName: string, lastName: string, email: string, banned?: boolean },
- *   riders: Array<{ id: string, firstName: string, lastName: string, level: string }>,
- *   subscriptionPlan?: { id: string, name: string, priceCents: number } | null,
+ *   riders: Array<{ id: string, firstName: string, lastName: string, level: string,
+ *     subscriptions?: Array<{ id: string, plan: { name: string } }> }>,
  * }} FamilyOption
  */
 
@@ -19,13 +19,19 @@ export function familyLabel(family) {
 
 /** @param {{ family: FamilyOption }} props */
 function FamilyOptionView({ family }) {
-  const riders = family.riders.map((rider) => rider.firstName).join(', ');
+  // Forfait de saison en cours à côté du prénom (ADR 011)
+  const riders = family.riders
+    .map((rider) =>
+      rider.subscriptions?.[0]
+        ? `${rider.firstName} (${rider.subscriptions[0].plan.name})`
+        : rider.firstName
+    )
+    .join(', ');
   return (
     <span className="block">
       <span className="block font-semibold">{familyLabel(family)}</span>
       <span className="block text-xs text-muted-on-card">
         {riders ? `Cavaliers : ${riders}` : 'Aucun cavalier'}
-        {family.subscriptionPlan ? ` · ${family.subscriptionPlan.name}` : ''}
         {' · '}
         {family.user.email}
       </span>

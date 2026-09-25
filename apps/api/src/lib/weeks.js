@@ -40,7 +40,7 @@ function formatterFor(timeZone) {
  * @param {Date} date
  * @param {string} timeZone
  */
-function zonedParts(date, timeZone) {
+export function zonedParts(date, timeZone) {
   /** @type {Record<string, string>} */
   const parts = {};
   for (const { type, value } of formatterFor(timeZone).formatToParts(date)) parts[type] = value;
@@ -73,7 +73,7 @@ function offsetAt(instant, timeZone) {
  * @param {number} day
  * @param {string} timeZone
  */
-function zonedMidnight(year, month, day, timeZone) {
+export function zonedMidnight(year, month, day, timeZone) {
   const wallClock = Date.UTC(year, month - 1, day);
   const guess = wallClock - offsetAt(wallClock, timeZone);
   // Second passage : corrige le cas où le changement d'heure tombe entre les deux instants.

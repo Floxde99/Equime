@@ -13,6 +13,7 @@ import {
   authHeader,
   createUser,
   familyIdOf,
+  giveSubscription,
   resetAuthTables,
   resetCoreTables,
   resetRateLimits,
@@ -160,9 +161,14 @@ describe('Cours récurrents et inscriptions', () => {
       },
     });
 
-    const startAt = new Date('2026-09-01T14:00:00.000Z');
-    const endAt = new Date('2026-09-01T15:00:00.000Z');
-    const recurrenceEndDate = new Date('2026-09-22T14:00:00.000Z');
+    await giveSubscription({ riderId: rider.id, sessionsPerWeek: 1 });
+
+    // Série à venir : une inscription sur une séance passée est refusée.
+    const week = 7 * 24 * 60 * 60 * 1000;
+    const startAt = new Date(Date.now() + 2 * week);
+    startAt.setUTCHours(14, 0, 0, 0);
+    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+    const recurrenceEndDate = new Date(startAt.getTime() + 3 * week);
 
     const courseRes = await request(app).post('/api/v1/courses').set(authHeader(adminToken)).send({
       title: 'Galop 2',
@@ -190,9 +196,7 @@ describe('Cours récurrents et inscriptions', () => {
       .send({ riderId: rider.id });
 
     expect(enrollRes.status).toBe(201);
-
-    const family = await prisma.family.findUnique({ where: { id: familyId } });
-    expect(family?.sessionQuota).toBe(9);
+    expect(enrollRes.body.enrollment.entitlement).toBe('subscription');
   });
 });
 
@@ -556,7 +560,6 @@ describe('Documents bloquants à l’inscription (Excel 7.2 / 10.4)', () => {
 
   it('autorise l’admin à forcer l’inscription malgré des documents manquants', async () => {
     const course = await createScheduledCourse();
-    await prisma.family.update({ where: { id: familyId }, data: { sessionQuota: 0 } });
     const rider = await prisma.rider.create({
       data: {
         familyId,
@@ -583,9 +586,12 @@ describe('Documents bloquants à l’inscription (Excel 7.2 / 10.4)', () => {
 
     expect(forced.status).toBe(201);
     expect(forced.body.enrollment.rider.firstName).toBe('Tom');
-
-    const family = await prisma.family.findUnique({ where: { id: familyId } });
-    expect(family?.sessionQuota).toBe(0);
+    // Sans forfait ni document : inscription forcée, tracée dans le journal d'audit
+    expect(forced.body.enrollment.entitlement).toBe('forced');
+    const audit = await prisma.adminAuditLog.findFirst({
+      where: { riderId: rider.id, action: 'enrollment_forced' },
+    });
+    expect(audit?.details).toContain('Galop 2 soir');
   });
 
   it('refuse l’inscription si un document approuvé est expiré (Excel 7.2)', async () => {
@@ -620,8 +626,8 @@ describe('Documents bloquants à l’inscription (Excel 7.2 / 10.4)', () => {
   });
 });
 
-describe('Absence famille (Excel 3.7)', () => {
-  it('permet au client d’excuser une séance à venir et notifie rider_absence', async () => {
+describe('Annulation par la famille (ADR 011)', () => {
+  it('annule une séance à venir, libère la place et accorde un rattrapage', async () => {
     const course = await createScheduledCourse();
     const rider = await prisma.rider.create({
       data: {
@@ -644,29 +650,45 @@ describe('Absence famille (Excel 3.7)', () => {
     expect(listRes.status).toBe(200);
     expect(listRes.body.enrollments).toHaveLength(1);
     expect(listRes.body.enrollments[0].id).toBe(enrollment.id);
+    expect(new Date(listRes.body.enrollments[0].cancellationDeadline).getTime()).toBe(
+      course.startAt.getTime() - 24 * 60 * 60 * 1000
+    );
 
+    // La présence reste l'affaire du moniteur
     const presentRes = await request(app)
       .patch(`/api/v1/courses/${course.id}/enrollments/${enrollment.id}/attendance`)
       .set(authHeader(clientToken))
       .send({ attendance: 'present' });
     expect(presentRes.status).toBe(403);
 
-    const excuseRes = await request(app)
-      .patch(`/api/v1/courses/${course.id}/enrollments/${enrollment.id}/attendance`)
-      .set(authHeader(clientToken))
-      .send({ attendance: 'excused' });
+    const cancelRes = await request(app)
+      .delete(`/api/v1/courses/${course.id}/enrollments/${enrollment.id}`)
+      .set(authHeader(clientToken));
 
-    expect(excuseRes.status).toBe(200);
-    expect(excuseRes.body.enrollment.attendance).toBe('excused');
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.inTime).toBe(true);
+    expect(new Date(cancelRes.body.credit.expiresAt).getTime()).toBe(
+      course.startAt.getTime() + 60 * 24 * 60 * 60 * 1000
+    );
+
+    const stored = await prisma.courseEnrollment.findUniqueOrThrow({
+      where: { id: enrollment.id },
+    });
+    expect(stored.status).toBe('cancelled');
+
+    const afterList = await request(app)
+      .get('/api/v1/courses/my-enrollments')
+      .set(authHeader(clientToken));
+    expect(afterList.body.enrollments).toHaveLength(0);
 
     const notification = await prisma.notification.findFirst({
       where: { userId: clientId, type: 'rider_absence' },
     });
-    expect(notification).not.toBeNull();
     expect(notification?.body).toContain('Nina');
+    expect(notification?.body).toContain('rattrapage');
   });
 
-  it('refuse d’excuser une séance passée ou une inscription d’une autre famille', async () => {
+  it('refuse d’annuler une séance passée ou une inscription d’une autre famille', async () => {
     const space = await prisma.space.create({
       data: { name: 'Carrière passée', type: 'outdoor', capacity: 8 },
     });
@@ -695,9 +717,8 @@ describe('Absence famille (Excel 3.7)', () => {
     });
 
     const pastRes = await request(app)
-      .patch(`/api/v1/courses/${pastCourse.id}/enrollments/${pastEnrollment.id}/attendance`)
-      .set(authHeader(clientToken))
-      .send({ attendance: 'excused' });
+      .delete(`/api/v1/courses/${pastCourse.id}/enrollments/${pastEnrollment.id}`)
+      .set(authHeader(clientToken));
     expect(pastRes.status).toBe(400);
 
     const otherClient = await createUser({ email: 'other-absence@test.fr', role: 'client' });
@@ -718,9 +739,8 @@ describe('Absence famille (Excel 3.7)', () => {
     });
 
     const foreignRes = await request(app)
-      .patch(`/api/v1/courses/${futureCourse.id}/enrollments/${otherEnrollment.id}/attendance`)
-      .set(authHeader(clientToken))
-      .send({ attendance: 'excused' });
+      .delete(`/api/v1/courses/${futureCourse.id}/enrollments/${otherEnrollment.id}`)
+      .set(authHeader(clientToken));
     expect(foreignRes.status).toBe(404);
 
     const otherList = await request(app)

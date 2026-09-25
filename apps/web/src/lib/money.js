@@ -18,9 +18,17 @@ export function formatEventPrice(cents) {
 }
 
 /**
- * Tarif de formule : quota mensuel (`sessionsPerWeek * 4`), libellé « / mois ».
+ * Tarif d'un forfait : prix de la saison complète (ADR 011).
  * @param {number} cents
  */
-export function formatMonthlyPlanPrice(cents) {
-  return `${formatEuroCents(cents)} / mois`;
+export function formatSeasonPlanPrice(cents) {
+  return `${formatEuroCents(cents)} la saison`;
+}
+
+/**
+ * Mensualité indicative d'un forfait payé en 10 fois (« soit 10 × 89,00 € »).
+ * @param {number} cents
+ */
+export function formatTenInstallments(cents) {
+  return `soit 10 × ${formatEuroCents(Math.round(cents / 10))}`;
 }

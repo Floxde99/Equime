@@ -80,8 +80,13 @@ export function fetchPlanning(from, to, scope) {
   return api.get(`/courses/planning?${params}`).then((r) => r.events);
 }
 
-export function fetchEnrollableCourses() {
-  return api.get('/courses/enrollable').then((r) => r.courses);
+/**
+ * Séances réservables pour un cavalier, avec le droit qui serait consommé (ADR 011).
+ * @param {string} [riderId]
+ */
+export function fetchEnrollableCourses(riderId) {
+  const query = riderId ? `?riderId=${encodeURIComponent(riderId)}` : '';
+  return api.get(`/courses/enrollable${query}`).then((r) => r.courses);
 }
 
 /** @param {string} courseId @param {string} riderId @param {{ force?: boolean }} [options] */
@@ -110,9 +115,15 @@ export function updateAttendance(courseId, enrollmentId, attendance) {
     .then((r) => r.enrollment);
 }
 
-/** @param {string} courseId @param {string} enrollmentId */
-export function excuseEnrollment(courseId, enrollmentId) {
-  return updateAttendance(courseId, enrollmentId, 'excused');
+/**
+ * Annulation d'une inscription (famille ou secrétariat) : crédit de rattrapage
+ * si elle a lieu dans le délai du club.
+ * @param {string} courseId
+ * @param {string} enrollmentId
+ * @returns {Promise<{ enrollmentId: string, inTime: boolean, credit: null | { id: string, expiresAt: string } }>}
+ */
+export function cancelEnrollment(courseId, enrollmentId) {
+  return api.delete(`/courses/${courseId}/enrollments/${enrollmentId}`);
 }
 
 /** @param {string} courseId */

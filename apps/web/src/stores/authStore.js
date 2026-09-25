@@ -8,7 +8,7 @@ import { create } from 'zustand';
 
 /**
  * @typedef {{ id: string, email: string, firstName: string, lastName: string,
- *   phone: string | null, role: string, sessionQuota?: number | null }} AuthUser
+ *   phone: string | null, role: string }} AuthUser
  * @typedef {'loading' | 'authenticated' | 'unauthenticated'} AuthStatus
  */
 

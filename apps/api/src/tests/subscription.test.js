@@ -1,13 +1,12 @@
 /**
- * Tests d'intégration — souscription famille (Excel 8.2) et membres client (Excel 7.1).
+ * Tests d'intégration — forfaits de saison par cavalier (ADR 011) et membres client (Excel 7.1).
  */
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../app.js';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
-import { monthlySessionQuota } from '../services/billingService.js';
 
 import {
   accessTokenFor,
@@ -15,6 +14,7 @@ import {
   createUser,
   familyIdOf,
   resetAuthTables,
+  resetBillingTables,
   resetCoreTables,
   resetRateLimits,
 } from './coreHelpers.js';
@@ -23,17 +23,55 @@ const app = createApp();
 
 let adminToken;
 let clientToken;
+let clientUser;
 let clientId;
 let familyId;
 let classique;
 let decouverte;
+let archived;
+
+/** Horloge figée (Date uniquement : les timers restent réels pour Prisma et Supertest). */
+function freezeAt(iso) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(iso));
+}
+
+/** @param {{ firstName?: string, family?: string }} [input] */
+function createRider({ firstName = 'Emma', family = familyId } = {}) {
+  return prisma.rider.create({
+    data: {
+      familyId: family,
+      firstName,
+      lastName: 'Martin',
+      birthdate: new Date('2014-03-12'),
+      level: 'galop_2',
+    },
+  });
+}
+
+/** @param {string} riderId @param {object} body @param {string} [token] */
+function subscribe(riderId, body, token = clientToken) {
+  return request(app)
+    .post(`/api/v1/riders/${riderId}/subscriptions`)
+    .set(authHeader(token))
+    .send(body);
+}
+
+/** @param {string} riderId @param {object} query */
+function preview(riderId, query) {
+  return request(app)
+    .get(`/api/v1/riders/${riderId}/subscription-preview`)
+    .query(query)
+    .set(authHeader(clientToken));
+}
 
 beforeEach(async () => {
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
+  await resetBillingTables();
   await resetCoreTables();
   await resetAuthTables();
+  await prisma.discountRule.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
+  await prisma.clubSettings.deleteMany();
   await resetRateLimits();
 
   const admin = await createUser({ email: 'admin-abo@test.fr', role: 'admin' });
@@ -45,44 +83,41 @@ beforeEach(async () => {
 
   adminToken = await accessTokenFor(admin);
   clientToken = await accessTokenFor(client);
+  clientUser = client;
   clientId = client.id;
   familyId = await familyIdOf(clientId);
 
-  await prisma.family.update({
-    where: { id: familyId },
-    data: { subscriptionPlanId: null, sessionQuota: 0 },
-  });
-
+  // Prix de la saison complète (ADR 011)
   decouverte = await prisma.subscriptionPlan.create({
-    data: { name: 'Découverte', priceCents: 4900, sessionsPerWeek: 1, active: true },
+    data: { name: 'Découverte', priceCents: 49_000, sessionsPerWeek: 1, active: true },
   });
   classique = await prisma.subscriptionPlan.create({
-    data: { name: 'Classique', priceCents: 8900, sessionsPerWeek: 2, active: true },
+    data: { name: 'Classique', priceCents: 89_000, sessionsPerWeek: 2, active: true },
   });
-  await prisma.subscriptionPlan.create({
-    data: { name: 'Archive', priceCents: 100, sessionsPerWeek: 1, active: false },
+  archived = await prisma.subscriptionPlan.create({
+    data: { name: 'Archive', priceCents: 1_000, sessionsPerWeek: 1, active: false },
+  });
+  await prisma.discountRule.create({
+    data: { label: 'Famille nombreuse', percentage: 10, minRiders: 2 },
   });
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 afterAll(async () => {
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
+  await resetBillingTables();
   await resetCoreTables();
   await resetAuthTables();
+  await prisma.discountRule.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
   await prisma.$disconnect();
   redis.disconnect();
 });
 
-describe('monthlySessionQuota', () => {
-  it('vaut séances/semaine × 4', () => {
-    expect(monthlySessionQuota(1)).toBe(4);
-    expect(monthlySessionQuota(2)).toBe(8);
-  });
-});
-
 describe('GET /api/v1/public/plans', () => {
-  it('liste uniquement les formules actives, sans authentification', async () => {
+  it('liste uniquement les forfaits actifs, sans authentification', async () => {
     const res = await request(app).get('/api/v1/public/plans');
 
     expect(res.status).toBe(200);
@@ -92,82 +127,207 @@ describe('GET /api/v1/public/plans', () => {
   });
 });
 
-describe('Souscription client (Excel 8.2)', () => {
-  it('associe la formule et initialise le quota si la famille n’a pas de plan', async () => {
-    const res = await request(app)
-      .post('/api/v1/client/family/subscription')
-      .set(authHeader(clientToken))
-      .send({ subscriptionPlanId: classique.id });
+describe('Forfait de saison par cavalier (ADR 011)', () => {
+  it('présente un aperçu en 10 fois avant la saison, sans rien enregistrer', async () => {
+    freezeAt('2026-07-10T10:00:00.000Z');
+    const emma = await createRider();
 
-    expect(res.status).toBe(201);
-    expect(res.body.subscription.subscriptionPlanId).toBe(classique.id);
-    expect(res.body.subscription.sessionQuota).toBe(8);
-    expect(res.body.subscription.subscriptionPlan.name).toBe('Classique');
-
-    const family = await prisma.family.findUniqueOrThrow({ where: { id: familyId } });
-    expect(family.sessionQuota).toBe(monthlySessionQuota(classique.sessionsPerWeek));
-  });
-
-  it('répond 409 si une formule est déjà associée', async () => {
-    await request(app)
-      .post('/api/v1/client/family/subscription')
-      .set(authHeader(clientToken))
-      .send({ subscriptionPlanId: decouverte.id });
-
-    const second = await request(app)
-      .post('/api/v1/client/family/subscription')
-      .set(authHeader(clientToken))
-      .send({ subscriptionPlanId: classique.id });
-
-    expect(second.status).toBe(409);
-    expect(second.body.error.message).toMatch(/secrétariat/i);
-
-    const family = await prisma.family.findUniqueOrThrow({ where: { id: familyId } });
-    expect(family.subscriptionPlanId).toBe(decouverte.id);
-  });
-
-  it('interdit au client de changer la formule via PATCH admin', async () => {
-    const res = await request(app)
-      .patch(`/api/v1/admin/families/${familyId}/subscription`)
-      .set(authHeader(clientToken))
-      .send({ subscriptionPlanId: classique.id });
-
-    expect(res.status).toBe(403);
-  });
-
-  it('n’expose pas de PATCH client pour changer de formule', async () => {
-    const res = await request(app)
-      .patch('/api/v1/client/family/subscription')
-      .set(authHeader(clientToken))
-      .send({ subscriptionPlanId: classique.id });
-
-    expect(res.status).toBe(404);
-  });
-});
-
-describe('Changement de formule admin (Excel 8.2)', () => {
-  it('change le plan et réinitialise le quota', async () => {
-    await prisma.family.update({
-      where: { id: familyId },
-      data: { subscriptionPlanId: decouverte.id, sessionQuota: 1 },
+    const res = await preview(emma.id, {
+      planId: classique.id,
+      paymentSchedule: 'ten_installments',
     });
 
-    const res = await request(app)
-      .patch(`/api/v1/admin/families/${familyId}/subscription`)
-      .set(authHeader(adminToken))
-      .send({ subscriptionPlanId: classique.id });
-
     expect(res.status).toBe(200);
-    expect(res.body.subscription.subscriptionPlanId).toBe(classique.id);
-    expect(res.body.subscription.sessionQuota).toBe(8);
+    expect(res.body.preview).toMatchObject({
+      season: { label: '2026-2027' },
+      prorated: false,
+      discount: null,
+      totalCents: 89_000,
+      alreadySubscribed: false,
+    });
+    expect(res.body.preview.installments).toHaveLength(10);
+    expect(res.body.preview.installments.every((i) => i.amountCents === 8_900)).toBe(true);
+    expect(res.body.preview.installments[0].dueAt).toBe('2026-09-04T22:00:00.000Z');
+    expect(await prisma.invoice.count()).toBe(0);
+  });
 
-    const family = await prisma.family.findUniqueOrThrow({ where: { id: familyId } });
-    expect(family.sessionQuota).toBe(8);
+  it('souscrit : facture émise, échéancier et droits du cavalier', async () => {
+    freezeAt('2026-07-10T10:00:00.000Z');
+    const emma = await createRider();
+
+    const res = await subscribe(emma.id, {
+      planId: classique.id,
+      paymentSchedule: 'ten_installments',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.subscription).toMatchObject({
+      paymentSchedule: 'ten_installments',
+      priceCents: 89_000,
+      discountPercent: 0,
+      status: 'active',
+      plan: { name: 'Classique', sessionsPerWeek: 2 },
+    });
+    expect(res.body.invoice.status).toBe('sent');
+    expect(res.body.invoice.totalCents).toBe(89_000);
+    expect(res.body.invoice.items[0].label).toBe(
+      'Forfait Classique — Emma Martin — saison 2026-2027'
+    );
+    expect(res.body.invoice.installments).toHaveLength(10);
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId: clientId },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(notifications.map((n) => n.type)).toEqual(['subscription_confirmed', 'invoice_created']);
+
+    const entitlements = await request(app)
+      .get('/api/v1/client/entitlements')
+      .set(authHeader(clientToken));
+    expect(entitlements.status).toBe(200);
+    expect(entitlements.body.rules).toEqual({
+      cancellationDeadlineHours: 24,
+      makeupValidityDays: 60,
+    });
+    expect(entitlements.body.riders[0]).toMatchObject({
+      firstName: 'Emma',
+      sessionsPerWeek: 2,
+      usedThisWeek: 0,
+      credits: [],
+      subscription: { plan: { name: 'Classique' }, invoiceId: res.body.invoice.id },
+    });
+  });
+
+  it('applique la réduction famille selon les cavaliers déjà abonnés, pas les profils', async () => {
+    freezeAt('2026-07-10T10:00:00.000Z');
+    const emma = await createRider();
+    const lucas = await createRider({ firstName: 'Lucas' });
+    await createRider({ firstName: 'Profil vide' });
+
+    // Trois profils, mais aucun forfait encore : pas de réduction
+    const alone = await preview(emma.id, { planId: classique.id, paymentSchedule: 'quarterly' });
+    expect(alone.body.preview.discount).toBeNull();
+
+    await subscribe(emma.id, { planId: classique.id, paymentSchedule: 'ten_installments' });
+
+    const res = await subscribe(lucas.id, { planId: classique.id, paymentSchedule: 'quarterly' });
+    expect(res.status).toBe(201);
+    expect(res.body.subscription.discountPercent).toBe(10);
+    expect(res.body.invoice.totalCents).toBe(80_100);
+    expect(res.body.invoice.items.map((i) => i.totalCents)).toEqual([89_000, -8_900]);
+    expect(res.body.invoice.installments.map((i) => i.amountCents)).toEqual([
+      26_700, 26_700, 26_700,
+    ]);
+    expect(res.body.invoice.installments.map((i) => i.dueAt)).toEqual([
+      '2026-09-04T22:00:00.000Z',
+      '2027-01-04T23:00:00.000Z',
+      '2027-04-04T22:00:00.000Z',
+    ]);
+  });
+
+  it('arrivée en cours de saison : prorata et première échéance immédiate', async () => {
+    freezeAt('2026-11-10T10:00:00.000Z');
+    // Jeton émis à la date simulée (sinon expiré)
+    clientToken = await accessTokenFor(clientUser);
+    const emma = await createRider();
+
+    const res = await subscribe(emma.id, {
+      planId: classique.id,
+      paymentSchedule: 'ten_installments',
+    });
+
+    expect(res.status).toBe(201);
+    // 34 semaines restantes sur 44
+    expect(res.body.invoice.totalCents).toBe(Math.round((89_000 * 34) / 44));
+    expect(res.body.invoice.items[0].label).toContain('à partir du 10/11/2026');
+    const installments = res.body.invoice.installments;
+    expect(installments).toHaveLength(8);
+    expect(installments[0].dueAt).toBe('2026-11-10T10:00:00.000Z');
+    expect(installments[1].dueAt).toBe('2026-12-04T23:00:00.000Z');
+    expect(installments.reduce((sum, i) => sum + i.amountCents, 0)).toBe(
+      res.body.invoice.totalCents
+    );
+  });
+
+  it('refuse un second forfait sur la même saison, un forfait archivé et un autre foyer', async () => {
+    const emma = await createRider();
+    const first = await subscribe(emma.id, {
+      planId: decouverte.id,
+      paymentSchedule: 'ten_installments',
+    });
+    expect(first.status).toBe(201);
+
+    const second = await subscribe(emma.id, {
+      planId: classique.id,
+      paymentSchedule: 'quarterly',
+    });
+    expect(second.status).toBe(409);
+    expect(second.body.error.message).toMatch(/Emma a déjà le forfait « Découverte »/);
+
+    const lucas = await createRider({ firstName: 'Lucas' });
+    const inactive = await subscribe(lucas.id, {
+      planId: archived.id,
+      paymentSchedule: 'quarterly',
+    });
+    expect(inactive.status).toBe(404);
+
+    const other = await createUser({ email: 'autre-abo@test.fr', role: 'client' });
+    const foreignRider = await createRider({ family: await familyIdOf(other.id) });
+    const foreign = await subscribe(foreignRider.id, {
+      planId: classique.id,
+      paymentSchedule: 'quarterly',
+    });
+    expect(foreign.status).toBe(404);
+
+    const invalid = await subscribe(lucas.id, { planId: classique.id, paymentSchedule: 'monthly' });
+    expect(invalid.status).toBe(400);
+  });
+
+  it('le secrétariat souscrit pour une famille puis arrête le forfait', async () => {
+    const emma = await createRider();
+
+    const res = await request(app)
+      .post(`/api/v1/admin/riders/${emma.id}/subscriptions`)
+      .set(authHeader(adminToken))
+      .send({ planId: decouverte.id, paymentSchedule: 'quarterly' });
+    expect(res.status).toBe(201);
+
+    const forbidden = await request(app)
+      .post(`/api/v1/admin/subscriptions/${res.body.subscription.id}/end`)
+      .set(authHeader(clientToken));
+    expect(forbidden.status).toBe(403);
+
+    const ended = await request(app)
+      .post(`/api/v1/admin/subscriptions/${res.body.subscription.id}/end`)
+      .set(authHeader(adminToken));
+    expect(ended.status).toBe(200);
+    expect(ended.body.subscription.status).toBe('ended');
+    expect(ended.body.subscription.endedAt).toBeTruthy();
+
+    const again = await request(app)
+      .post(`/api/v1/admin/subscriptions/${res.body.subscription.id}/end`)
+      .set(authHeader(adminToken));
+    expect(again.status).toBe(409);
+
+    const members = await request(app).get('/api/v1/admin/members').set(authHeader(adminToken));
+    const family = members.body.members.find((m) => m.id === clientId).family;
+    expect(family.riders[0].subscriptions).toEqual([]);
+  });
+
+  it('refuse de supprimer un forfait déjà souscrit (archivage à la place)', async () => {
+    const emma = await createRider();
+    await subscribe(emma.id, { planId: decouverte.id, paymentSchedule: 'quarterly' });
+
+    const res = await request(app)
+      .delete(`/api/v1/admin/subscription-plans/${decouverte.id}`)
+      .set(authHeader(adminToken));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/archivez-le/);
   });
 });
 
 describe('Création et édition de membres (Excel 7.1)', () => {
-  it('crée un client avec une famille vide et un quota à 0', async () => {
+  it('crée un client avec une famille vide', async () => {
     const res = await request(app).post('/api/v1/admin/members').set(authHeader(adminToken)).send({
       email: 'nouveau-client@test.fr',
       password: 'MotDePasse123',
@@ -178,12 +338,13 @@ describe('Création et édition de membres (Excel 7.1)', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.member.role).toBe('client');
-    expect(res.body.member.sessionQuota).toBe(0);
 
-    const family = await prisma.family.findUnique({ where: { userId: res.body.member.id } });
+    const family = await prisma.family.findUnique({
+      where: { userId: res.body.member.id },
+      include: { riders: true },
+    });
     expect(family).not.toBeNull();
-    expect(family?.subscriptionPlanId).toBeNull();
-    expect(family?.sessionQuota).toBe(0);
+    expect(family?.riders).toEqual([]);
   });
 
   it('refuse de créer un administrateur via cet endpoint', async () => {

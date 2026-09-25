@@ -74,7 +74,7 @@ Comptes de test (seed dev) : `admin@equime.local` (admin) · `coach@equime.local
 |---|---|---|---|---|---|
 | T-4.1 | Récurrence 8 semaines | Créer cours hebdo avec date de fin | 8 séances générées rattachées à la série | ✅ unit (recurrence.js) + intégration | ✅ |
 | T-4.2 | Annulation d'une séance | Annuler séance 3 seulement | Les 7 autres inchangées ; notification `course_cancelled` aux inscrits | ✅ `core.test.js` | ✅ |
-| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, quota décrémenté | ✅ intégration | ✅ |
+| T-4.3 | Inscription niveau OK | Emma (G3) sur cours G2-4 | 201, séance du forfait consommée (ADR 011) | ✅ intégration | ✅ |
 | T-4.4 | Inscription niveau KO | Lucas (initiation) sur cours G5+ | 400 avec raison | ✅ `core.test.js` / courses | ✅ |
 | T-4.5 | Cours complet | Inscrire au-delà de la capacité | Refus explicite | ✅ `core.test.js` / phase5 | ✅ |
 | T-4.6 | Présences | Moniteur pointe présent/absent/excusé | Persisté ; absence → notification famille | ✅ `core.test.js` + E2E-3 | ✅ |
@@ -174,7 +174,7 @@ Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 | T-6.1 | Pricing | Famille 2 cavaliers, plan Classique | Prix = plan − 10 % (règle famille nombreuse) — `pricing.js` pur | ✅ `pricing.test.js` | ✅ |
 | T-6.2 | Réductions cumulées | Cas 3 cavaliers | Meilleure règle appliquée (15 %), jamais de prix négatif | ✅ `pricing.test.js` | ✅ |
 | T-6.3 | Cycle de facture | brouillon → envoyée → payée | Numérotation unique ; notifications `invoice_created`, `payment_confirmed` | ✅ `phase4.test.js` / `payment.test.js` | ✅ |
-| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ✅ |
+| T-6.4 | Paiement simulé client | Lina paie FAC-2026-0002 (une échéance) | Statut payé côté client ET admin | ✅ E2E `billing-flow.spec.js` | ✅ |
 | T-6.5 | Relance impayé | Relancer FAC-2026-0004 (overdue) | Notification `invoice_reminder` selon préférences | ✅ `phase4.test.js` | ✅ |
 | T-6.6 | Isolation | Alex tente GET facture de Lina | 403/404 | ✅ `phase4.test.js` | ✅ |
 | T-6.7 | PDF facture | Admin GET `/invoices/:id/pdf` (brouillon OK) ; client GET après envoi ; autre famille 404 | `Content-Type: application/pdf`, magic `%PDF` | ✅ `invoicePdf.test.js`, `phase4.test.js` | ✅ |
@@ -217,6 +217,22 @@ Le jeu d'essai principal donne le même résultat qu'à la seconde exécution.
 | T-10.8.5 | Dates en heure de Paris | 14 h été et hiver, 23 h 30 UTC, créneau sur deux jours | Heure murale de Paris quel que soit le fuseau serveur | ✅ `formatters.test.js` | ✅ |
 | T-10.8.6 | Validité des documents à la date de la séance | Certificat valable jusqu'au 15/10, séance le 20/10 | Inscription refusée ; séance du 01/10 acceptée | ✅ `documentRules.test.js` | ✅ |
 | T-10.8.7 | Facture à lignes libres (recette) | Recherche « chloe », lignes 30 € + 25,5 € | Famille Fontaine choisie au clavier ; total 55,50 € ; lignes 3000 + 2550 centimes | Manuel (navigateur) | ✅ 2026-09-24 |
+| T-10.3.1 | Droit hebdomadaire | Forfait 1 séance/semaine : mardi, jeudi de la même semaine, mardi suivant | Mardi accepté ; jeudi refusé « a déjà pris sa séance de la semaine » ; semaine suivante acceptée | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.2 | Annulation dans les délais | Annuler à J−7, réserver le jeudi, annuler le rattrapage | 1 crédit (60 jours après la séance) ; jeudi réservé en rattrapage ; crédit rendu, jamais dupliqué | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.3 | Annulation tardive | Délai 48 h, séance dans 30 h | Place libérée, aucun crédit, notification « moins de 48 h » | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.4 | Réinscription | Annuler à temps puis se réinscrire à la même séance | Même inscription réactivée ; crédit retiré ; seconde annulation idempotente (409) | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.5 | Séance annulée par le club | Un inscrit au forfait, un inscrit forcé | 1 crédit pour l'inscrit au forfait, aucun pour l'inscription forcée ; notification « rattrapage offert » | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.6 | Capacité et charge | Inscrit annulé sur une séance d'1 place, cheval de 2 h | Place et charge libérées | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.7 | Concurrence | 2 familles sur la dernière place ; 2 réservations simultanées du même cavalier | Une seule inscription ; une seule séance du forfait (verrous) | ✅ `entitlements.test.js` | ✅ |
+| T-10.3.8 | Refus explicites | Sans forfait, séance commencée, créneaux qui se chevauchent | 400 « n'a pas de forfait », 400, 409 « déjà inscrit(e) sur ce créneau » | ✅ `entitlements.test.js` | ✅ |
+| T-10.5.1 | Saison et échéanciers | 10 juillet, 10 novembre, 20 juin ; trimestre et 10 fois | Saison 01/09 → 30/06 heure de Paris ; échéances le 5 ; échéances passées regroupées ; somme exacte au centime | ✅ `seasons.test.js` | ✅ |
+| T-10.5.2 | Souscription | Aperçu puis validation (Classique, 10 fois) | Aucune écriture à l'aperçu ; facture émise avec 10 échéances ; notifications ; droits visibles | ✅ `subscription.test.js` | ✅ |
+| T-10.5.3 | Réduction famille | 3 profils, puis 2e cavalier abonné au trimestre | Pas de réduction sur de simples profils ; 10 % au 2e forfait, 3 × 267 € | ✅ `subscription.test.js` | ✅ |
+| T-10.5.4 | Arrivée en cours de saison | Souscription le 10/11 | Prix au prorata (34/44) ; 8 échéances dont une immédiate | ✅ `subscription.test.js` | ✅ |
+| T-10.5.5 | Refus et arrêt | 2e forfait même saison, forfait archivé, autre famille, arrêt admin | 409 ; 404 ; 404 ; forfait arrêté, second arrêt 409 | ✅ `subscription.test.js` | ✅ |
+| T-10.5.6 | Règlements au club | Chèque de 300 € sur 900 €, puis ANCV du solde ; montant excessif, carte en ligne, brouillon | Échéances couvertes dans l'ordre, facture soldée ; refus explicites | ✅ `payment.test.js` | ✅ |
+| T-10.5.7 | Stripe par échéance | Checkout sur facture au trimestre avec acompte ; double webhook ; confirmation simultanée | Montant = reste de l'échéance suivante ; un seul règlement par PaymentIntent ; une notification | ✅ `payment.test.js` | ✅ |
+| T-10.5.8 | Parcours famille (recette) | Jade : forfait Classique en 10 fois le 25/09, paiement de l'échéance, annulation d'Emma | Aperçu prorata + Tribu 15 % ; « Payer l'échéance (68,80 €) » ; rattrapage jusqu'au 29/11 | Manuel (navigateur) | ✅ 2026-09-25 |
 
 ## Parcours E2E (Phase 6 — Playwright)
 

@@ -15,7 +15,6 @@ import {
   fetchAdminInvoices,
   fetchDiscountRules,
   fetchSubscriptionPlans,
-  generateSubscriptionInvoices,
   remindInvoice,
   sendInvoice,
 } from '@/features/billing/api.js';
@@ -23,6 +22,7 @@ import { CreateInvoiceForm } from '@/features/billing/components/CreateInvoiceFo
 import { DiscountRuleManager } from '@/features/billing/components/DiscountRuleManager.jsx';
 import { InvoiceDetailDialog } from '@/features/billing/components/InvoiceDetailDialog.jsx';
 import { PlanManager } from '@/features/billing/components/PlanManager.jsx';
+import { RecordPaymentDialog } from '@/features/billing/components/RecordPaymentDialog.jsx';
 import { formatDate } from '@/lib/dates.js';
 import { formatEuroCents } from '@/lib/money.js';
 
@@ -34,6 +34,27 @@ const STATUS_VARIANT = {
   cancelled: 'danger',
 };
 
+/** @param {{ status: string }} invoice */
+function isPayable(invoice) {
+  return invoice.status === 'sent' || invoice.status === 'overdue';
+}
+
+/**
+ * Montant et avancement d'une facture dans la liste.
+ * @param {{ totalCents: number, status: string, paidCents: number, remainingCents: number,
+ *   installments: unknown[], nextInstallment: { dueAt: string } | null, dueAt: string | null }} invoice
+ */
+function amountSummary(invoice) {
+  const parts = [formatEuroCents(invoice.totalCents)];
+  if (invoice.installments.length > 1) parts.push(`${invoice.installments.length} échéances`);
+  if (isPayable(invoice) && invoice.paidCents > 0) {
+    parts.push(`reste dû ${formatEuroCents(invoice.remainingCents)}`);
+  }
+  const due = isPayable(invoice) ? invoice.nextInstallment?.dueAt : invoice.dueAt;
+  if (due && invoice.status !== 'paid') parts.push(`échéance ${formatDate(due)}`);
+  return parts.join(' · ');
+}
+
 export function AdminBillingPage() {
   const qc = useQueryClient();
   const location = useLocation();
@@ -44,6 +65,7 @@ export function AdminBillingPage() {
     /** @type {null | { type: 'success' | 'error', message: string }} */ (null)
   );
   const [pendingAction, setPendingAction] = useState(/** @type {string | null} */ (null));
+  const [paymentInvoice, setPaymentInvoice] = useState(/** @type {object | null} */ (null));
 
   const { data: plans = [] } = useQuery({
     queryKey: ['subscription-plans'],
@@ -99,21 +121,17 @@ export function AdminBillingPage() {
     onError: (err) => setFeedback({ type: 'error', message: err.message }),
   });
 
-  const batchMutation = useMutation({
-    mutationFn: generateSubscriptionInvoices,
-    onSuccess: refreshInvoices,
-  });
-
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Administration"
-        title="Facturation & abonnements"
-        description="Créez les factures, gérez les formules et les réductions, suivez les règlements."
+        title="Facturation & forfaits"
+        description="Forfaits de saison, factures, échéances et règlements reçus au club."
       />
 
       <Card title="Nouvelle facture">
         <CreateInvoiceForm
+          key={initialFamily?.id ?? 'nouvelle'}
           plans={plans}
           initialFamily={initialFamily}
           onCreated={(invoice) => {
@@ -121,6 +139,14 @@ export function AdminBillingPage() {
               type: 'success',
               message: `Brouillon ${invoice.number} créé : vérifiez-le puis envoyez-le à la famille.`,
             });
+            setOpenInvoiceId(invoice.id);
+          }}
+          onSubscribed={({ invoice }) => {
+            setFeedback({
+              type: 'success',
+              message: `Forfait enregistré : facture ${invoice.number} envoyée à la famille avec son échéancier.`,
+            });
+            refreshInvoices();
             setOpenInvoiceId(invoice.id);
           }}
         />
@@ -132,34 +158,9 @@ export function AdminBillingPage() {
       </div>
 
       <Card title="Factures">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="font-sans text-sm text-muted-on-card">
-            Brouillon pour chaque famille abonnée sans facture sur le mois en cours.
-          </p>
-          <Button
-            type="button"
-            variant="secondary"
-            loading={batchMutation.isPending}
-            onClick={() => batchMutation.mutate()}
-          >
-            Générer les factures d&apos;abonnement du mois
-          </Button>
-        </div>
         {feedback ? (
           <Alert variant={feedback.type} className="mb-4">
             {feedback.message}
-          </Alert>
-        ) : null}
-        {batchMutation.isError ? (
-          <Alert className="mb-4">{batchMutation.error.message}</Alert>
-        ) : null}
-        {batchMutation.isSuccess ? (
-          <Alert variant="success" className="mb-4">
-            {batchMutation.data.createdCount} facture(s) générée(s)
-            {batchMutation.data.skippedCount > 0
-              ? ` · ${batchMutation.data.skippedCount} déjà facturée(s) ce mois`
-              : ''}
-            .
           </Alert>
         ) : null}
         <QueryState
@@ -193,8 +194,7 @@ export function AdminBillingPage() {
                     </div>
                     <p className="font-sans text-sm text-muted-on-card">
                       {invoice.family.user.firstName} {invoice.family.user.lastName} ·{' '}
-                      {formatEuroCents(invoice.totalCents)}
-                      {invoice.dueAt ? ` · échéance ${formatDate(invoice.dueAt)}` : ''}
+                      {amountSummary(invoice)}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -216,15 +216,25 @@ export function AdminBillingPage() {
                         Envoyer
                       </Button>
                     ) : null}
-                    {invoice.status === 'sent' || invoice.status === 'overdue' ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        loading={pendingAction === `remind:${invoice.id}`}
-                        onClick={() => invoiceAction.mutate({ action: 'remind', invoice })}
-                      >
-                        Relancer
-                      </Button>
+                    {isPayable(invoice) ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setPaymentInvoice(invoice)}
+                          aria-label={`Enregistrer un règlement pour la facture ${invoice.number}`}
+                        >
+                          Encaisser
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          loading={pendingAction === `remind:${invoice.id}`}
+                          onClick={() => invoiceAction.mutate({ action: 'remind', invoice })}
+                        >
+                          Relancer
+                        </Button>
+                      </>
                     ) : null}
                   </div>
                 </li>
@@ -244,6 +254,23 @@ export function AdminBillingPage() {
         onRetry={refetchDetail}
         showFamily
         pdfPath={openInvoice ? `/admin/invoices/${openInvoice.id}/pdf` : null}
+        onRecordPayment={
+          openInvoice && isPayable(openInvoice) ? () => setPaymentInvoice(openInvoice) : null
+        }
+      />
+
+      <RecordPaymentDialog
+        invoice={paymentInvoice}
+        onClose={() => setPaymentInvoice(null)}
+        onRecorded={(updated) =>
+          setFeedback({
+            type: 'success',
+            message:
+              updated.status === 'paid'
+                ? `Règlement enregistré : la facture ${updated.number} est soldée.`
+                : `Règlement enregistré pour la facture ${updated.number} : reste dû ${formatEuroCents(updated.remainingCents)}.`,
+          })
+        }
       />
     </div>
   );

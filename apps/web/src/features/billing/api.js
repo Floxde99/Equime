@@ -4,22 +4,49 @@ export function fetchPublicPlans() {
   return apiFetch('/public/plans').then((r) => r.plans);
 }
 
-export function fetchFamilySubscription() {
-  return api.get('/client/family/subscription').then((r) => r.subscription);
+/**
+ * Droits de la famille (ADR 011) : forfait, séances de la semaine et rattrapages
+ * de chaque cavalier, avec les règles d'annulation du club.
+ */
+export function fetchEntitlements() {
+  return api.get('/client/entitlements');
 }
 
-/** @param {string} subscriptionPlanId */
-export function subscribeFamilyPlan(subscriptionPlanId) {
-  return api
-    .post('/client/family/subscription', { subscriptionPlanId })
-    .then((r) => r.subscription);
+/**
+ * Racine des routes forfait d'un cavalier : la famille ou le secrétariat.
+ * @param {string} riderId
+ * @param {boolean} asAdmin
+ */
+function riderSubscriptionPath(riderId, asAdmin) {
+  return asAdmin ? `/admin/riders/${riderId}` : `/riders/${riderId}`;
 }
 
-/** @param {string} familyId @param {string} subscriptionPlanId */
-export function changeFamilySubscription(familyId, subscriptionPlanId) {
+/**
+ * Aperçu d'un forfait de saison : prix, réduction famille et échéances datées.
+ * @param {string} riderId
+ * @param {{ planId: string, paymentSchedule: string }} input
+ * @param {{ asAdmin?: boolean }} [options]
+ */
+export function previewRiderSubscription(riderId, input, { asAdmin = false } = {}) {
+  const query = new URLSearchParams(input).toString();
   return api
-    .patch(`/admin/families/${familyId}/subscription`, { subscriptionPlanId })
-    .then((r) => r.subscription);
+    .get(`${riderSubscriptionPath(riderId, asAdmin)}/subscription-preview?${query}`)
+    .then((r) => r.preview);
+}
+
+/**
+ * Souscription : crée la facture de saison et son échéancier.
+ * @param {string} riderId
+ * @param {{ planId: string, paymentSchedule: string }} input
+ * @param {{ asAdmin?: boolean }} [options]
+ */
+export function subscribeRider(riderId, input, { asAdmin = false } = {}) {
+  return api.post(`${riderSubscriptionPath(riderId, asAdmin)}/subscriptions`, input);
+}
+
+/** @param {string} subscriptionId */
+export function endSubscription(subscriptionId) {
+  return api.post(`/admin/subscriptions/${subscriptionId}/end`, {}).then((r) => r.subscription);
 }
 
 export function fetchSubscriptionPlans() {
@@ -65,12 +92,17 @@ export function createInvoice(body) {
   return api.post('/admin/invoices', body).then((r) => r.invoice);
 }
 
-export function generateSubscriptionInvoices() {
-  return api.post('/admin/invoices/generate-subscriptions', {});
-}
-
 export function sendInvoice(id) {
   return api.post(`/admin/invoices/${id}/send`, {}).then((r) => r.invoice);
+}
+
+/**
+ * Règlement reçu au club (chèque, espèces, ANCV, Pass'Sport…).
+ * @param {string} id
+ * @param {{ method: string, amountCents: number, paidAt?: string, reference?: string }} body
+ */
+export function recordPayment(id, body) {
+  return api.post(`/admin/invoices/${id}/payments`, body).then((r) => r.invoice);
 }
 
 export function remindInvoice(id) {

@@ -6,14 +6,25 @@ import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 
 /**
+ * Vide la facturation (ordre FK) : règlements, échéances, forfaits, crédits, factures.
+ */
+export async function resetBillingTables() {
+  await prisma.payment.deleteMany();
+  await prisma.invoiceInstallment.deleteMany();
+  await prisma.sessionCredit.deleteMany();
+  await prisma.riderSubscription.deleteMany();
+  await prisma.invoiceItem.deleteMany();
+  await prisma.invoice.deleteMany();
+}
+
+/**
  * Vide les tables touchées par les tests auth (ordre FK).
  */
 export async function resetAuthTables() {
   await prisma.adminAuditLog.deleteMany();
   await prisma.passwordResetToken.deleteMany();
   await prisma.refreshToken.deleteMany();
-  await prisma.invoiceItem.deleteMany();
-  await prisma.invoice.deleteMany();
+  await resetBillingTables();
   await prisma.message.deleteMany();
   await prisma.conversationParticipant.deleteMany();
   await prisma.horseHealthLog.deleteMany();

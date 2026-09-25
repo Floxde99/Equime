@@ -1,5 +1,5 @@
 // @ts-check
-import { invoiceIdParamSchema, ROLES, subscribeFamilyPlanSchema } from '@equime/shared';
+import { invoiceIdParamSchema, ROLES } from '@equime/shared';
 import { Router } from 'express';
 
 import * as billingController from '../controllers/billingController.js';
@@ -11,12 +11,7 @@ const router = Router();
 
 router.use(requireAuth, requireRole(ROLES.CLIENT));
 
-router.get('/family/subscription', billingController.getFamilySubscription);
-router.post(
-  '/family/subscription',
-  validate(subscribeFamilyPlanSchema),
-  billingController.subscribeFamilyPlan
-);
+router.get('/entitlements', billingController.getEntitlements);
 
 router.get('/invoices', billingController.listClientInvoices);
 router.get(

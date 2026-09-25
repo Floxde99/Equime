@@ -3,7 +3,11 @@
  */
 import { z } from 'zod';
 
-import { INVOICE_STATUS_VALUES } from '../constants.js';
+import {
+  INVOICE_STATUS_VALUES,
+  PAYMENT_METHOD_VALUES,
+  PAYMENT_SCHEDULE_VALUES,
+} from '../constants.js';
 
 /** Plafond d'un montant saisi (10 000 €) : quantité × prix reste sous la limite d'un entier Postgres. */
 export const MAX_AMOUNT_CENTS = 1_000_000;
@@ -66,25 +70,50 @@ export const invoiceItemInputSchema = z.object({
     .max(MAX_AMOUNT_CENTS, 'Montant trop élevé (10 000 € maximum)'),
 });
 
+/** Facture libre (les forfaits de saison sont facturés à la souscription, ADR 011). */
 export const createInvoiceSchema = z.object({
   familyId: z.string().min(1),
-  subscriptionPlanId: z.string().min(1).optional(),
   dueAt: nullableDateSchema,
-  items: z.array(invoiceItemInputSchema).min(1).optional(),
+  items: z.array(invoiceItemInputSchema).min(1, 'Ajoutez au moins une ligne'),
 });
 
 export const updateInvoiceStatusSchema = z.object({
   status: z.enum(INVOICE_STATUS_VALUES),
 });
 
-/** Première souscription client (Excel 8.2) — uniquement si la famille n'a pas encore de formule. */
-export const subscribeFamilyPlanSchema = z.object({
-  subscriptionPlanId: z.string().min(1, 'La formule est requise'),
-});
-
 export const familyIdParamSchema = z.object({
   id: z.string().min(1),
 });
 
-/** Changement de formule par l'admin (Excel 8.2) — réinitialise le quota. */
-export const adminChangeFamilySubscriptionSchema = subscribeFamilyPlanSchema;
+/** Souscription d'un forfait de saison pour un cavalier (ADR 011). */
+export const subscribeRiderSchema = z.object({
+  planId: z.string().min(1, 'Choisissez un forfait'),
+  paymentSchedule: z.enum(PAYMENT_SCHEDULE_VALUES, 'Choisissez un échéancier'),
+});
+
+/** Aperçu avant souscription : prix, réduction et échéances datées. */
+export const subscriptionPreviewQuerySchema = subscribeRiderSchema;
+
+export const subscriptionIdParamSchema = z.object({
+  id: z.string().min(1),
+});
+
+/** Règlement saisi au club (espèces, chèque, ANCV…) — ADR 011. */
+export const recordPaymentSchema = z.object({
+  method: z.enum(PAYMENT_METHOD_VALUES, 'Choisissez un mode de règlement'),
+  amountCents: z.coerce
+    .number()
+    .int()
+    .positive('Le montant doit être positif')
+    .max(MAX_AMOUNT_CENTS, 'Montant trop élevé (10 000 € maximum)'),
+  paidAt: z.coerce
+    .date()
+    .refine((date) => date.getTime() <= Date.now() + 60_000, 'La date ne peut pas être future')
+    .optional(),
+  reference: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+});

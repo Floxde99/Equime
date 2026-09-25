@@ -1,4 +1,4 @@
-import { INVOICE_STATUS_LABELS } from '@equime/shared';
+import { INVOICE_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@equime/shared';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge.jsx';
@@ -23,7 +23,64 @@ function formatDateOrDash(value) {
 }
 
 /**
- * Détail lisible d'une facture (lignes, totaux, dates, statut).
+ * Échéancier et règlements reçus (ADR 011).
+ * @param {{ invoice: { installments?: Array<{ id: string, sequence: number, dueAt: string,
+ *   amountCents: number, paidAt: string | null }>, payments?: Array<{ id: string, method: string,
+ *   amountCents: number, paidAt: string, reference: string | null }>, remainingCents?: number,
+ *   status: string } }} props
+ */
+function PaymentSchedule({ invoice }) {
+  const installments = invoice.installments ?? [];
+  const payments = invoice.payments ?? [];
+  if (installments.length <= 1 && payments.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {installments.length > 1 ? (
+        <div>
+          <h4 className="text-xs uppercase tracking-wide text-muted-on-card">Échéancier</h4>
+          <ol className="mt-1 grid gap-x-6 gap-y-0.5 font-sans text-sm sm:grid-cols-2">
+            {installments.map((installment) => (
+              <li key={installment.id} className="flex justify-between gap-3 tabular-nums">
+                <span>
+                  {formatDate(installment.dueAt)}
+                  {installment.paidAt ? (
+                    <span className="ml-1 text-xs text-success">réglée</span>
+                  ) : null}
+                </span>
+                <span>{formatEuroCents(installment.amountCents)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+      {payments.length > 0 ? (
+        <div>
+          <h4 className="text-xs uppercase tracking-wide text-muted-on-card">Règlements reçus</h4>
+          <ul className="mt-1 space-y-0.5 font-sans text-sm">
+            {payments.map((payment) => (
+              <li key={payment.id} className="flex justify-between gap-3 tabular-nums">
+                <span>
+                  {formatDate(payment.paidAt)} · {PAYMENT_METHOD_LABELS[payment.method]}
+                  {payment.reference ? ` (${payment.reference})` : ''}
+                </span>
+                <span>{formatEuroCents(payment.amountCents)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {invoice.status !== 'paid' && typeof invoice.remainingCents === 'number' ? (
+        <p className="font-sans text-sm font-semibold">
+          Reste dû : {formatEuroCents(invoice.remainingCents)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Détail lisible d'une facture (lignes, échéancier, règlements, statut).
  *
  * @param {{
  *   open: boolean,
@@ -36,7 +93,9 @@ function formatDateOrDash(value) {
  *   showFamily?: boolean,
  *   pdfPath?: string | null,
  *   onPay?: (() => void) | null,
+ *   payLabel?: string,
  *   payLoading?: boolean,
+ *   onRecordPayment?: (() => void) | null,
  * }} props
  */
 export function InvoiceDetailDialog({
@@ -50,7 +109,9 @@ export function InvoiceDetailDialog({
   showFamily = false,
   pdfPath = null,
   onPay = null,
+  payLabel = 'Payer',
   payLoading = false,
+  onRecordPayment = null,
 }) {
   const [downloading, setDownloading] = useState(false);
   const [pdfError, setPdfError] = useState('');
@@ -83,9 +144,14 @@ export function InvoiceDetailDialog({
           <Button type="button" variant="secondary" onClick={onClose}>
             Fermer
           </Button>
+          {onRecordPayment ? (
+            <Button type="button" variant="secondary" onClick={onRecordPayment}>
+              Enregistrer un règlement
+            </Button>
+          ) : null}
           {onPay ? (
             <Button type="button" variant="secondary" loading={payLoading} onClick={onPay}>
-              Payer
+              {payLabel}
             </Button>
           ) : null}
           {invoice && pdfPath ? (
@@ -125,7 +191,9 @@ export function InvoiceDetailDialog({
                 <dd>{formatDateOrDash(invoice.issuedAt)}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-on-card">Échéance</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted-on-card">
+                  {(invoice.installments?.length ?? 0) > 1 ? 'Première échéance' : 'Échéance'}
+                </dt>
                 <dd>{formatDateOrDash(invoice.dueAt)}</dd>
               </div>
               {invoice.paidAt ? (
@@ -181,6 +249,8 @@ export function InvoiceDetailDialog({
                 </tfoot>
               </table>
             </div>
+
+            <PaymentSchedule invoice={invoice} />
           </div>
         ) : null}
       </QueryState>

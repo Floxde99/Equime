@@ -50,7 +50,7 @@ export async function getPlanning(req, res) {
 
 /** @param {import('express').Request} req @param {import('express').Response} res */
 export async function listEnrollable(req, res) {
-  const courses = await courseService.listEnrollableCourses(req.user.id);
+  const courses = await courseService.listEnrollableCourses(req.user.id, req.query.riderId);
   res.json({ courses });
 }
 
@@ -82,10 +82,20 @@ export async function updateAttendance(req, res) {
   const enrollment = await courseService.updateAttendance(
     req.params.id,
     req.params.enrollmentId,
-    req.body.attendance,
-    { id: req.user.id, role: req.user.role }
+    req.body.attendance
   );
   res.json({ enrollment });
+}
+
+/** DELETE /courses/:id/enrollments/:enrollmentId — annulation par la famille ou l'admin */
+/** @param {import('express').Request} req @param {import('express').Response} res */
+export async function cancelEnrollment(req, res) {
+  const result = await courseService.cancelEnrollment(
+    { id: req.user.id, role: req.user.role },
+    req.params.id,
+    req.params.enrollmentId
+  );
+  res.json(result);
 }
 
 /** @param {import('express').Request} req @param {import('express').Response} res */

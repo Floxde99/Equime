@@ -19,9 +19,9 @@ import {
 import { InvoiceDetailDialog } from '@/features/billing/components/InvoiceDetailDialog.jsx';
 import { PaymentTestBanner } from '@/features/billing/components/PaymentTestBanner.jsx';
 import { isStripeCheckout } from '@/features/billing/paymentMode.js';
+import { formatDate } from '@/lib/dates.js';
 import { STITCH_PHOTOS } from '@/lib/demoPhotos.js';
 import { formatEuroCents } from '@/lib/money.js';
-import { useAuthStore } from '@/stores/authStore.js';
 
 const STATUS_VARIANT = {
   draft: 'default',
@@ -34,10 +34,52 @@ const STATUS_VARIANT = {
 /** Durée maximale du polling de confirmation après retour de Stripe. */
 const CONFIRM_POLL_MAX_MS = 2 * 60 * 1000;
 
+/** @param {{ status: string }} invoice */
+function isPayable(invoice) {
+  return invoice.status === 'sent' || invoice.status === 'overdue';
+}
+
+/**
+ * Libellé du bouton de paiement : l'échéance suivante pour un échéancier.
+ * @param {{ installments?: unknown[], nextInstallment?: { amountCents: number } | null }} invoice
+ */
+function payLabel(invoice) {
+  if ((invoice.installments?.length ?? 0) > 1 && invoice.nextInstallment) {
+    return `Payer l’échéance (${formatEuroCents(invoice.nextInstallment.amountCents)})`;
+  }
+  return 'Payer';
+}
+
+/**
+ * Paiement en ligne enregistré depuis l'ouverture de la page (retour de Stripe) :
+ * une facture en plusieurs fois reste « envoyée » après une échéance réglée.
+ * @param {{ status: string, payments?: Array<{ method: string, paidAt: string }> } | undefined} invoice
+ * @param {number} since
+ */
+function isPaymentRecorded(invoice, since) {
+  if (!invoice) return false;
+  if (invoice.status === 'paid') return true;
+  return (invoice.payments ?? []).some(
+    (payment) => payment.method === 'card_online' && Date.parse(payment.paidAt) >= since
+  );
+}
+
+/**
+ * Prochaines échéances de la famille, toutes factures confondues.
+ * @param {Array<{ number: string, status: string,
+ *   nextInstallment?: { id: string, dueAt: string, amountCents: number } | null }>} invoices
+ */
+function upcomingInstallments(invoices) {
+  return invoices
+    .filter((invoice) => isPayable(invoice) && invoice.nextInstallment)
+    .map((invoice) => ({ ...invoice.nextInstallment, number: invoice.number }))
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
+}
+
 export function ClientInvoicesPage() {
-  const user = useAuthStore((s) => s.user);
-  const quota = user?.sessionQuota ?? 0;
   const qc = useQueryClient();
+  // Retour de Stripe : seuls les règlements récents confirment le paiement attendu
+  const [openedAt] = useState(() => Date.now() - 15 * 60 * 1000);
   const [searchParams, setSearchParams] = useSearchParams();
   const [openInvoice, setOpenInvoice] = useState(null);
   const confirmAttemptedRef = useRef(null);
@@ -75,7 +117,7 @@ export function ClientInvoicesPage() {
       const list = query.state.data ?? [];
       if (waitingInvoiceId) {
         const target = list.find((inv) => inv.id === waitingInvoiceId);
-        if (target?.status === 'paid') return false;
+        if (isPaymentRecorded(target, openedAt)) return false;
       }
       return 2000;
     },
@@ -89,7 +131,7 @@ export function ClientInvoicesPage() {
   useEffect(() => {
     if (!awaitingConfirm || !waitingInvoiceId) return;
     const target = invoices.find((inv) => inv.id === waitingInvoiceId);
-    if (target?.status === 'paid') {
+    if (isPaymentRecorded(target, openedAt)) {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -102,7 +144,7 @@ export function ClientInvoicesPage() {
         { replace: true }
       );
     }
-  }, [awaitingConfirm, waitingInvoiceId, invoices, setSearchParams]);
+  }, [awaitingConfirm, waitingInvoiceId, invoices, setSearchParams, openedAt]);
 
   const visibleInvoices = invoices.filter(
     (invoice) =>
@@ -110,9 +152,8 @@ export function ClientInvoicesPage() {
   );
 
   const useStripe = isStripeCheckout(paymentConfig);
-  const hasPayableInvoice = visibleInvoices.some(
-    (invoice) => invoice.status === 'sent' || invoice.status === 'overdue'
-  );
+  const hasPayableInvoice = visibleInvoices.some(isPayable);
+  const nextInstallments = upcomingInstallments(visibleInvoices);
 
   const confirmCheckoutMutation = useMutation({
     mutationFn: confirmCheckoutSession,
@@ -139,7 +180,7 @@ export function ClientInvoicesPage() {
     if (!awaitingConfirm || !waitingInvoiceId || !useStripe) return;
     if (isPending) return;
     const target = invoices.find((inv) => inv.id === waitingInvoiceId);
-    if (!target || target.status === 'paid') return;
+    if (!target || isPaymentRecorded(target, openedAt)) return;
     if (confirmAttemptedRef.current === waitingInvoiceId) return;
     confirmAttemptedRef.current = waitingInvoiceId;
     confirmCheckoutMutation.mutate(waitingInvoiceId);
@@ -178,7 +219,8 @@ export function ClientInvoicesPage() {
   const waitingInvoice = waitingInvoiceId
     ? invoices.find((inv) => inv.id === waitingInvoiceId)
     : null;
-  const confirmStillPending = awaitingConfirm && waitingInvoice && waitingInvoice.status !== 'paid';
+  const confirmStillPending =
+    awaitingConfirm && waitingInvoice && !isPaymentRecorded(waitingInvoice, openedAt);
   const showConfirmPending = confirmStillPending && !pollTimedOut;
   const showConfirmTimedOut = confirmStillPending && pollTimedOut;
 
@@ -187,7 +229,7 @@ export function ClientInvoicesPage() {
       <PageHeader
         eyebrow="Espace famille"
         title="Historique & facturation"
-        description="Gérez vos abonnements, consultez vos transactions et téléchargez vos justificatifs."
+        description="Suivez vos factures, vos échéances et vos règlements, et téléchargez vos justificatifs."
       />
 
       <PaymentTestBanner provider={paymentConfig?.provider} mode={paymentConfig?.mode} />
@@ -216,11 +258,34 @@ export function ClientInvoicesPage() {
           <div className="space-y-4">
             <Card>
               <p className="font-sans text-xs uppercase tracking-wide text-muted-on-card">
-                Abonnement actuel
+                Prochaines échéances
               </p>
-              <h2 className="mt-2 font-display text-2xl text-on-card">Forfait famille</h2>
-              <p className="mt-4 font-display text-5xl text-primary">{quota}</p>
-              <p className="mt-1 font-sans text-sm text-muted-on-card">séances restantes</p>
+              {nextInstallments.length === 0 ? (
+                <p className="mt-3 font-sans text-sm text-on-card">Rien à régler pour le moment.</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {nextInstallments.map((installment) => (
+                    <li
+                      key={installment.id}
+                      className="flex justify-between gap-3 font-sans text-sm text-on-card"
+                    >
+                      <span>
+                        {formatDate(installment.dueAt)}
+                        <span className="block text-xs text-muted-on-card">
+                          {installment.number}
+                        </span>
+                      </span>
+                      <span className="tabular-nums">
+                        {formatEuroCents(installment.amountCents)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-4 font-sans text-xs text-muted-on-card">
+                Réglez en ligne par carte, ou au club : espèces, chèque, chèques-vacances ANCV,
+                Pass’Sport.
+              </p>
             </Card>
             <div className="overflow-hidden rounded-xl">
               {/* Variantes générées par scripts/optimize-images.mjs (docs/eco-conception.md) */}
@@ -278,7 +343,18 @@ export function ClientInvoicesPage() {
                         </p>
                         <p className="font-sans text-sm text-text">
                           {formatEuroCents(invoice.totalCents)}
+                          {isPayable(invoice) && invoice.paidCents > 0
+                            ? ` · reste dû ${formatEuroCents(invoice.remainingCents)}`
+                            : ''}
                         </p>
+                        {isPayable(invoice) && invoice.nextInstallment ? (
+                          <p className="font-sans text-xs text-muted">
+                            Prochaine échéance le {formatDate(invoice.nextInstallment.dueAt)}
+                            {invoice.installments.length > 1
+                              ? ` (${invoice.nextInstallment.sequence}/${invoice.installments.length})`
+                              : ''}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -289,14 +365,14 @@ export function ClientInvoicesPage() {
                         >
                           Voir
                         </Button>
-                        {invoice.status === 'sent' || invoice.status === 'overdue' ? (
+                        {isPayable(invoice) ? (
                           <Button
                             type="button"
                             variant="secondary"
                             loading={payPending && payVariables === invoice.id}
                             onClick={() => handlePay(invoice.id)}
                           >
-                            Payer
+                            {payLabel(invoice)}
                           </Button>
                         ) : null}
                       </div>
@@ -314,11 +390,8 @@ export function ClientInvoicesPage() {
         onClose={() => setOpenInvoice(null)}
         invoice={openInvoice}
         pdfPath={openInvoice ? `/client/invoices/${openInvoice.id}/pdf` : null}
-        onPay={
-          openInvoice && (openInvoice.status === 'sent' || openInvoice.status === 'overdue')
-            ? () => handlePay(openInvoice.id)
-            : undefined
-        }
+        onPay={openInvoice && isPayable(openInvoice) ? () => handlePay(openInvoice.id) : undefined}
+        payLabel={openInvoice ? payLabel(openInvoice) : undefined}
         payLoading={payPending && payVariables === openInvoice?.id}
       />
     </div>

@@ -6,14 +6,44 @@ import { Card } from '@/components/ui/card.jsx';
 import { HorsePortrait } from '@/components/ui/horse-portrait.jsx';
 import { Skeleton } from '@/components/ui/skeleton.jsx';
 import { fetchClientInvoices } from '@/features/billing/api.js';
+import { useEntitlements } from '@/features/billing/useEntitlements.js';
 import { UpcomingEnrollments } from '@/features/client/components/UpcomingEnrollments.jsx';
 import { fetchHorses, fetchRiderAffinities, fetchRiders } from '@/features/riders/api.js';
+import { formatDate } from '@/lib/dates.js';
 import { useAuthStore } from '@/stores/authStore.js';
+
+/**
+ * Ligne d'un cavalier : séances du forfait prises cette semaine et rattrapages.
+ * @param {{ rider: { firstName: string, subscription: object | null, sessionsPerWeek: number,
+ *   usedThisWeek: number, credits: Array<{ expiresAt: string }> } }} props
+ */
+function RiderWeek({ rider }) {
+  if (!rider.subscription) {
+    return (
+      <li className="font-sans text-sm text-primary-fg/80">{rider.firstName} : pas de forfait</li>
+    );
+  }
+  const used = Math.min(rider.usedThisWeek, rider.sessionsPerWeek);
+  return (
+    <li className="font-sans text-sm">
+      <span className="font-semibold">{rider.firstName}</span> · {used}/{rider.sessionsPerWeek}{' '}
+      cette semaine
+      {rider.credits.length > 0 ? (
+        <span className="block text-xs text-primary-fg/80">
+          {rider.credits.length} rattrapage{rider.credits.length > 1 ? 's' : ''} (avant le{' '}
+          {formatDate(rider.credits[0].expiresAt)})
+        </span>
+      ) : null}
+    </li>
+  );
+}
 
 /** Tableau de bord famille — bento Stitch (`tableau_de_bord_client`). */
 export function ClientDashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const quota = user?.sessionQuota ?? 0;
+  const { data: entitlements } = useEntitlements();
+  const riderRights = entitlements?.riders ?? [];
+  const hasSubscription = riderRights.some((rider) => rider.subscription);
 
   const { data: horses = [], isPending: horsesPending } = useQuery({
     queryKey: ['horses'],
@@ -70,16 +100,25 @@ export function ClientDashboardPage() {
         <section className="col-span-12 flex flex-col justify-between rounded-xl bg-primary p-8 text-primary-fg lg:col-span-4">
           <div>
             <p className="font-sans text-xs font-semibold uppercase tracking-wide text-primary-fg/70">
-              Abonnement famille
+              Forfaits
             </p>
-            <p className="mt-4 font-display text-6xl leading-none">{quota}</p>
-            <p className="mt-2 font-sans text-sm text-primary-fg/80">séances restantes</p>
+            {riderRights.length === 0 ? (
+              <p className="mt-4 font-sans text-sm text-primary-fg/80">
+                Ajoutez un cavalier pour choisir son forfait.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {riderRights.map((rider) => (
+                  <RiderWeek key={rider.riderId} rider={rider} />
+                ))}
+              </ul>
+            )}
           </div>
           <Link
-            to="/app/planning"
+            to={hasSubscription ? '/app/planning' : '/app/cavaliers'}
             className="mt-8 inline-flex h-11 items-center justify-center rounded-xl bg-primary-light px-5 font-sans text-sm font-semibold text-primary-fg"
           >
-            Voir le planning
+            {hasSubscription ? 'Réserver une séance' : 'Choisir un forfait'}
           </Link>
         </section>
 
