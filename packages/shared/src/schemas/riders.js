@@ -20,8 +20,14 @@ export const createRiderSchema = z.object({
   firstName: z.string().trim().min(1, 'Le prénom est requis').max(80),
   lastName: z.string().trim().min(1, 'Le nom est requis').max(80),
   birthdate: z
-    .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ'), z.coerce.date()])
-    .transform((value) => (value instanceof Date ? value : new Date(`${value}T00:00:00.000Z`))),
+    .union([
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La date de naissance est requise'),
+      z.coerce.date(),
+    ])
+    .transform((value) => (value instanceof Date ? value : new Date(`${value}T00:00:00.000Z`)))
+    .refine((date) => !Number.isNaN(date.getTime()), 'Date de naissance invalide')
+    .refine((date) => date <= new Date(), 'La date de naissance ne peut pas être dans le futur')
+    .refine((date) => date.getUTCFullYear() >= 1920, 'Date de naissance invalide'),
   level: riderLevelSchema.default('initiation'),
   // Optionnel et sans format imposé : les numéros de licence FFE varient
   // selon les clubs et les années d'émission, une contrainte de format
@@ -47,7 +53,11 @@ export const documentUploadFieldsSchema = z.object({
     .union([z.literal('true'), z.literal('false'), z.boolean()])
     .optional()
     .transform((value) => value === true || value === 'true'),
-  expiresAt: documentExpiresAtSchema,
+  // Déposé par la famille : un document déjà expiré n'a pas lieu d'être téléversé
+  expiresAt: documentExpiresAtSchema.refine((date) => {
+    const now = new Date();
+    return date >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  }, 'Ce document est déjà expiré : déposez un document en cours de validité'),
 });
 
 export const upsertAffinitySchema = z.object({

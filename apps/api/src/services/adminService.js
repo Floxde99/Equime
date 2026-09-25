@@ -2,9 +2,74 @@
 /**
  * Service administration — KPIs dashboard, gestion des membres (US-9.1, US-9.2).
  */
+import { Prisma } from '../../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 
 import { withWeeklyLoad } from './horseLoad.js';
+
+const FAMILY_SEARCH_LIMIT = 10;
+const FAMILY_SEARCH_MAX_TOKENS = 4;
+
+/**
+ * Motif LIKE d'un mot saisi : `%` et `_` tapés par l'utilisateur restent littéraux.
+ * @param {string} token
+ */
+function likePattern(token) {
+  return `%${token.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/**
+ * Recherche de familles pour le secrétariat (facturation, inscriptions).
+ * Chaque mot doit apparaître dans le nom ou l'e-mail du parent, ou dans le
+ * nom d'un cavalier ; comparaison insensible à la casse et aux accents
+ * (`unaccent`). Les comptes anonymisés (RGPD) sont exclus.
+ *
+ * @param {string} query au moins 2 caractères (validé par Zod)
+ */
+export async function searchFamilies(query) {
+  const tokens = query.trim().split(/\s+/).filter(Boolean).slice(0, FAMILY_SEARCH_MAX_TOKENS);
+
+  const tokenConditions = tokens.map((token) => {
+    const pattern = likePattern(token);
+    return Prisma.sql`(
+      unaccent(lower(u."firstName" || ' ' || u."lastName")) LIKE unaccent(lower(${pattern}))
+      OR lower(u."email") LIKE lower(${pattern})
+      OR EXISTS (
+        SELECT 1 FROM "riders" r
+        WHERE r."familyId" = f."id"
+          AND unaccent(lower(r."firstName" || ' ' || r."lastName")) LIKE unaccent(lower(${pattern}))
+      )
+    )`;
+  });
+
+  /** @type {Array<{ id: string }>} */
+  const rows = await prisma.$queryRaw`
+    SELECT f."id"
+    FROM "families" f
+    JOIN "users" u ON u."id" = f."userId"
+    WHERE u."anonymizedAt" IS NULL
+      AND ${Prisma.join(tokenConditions, ' AND ')}
+    ORDER BY u."lastName", u."firstName"
+    LIMIT ${FAMILY_SEARCH_LIMIT}
+  `;
+  if (rows.length === 0) return [];
+
+  const families = await prisma.family.findMany({
+    where: { id: { in: rows.map((row) => row.id) } },
+    select: {
+      id: true,
+      user: { select: { id: true, firstName: true, lastName: true, email: true, banned: true } },
+      riders: {
+        select: { id: true, firstName: true, lastName: true, level: true },
+        orderBy: { firstName: 'asc' },
+      },
+      subscriptionPlan: { select: { id: true, name: true, priceCents: true } },
+    },
+  });
+  // Conserve l'ordre alphabétique calculé en SQL
+  const byId = new Map(families.map((family) => [family.id, family]));
+  return rows.map((row) => byId.get(row.id)).filter(Boolean);
+}
 
 const MEMBER_SELECT = {
   id: true,
@@ -22,7 +87,13 @@ const MEMBER_SELECT = {
       id: true,
       sessionQuota: true,
       subscriptionPlanId: true,
-      subscriptionPlan: { select: { id: true, name: true, sessionsPerWeek: true } },
+      subscriptionPlan: {
+        select: { id: true, name: true, sessionsPerWeek: true, priceCents: true },
+      },
+      riders: {
+        select: { id: true, firstName: true, lastName: true, level: true },
+        orderBy: { firstName: 'asc' },
+      },
     },
   },
 };

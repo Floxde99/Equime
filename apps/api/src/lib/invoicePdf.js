@@ -3,7 +3,7 @@
  * Génération du PDF de facture (PDFKit, A4).
  * Le helper est pur : pas d’accès Prisma ni `req`/`res`.
  */
-import { INVOICE_STATUS_LABELS } from '@equime/shared';
+import { CLUB_TIME_ZONE, INVOICE_STATUS_LABELS } from '@equime/shared';
 import PDFDocument from 'pdfkit';
 
 const PAGE_WIDTH = 595.28;
@@ -15,7 +15,7 @@ const BORDER = '#e4e0d6';
 const PAPER = '#f6f4ef';
 
 const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
-const longDate = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
+const longDate = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeZone: CLUB_TIME_ZONE });
 
 /**
  * @param {unknown} cents

@@ -11,7 +11,8 @@ export const horseIdParamSchema = z.object({
   id: z.string().min(1),
 });
 
-const horseBodySchema = z.object({
+/** Champs d'une fiche cheval, sans règle croisée (à composer côté formulaires). */
+export const horseFieldsSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est requis').max(80),
   breed: z
     .string()
@@ -27,21 +28,41 @@ const horseBodySchema = z.object({
   alertThresholdHours: z.coerce.number().positive().max(40).default(10),
 });
 
-/** @param {z.infer<typeof horseBodySchema>} data @param {import('zod').RefinementCtx} ctx */
-function validateHorseLevels(data, ctx) {
+/**
+ * Niveaux et seuils cohérents. En modification partielle, seuls les couples
+ * fournis ensemble sont comparés.
+ * @param {Partial<z.infer<typeof horseFieldsSchema>>} data
+ * @param {import('zod').RefinementCtx} ctx
+ */
+export function refineHorseLevels(data, ctx) {
   const levels = RIDER_LEVEL_VALUES;
-  if (levels.indexOf(data.minLevel) > levels.indexOf(data.maxLevel)) {
+  if (
+    data.minLevel &&
+    data.maxLevel &&
+    levels.indexOf(data.minLevel) > levels.indexOf(data.maxLevel)
+  ) {
     ctx.addIssue({
       code: 'custom',
       message: 'Le niveau minimum ne peut pas dépasser le niveau maximum',
       path: ['minLevel'],
     });
   }
+  if (
+    data.alertThresholdHours != null &&
+    data.maxWeeklyLoadHours != null &&
+    data.alertThresholdHours > data.maxWeeklyLoadHours
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Le seuil d’alerte ne peut pas dépasser la charge maximale',
+      path: ['alertThresholdHours'],
+    });
+  }
 }
 
-export const createHorseSchema = horseBodySchema.superRefine(validateHorseLevels);
+export const createHorseSchema = horseFieldsSchema.superRefine(refineHorseLevels);
 
-export const updateHorseSchema = horseBodySchema.partial();
+export const updateHorseSchema = horseFieldsSchema.partial().superRefine(refineHorseLevels);
 
 export const createHealthLogSchema = z.object({
   type: z.enum(HEALTH_LOG_TYPE_VALUES),

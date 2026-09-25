@@ -22,6 +22,7 @@ import messagesRouter from './routes/messages.routes.js';
 import notificationsRouter from './routes/notifications.routes.js';
 import publicRouter from './routes/public.routes.js';
 import ridersRouter from './routes/riders.routes.js';
+import settingsRouter from './routes/settings.routes.js';
 import spacesRouter from './routes/spaces.routes.js';
 import volunteerRouter from './routes/volunteer.routes.js';
 import webhookRouter from './routes/webhook.routes.js';
@@ -81,6 +82,7 @@ export function createApp() {
   app.use('/api/v1/messages', messagesRouter);
   app.use('/api/v1/admin', adminRouter);
   app.use('/api/v1/client', clientRouter);
+  app.use('/api/v1/settings', settingsRouter);
 
   // --- 404 & erreurs (toujours en dernier) ---
   app.use(notFound);

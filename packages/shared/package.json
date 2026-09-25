@@ -8,12 +8,19 @@
     ".": "./src/index.js",
     "./constants": "./src/constants.js",
     "./labels": "./src/labels.js",
-    "./schemas/auth": "./src/schemas/auth.js"
+    "./schemas/auth": "./src/schemas/auth.js",
+    "./formatters": "./src/formatters.js"
   },
   "peerDependencies": {
     "zod": "^4"
   },
   "dependencies": {
     "zod": "^4.4.3"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

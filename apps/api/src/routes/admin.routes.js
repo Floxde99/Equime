@@ -9,6 +9,7 @@ import {
   createMemberSchema,
   createSubscriptionPlanSchema,
   familyIdParamSchema,
+  familySearchQuerySchema,
   invoiceIdParamSchema,
   reviewDocumentSchema,
   riderDocumentReviewParamSchema,
@@ -32,6 +33,7 @@ router.use(requireAuth, requireRole(ROLES.ADMIN));
 
 router.get('/dashboard-kpis', adminController.dashboardKpis);
 router.get('/members', adminController.listMembers);
+router.get('/families', validate(familySearchQuerySchema, 'query'), adminController.searchFamilies);
 router.post('/members', validate(createMemberSchema), adminController.createMember);
 router.patch(
   '/members/:id',

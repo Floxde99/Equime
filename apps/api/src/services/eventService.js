@@ -2,7 +2,7 @@
 /**
  * Service événements — vitrine publique, CRUD admin et inscriptions client.
  */
-import { NOTIFICATION_TYPES, ROLES } from '@equime/shared';
+import { formatDateTime, NOTIFICATION_TYPES, ROLES } from '@equime/shared';
 
 import { AppError } from '../lib/appError.js';
 import { getFamilyIdForUser } from '../lib/family.js';
@@ -159,10 +159,6 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
         });
   if (!rider) throw AppError.notFound('Cavalier introuvable');
 
-  if (!force) {
-    assertRiderDocumentsApproved(rider);
-  }
-
   const existing = await prisma.eventRegistration.findUnique({
     where: { eventId_riderId: { eventId, riderId } },
   });
@@ -184,6 +180,10 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
     });
     if (!eventRow || eventRow.startAt <= new Date()) {
       throw AppError.notFound('Événement introuvable');
+    }
+    // Documents valables à la date de l'événement (Excel 7.2)
+    if (!force) {
+      assertRiderDocumentsApproved(rider, eventRow.startAt);
     }
 
     const current = await tx.eventRegistration.findUnique({
@@ -238,12 +238,12 @@ export async function registerRider(userId, eventId, riderId, options = {}) {
         `Bonjour,`,
         '',
         `${rider.firstName} ${rider.lastName} est inscrit(e) à l'événement « ${event.title} ».`,
-        `Début : ${event.startAt.toLocaleString('fr-FR')}.`,
+        `Début : ${formatDateTime(event.startAt)}.`,
       ].join('\n'),
       html: [
         '<p>Bonjour,</p>',
         `<p>${escapeHtml(rider.firstName)} ${escapeHtml(rider.lastName)} est inscrit(e) à l'événement <strong>${escapeHtml(event.title)}</strong>.</p>`,
-        `<p>Début : ${escapeHtml(event.startAt.toLocaleString('fr-FR'))}</p>`,
+        `<p>Début : ${escapeHtml(formatDateTime(event.startAt))}</p>`,
       ].join('\n'),
     },
   });
